@@ -38,6 +38,10 @@ salesOrdersRoute.get("/:id", async (c) => {
 salesOrdersRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.customerId || !body.items?.length) return c.json({ error: "customerId and items required" }, 400);
+  for (const item of body.items) {
+    if (!item.quantity || item.quantity <= 0) return c.json({ error: "item quantity must be > 0" }, 400);
+    if (item.unitPrice != null && item.unitPrice < 0) return c.json({ error: "item unitPrice must be >= 0" }, 400);
+  }
   const orderNumber = await generateRunningNumber("SO", "sales_orders", "order_number");
   let subtotal = 0;
   const itemData: { productId: number; quantity: number; unitPrice: number; amount: number }[] = [];

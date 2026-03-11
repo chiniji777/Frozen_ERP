@@ -21,6 +21,7 @@ expensesRoute.post("/", async (c) => {
   if (!body.category || !body.description || body.amount == null || !body.date) {
     return c.json({ error: "category, description, amount, date required" }, 400);
   }
+  if (body.amount <= 0) return c.json({ error: "amount must be > 0" }, 400);
   const result = await db.insert(expenses).values({
     category: body.category, description: body.description,
     amount: body.amount, date: body.date, notes: body.notes || null,

@@ -8,7 +8,8 @@ export async function seedAdmin() {
     eq(schema.users.username, "admin")
   ).get();
   if (!existing) {
-    const hashed = await hashPassword("admin123");
+    const adminPw = process.env.ADMIN_PASSWORD || "admin123";
+    const hashed = await hashPassword(adminPw);
     await db.insert(schema.users).values({
       username: "admin",
       password: hashed,
