@@ -7,6 +7,12 @@ import { rawMaterialsRoute } from "./routes/raw-materials";
 import { bomRoute } from "./routes/bom";
 import { productionRoute } from "./routes/production";
 import { costsRoute } from "./routes/costs";
+import { salesOrdersRoute } from "./routes/sales-orders";
+import { deliveryNotesRoute } from "./routes/delivery-notes";
+import { invoicesRoute } from "./routes/invoices";
+import { paymentsRoute } from "./routes/payments";
+import { receiptsRoute } from "./routes/receipts";
+import { expensesRoute } from "./routes/expenses";
 import { authMiddleware } from "./auth";
 import "./db"; // init DB + seed
 
@@ -40,6 +46,18 @@ app.use("/api/costs/*", authMiddleware);
 app.route("/api/bom", bomRoute);
 app.route("/api/production", productionRoute);
 app.route("/api/costs", costsRoute);
+app.use("/api/sales-orders/*", authMiddleware);
+app.use("/api/delivery-notes/*", authMiddleware);
+app.use("/api/invoices/*", authMiddleware);
+app.use("/api/payments/*", authMiddleware);
+app.use("/api/receipts/*", authMiddleware);
+app.use("/api/expenses/*", authMiddleware);
+app.route("/api/sales-orders", salesOrdersRoute);
+app.route("/api/delivery-notes", deliveryNotesRoute);
+app.route("/api/invoices", invoicesRoute);
+app.route("/api/payments", paymentsRoute);
+app.route("/api/receipts", receiptsRoute);
+app.route("/api/expenses", expensesRoute);
 
 const port = 4000;
 console.log(`[erp] Server starting on port ${port}`);
