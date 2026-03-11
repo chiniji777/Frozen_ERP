@@ -15,9 +15,10 @@ import { receiptsRoute } from "./routes/receipts";
 import { expensesRoute } from "./routes/expenses";
 import { dashboardRoute } from "./routes/dashboard";
 import { authMiddleware } from "./auth";
-import "./db"; // init DB + seed
+import { initDB } from "./db";
+import { seedAdmin } from "./seed";
 
-const app = new Hono();
+export const app = new Hono();
 
 // Global middleware
 app.use("*", cors());
@@ -61,6 +62,9 @@ app.route("/api/receipts", receiptsRoute);
 app.route("/api/expenses", expensesRoute);
 app.use("/api/dashboard", authMiddleware);
 app.route("/api/dashboard", dashboardRoute);
+
+// Init DB + seed on startup
+const _init = initDB().then(() => seedAdmin()).catch(console.error);
 
 const port = 4000;
 console.log(`[erp] Server starting on port ${port}`);

@@ -1,15 +1,15 @@
 import { Hono } from "hono";
 import { db } from "../db";
 import { expenses } from "../schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const expensesRoute = new Hono();
 
-expensesRoute.get("/", (c) => {
+expensesRoute.get("/", async (c) => {
   const category = c.req.query("category")?.trim();
   const from = c.req.query("from")?.trim();
   const to = c.req.query("to")?.trim();
-  let rows = db.select().from(expenses).all();
+  let rows = await db.select().from(expenses).all();
   if (category) rows = rows.filter(r => r.category === category);
   if (from) rows = rows.filter(r => r.date >= from);
   if (to) rows = rows.filter(r => r.date <= to);
@@ -21,7 +21,7 @@ expensesRoute.post("/", async (c) => {
   if (!body.category || !body.description || body.amount == null || !body.date) {
     return c.json({ error: "category, description, amount, date required" }, 400);
   }
-  const result = db.insert(expenses).values({
+  const result = await db.insert(expenses).values({
     category: body.category, description: body.description,
     amount: body.amount, date: body.date, notes: body.notes || null,
   }).run();
@@ -30,10 +30,10 @@ expensesRoute.post("/", async (c) => {
 
 expensesRoute.put("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const existing = db.select().from(expenses).where(eq(expenses.id, id)).get();
+  const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
   if (!existing) return c.json({ error: "Expense not found" }, 404);
   const body = await c.req.json();
-  db.update(expenses).set({
+  await db.update(expenses).set({
     category: body.category ?? existing.category,
     description: body.description ?? existing.description,
     amount: body.amount ?? existing.amount,
@@ -44,11 +44,11 @@ expensesRoute.put("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-expensesRoute.delete("/:id", (c) => {
+expensesRoute.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const existing = db.select().from(expenses).where(eq(expenses.id, id)).get();
+  const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
   if (!existing) return c.json({ error: "Expense not found" }, 404);
-  db.delete(expenses).where(eq(expenses.id, id)).run();
+  await db.delete(expenses).where(eq(expenses.id, id)).run();
   return c.json({ ok: true });
 });
 

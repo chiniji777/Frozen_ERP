@@ -1,7 +1,16 @@
 import { SignJWT, jwtVerify } from "jose";
+import bcrypt from "bcryptjs";
 import type { Context, Next } from "hono";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "erp-secret-key-change-in-production");
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 10);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
 
 export async function signToken(payload: { userId: number; username: string; role: string }): Promise<string> {
   return new SignJWT(payload)

@@ -3,16 +3,21 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "build": "cd frontend && bun install && bun run build"
+  },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/bun": "latest",
+    "@types/bcryptjs": "^2.4.6",
     "drizzle-kit": "^0.31.9"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
+    "@libsql/client": "^0.14.0",
+    "bcryptjs": "^3.0.2",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.12.7",
     "jose": "^6.2.1"

@@ -6,26 +6,27 @@ import { generateRunningNumber } from "../utils";
 
 const salesOrdersRoute = new Hono();
 
-salesOrdersRoute.get("/", (c) => {
+salesOrdersRoute.get("/", async (c) => {
   const q = c.req.query("q")?.trim();
   const status = c.req.query("status")?.trim();
-  let orders = db.select().from(salesOrders).all();
+  let orders = await db.select().from(salesOrders).all();
   if (status) orders = orders.filter(o => o.status === status);
-  const result = orders.map(o => {
-    const customer = db.select().from(customers).where(eq(customers.id, o.customerId)).get();
-    if (q && customer && !customer.name.toLowerCase().includes(q.toLowerCase())) return null;
-    const items = db.select().from(soItems).where(eq(soItems.salesOrderId, o.id)).all();
-    return { ...o, customer, items };
-  }).filter(Boolean);
+  const result = [];
+  for (const o of orders) {
+    const customer = await db.select().from(customers).where(eq(customers.id, o.customerId)).get();
+    if (q && customer && !customer.name.toLowerCase().includes(q.toLowerCase())) continue;
+    const items = await db.select().from(soItems).where(eq(soItems.salesOrderId, o.id)).all();
+    result.push({ ...o, customer, items });
+  }
   return c.json(result);
 });
 
-salesOrdersRoute.get("/:id", (c) => {
+salesOrdersRoute.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const o = db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  const o = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
   if (!o) return c.json({ error: "Sales order not found" }, 404);
-  const customer = db.select().from(customers).where(eq(customers.id, o.customerId)).get();
-  const items = db.select({
+  const customer = await db.select().from(customers).where(eq(customers.id, o.customerId)).get();
+  const items = await db.select({
     id: soItems.id, productId: soItems.productId, quantity: soItems.quantity,
     unitPrice: soItems.unitPrice, amount: soItems.amount,
     productName: products.name, sku: products.sku,
@@ -37,12 +38,11 @@ salesOrdersRoute.get("/:id", (c) => {
 salesOrdersRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.customerId || !body.items?.length) return c.json({ error: "customerId and items required" }, 400);
-
-  const orderNumber = generateRunningNumber("SO", "sales_orders", "order_number");
+  const orderNumber = await generateRunningNumber("SO", "sales_orders", "order_number");
   let subtotal = 0;
   const itemData: { productId: number; quantity: number; unitPrice: number; amount: number }[] = [];
   for (const item of body.items) {
-    const product = db.select().from(products).where(eq(products.id, item.productId)).get();
+    const product = await db.select().from(products).where(eq(products.id, item.productId)).get();
     const unitPrice = item.unitPrice ?? product?.salePrice ?? 0;
     const amount = unitPrice * item.quantity;
     subtotal += amount;
@@ -51,26 +51,24 @@ salesOrdersRoute.post("/", async (c) => {
   const vatRate = body.vatRate ?? 7;
   const vatAmount = Math.round(subtotal * vatRate / 100 * 100) / 100;
   const totalAmount = subtotal + vatAmount;
-
-  const result = db.insert(salesOrders).values({
+  const result = await db.insert(salesOrders).values({
     customerId: body.customerId, orderNumber, subtotal, vatRate, vatAmount, totalAmount,
     notes: body.notes || null,
   }).run();
   const soId = Number(result.lastInsertRowid);
-
   for (const item of itemData) {
-    db.insert(soItems).values({ salesOrderId: soId, ...item }).run();
+    await db.insert(soItems).values({ salesOrderId: soId, ...item }).run();
   }
   return c.json({ ok: true, id: soId, orderNumber, subtotal, vatAmount, totalAmount }, 201);
 });
 
 salesOrdersRoute.put("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const existing = db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  const existing = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
   if (!existing) return c.json({ error: "Sales order not found" }, 404);
   if (existing.status !== "draft") return c.json({ error: "Can only edit draft orders" }, 400);
   const body = await c.req.json();
-  db.update(salesOrders).set({
+  await db.update(salesOrders).set({
     customerId: body.customerId ?? existing.customerId,
     notes: body.notes ?? existing.notes,
     updatedAt: sql`datetime('now')`,
@@ -78,12 +76,12 @@ salesOrdersRoute.put("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-salesOrdersRoute.post("/:id/confirm", (c) => {
+salesOrdersRoute.post("/:id/confirm", async (c) => {
   const id = Number(c.req.param("id"));
-  const o = db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  const o = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
   if (!o) return c.json({ error: "Sales order not found" }, 404);
   if (o.status !== "draft") return c.json({ error: "Can only confirm draft orders" }, 400);
-  db.update(salesOrders).set({ status: "confirmed", updatedAt: sql`datetime('now')` }).where(eq(salesOrders.id, id)).run();
+  await db.update(salesOrders).set({ status: "confirmed", updatedAt: sql`datetime('now')` }).where(eq(salesOrders.id, id)).run();
   return c.json({ ok: true, status: "confirmed" });
 });
 
