@@ -4,6 +4,9 @@ import { auth } from "./routes/auth";
 import { customersRoute } from "./routes/customers";
 import { productsRoute } from "./routes/products";
 import { rawMaterialsRoute } from "./routes/raw-materials";
+import { bomRoute } from "./routes/bom";
+import { productionRoute } from "./routes/production";
+import { costsRoute } from "./routes/costs";
 import { authMiddleware } from "./auth";
 import "./db"; // init DB + seed
 
@@ -31,6 +34,12 @@ app.use("/api/raw-materials/*", authMiddleware);
 app.route("/api/customers", customersRoute);
 app.route("/api/products", productsRoute);
 app.route("/api/raw-materials", rawMaterialsRoute);
+app.use("/api/bom/*", authMiddleware);
+app.use("/api/production/*", authMiddleware);
+app.use("/api/costs/*", authMiddleware);
+app.route("/api/bom", bomRoute);
+app.route("/api/production", productionRoute);
+app.route("/api/costs", costsRoute);
 
 const port = 4000;
 console.log(`[erp] Server starting on port ${port}`);

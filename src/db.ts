@@ -65,6 +65,41 @@ sqlite.exec(`
   );
 `);
 
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS bom (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS bom_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bom_id INTEGER NOT NULL,
+    raw_material_id INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    unit TEXT NOT NULL DEFAULT 'กก.',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS production_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bom_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    labor_cost REAL NOT NULL DEFAULT 0,
+    overhead_cost REAL NOT NULL DEFAULT 0,
+    total_material_cost REAL NOT NULL DEFAULT 0,
+    total_cost REAL NOT NULL DEFAULT 0,
+    cost_per_unit REAL NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // Seed default admin
 async function seedAdmin() {
   const existing = db.select().from(schema.users).where(

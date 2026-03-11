@@ -49,3 +49,35 @@ export const rawMaterials = sqliteTable("raw_materials", {
   notes: text("notes"),
   ...timestamps,
 });
+
+export const bom = sqliteTable("bom", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  productId: integer("product_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  ...timestamps,
+});
+
+export const bomItems = sqliteTable("bom_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  bomId: integer("bom_id").notNull(),
+  rawMaterialId: integer("raw_material_id").notNull(),
+  quantity: real("quantity").notNull(),
+  unit: text("unit").notNull().default("กก."),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const productionOrders = sqliteTable("production_orders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  bomId: integer("bom_id").notNull(),
+  productId: integer("product_id").notNull(),
+  quantity: real("quantity").notNull(),
+  status: text("status", { enum: ["draft", "in_progress", "completed", "cancelled"] }).notNull().default("draft"),
+  laborCost: real("labor_cost").notNull().default(0),
+  overheadCost: real("overhead_cost").notNull().default(0),
+  totalMaterialCost: real("total_material_cost").notNull().default(0),
+  totalCost: real("total_cost").notNull().default(0),
+  costPerUnit: real("cost_per_unit").notNull().default(0),
+  notes: text("notes"),
+  ...timestamps,
+});
