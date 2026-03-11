@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { db } from "../db";
-import { salesOrders, soItems, invoices, payments, products, rawMaterials, customers, expenses, productionOrders } from "../schema";
+import { db } from "../db.js";
+import { salesOrders, soItems, invoices, payments, products, rawMaterials, customers, expenses, productionOrders } from "../schema.js";
 import { eq } from "drizzle-orm";
 
 const dashboardRoute = new Hono();

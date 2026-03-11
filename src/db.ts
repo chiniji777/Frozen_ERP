@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import { join } from "path";
 import { mkdirSync } from "fs";
-import * as schema from "./schema";
+import * as schema from "./schema.js";
 
 // Ensure data dir exists for local dev
 const dataDir = join(import.meta.dir, "../data");
