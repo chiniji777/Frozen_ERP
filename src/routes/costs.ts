@@ -5,18 +5,15 @@ import { eq, desc } from "drizzle-orm";
 
 const costsRoute = new Hono();
 
-// GET /api/costs/product/:id — latest cost per unit
-costsRoute.get("/product/:id", (c) => {
+costsRoute.get("/product/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const product = db.select().from(products).where(eq(products.id, id)).get();
+  const product = await db.select().from(products).where(eq(products.id, id)).get();
   if (!product) return c.json({ error: "Product not found" }, 404);
-
-  const latest = db.select().from(productionOrders)
+  const latest = await db.select().from(productionOrders)
     .where(eq(productionOrders.productId, id))
     .orderBy(desc(productionOrders.createdAt))
     .limit(1)
     .get();
-
   return c.json({
     product,
     latestCostPerUnit: latest?.costPerUnit ?? null,
@@ -25,11 +22,11 @@ costsRoute.get("/product/:id", (c) => {
   });
 });
 
-// GET /api/costs/margin — margin analysis for all products
-costsRoute.get("/margin", (c) => {
-  const allProducts = db.select().from(products).all();
-  const result = allProducts.map((p) => {
-    const latest = db.select().from(productionOrders)
+costsRoute.get("/margin", async (c) => {
+  const allProducts = await db.select().from(products).all();
+  const result = [];
+  for (const p of allProducts) {
+    const latest = await db.select().from(productionOrders)
       .where(eq(productionOrders.productId, p.id))
       .orderBy(desc(productionOrders.createdAt))
       .limit(1)
@@ -37,30 +34,22 @@ costsRoute.get("/margin", (c) => {
     const costPerUnit = latest?.costPerUnit ?? 0;
     const margin = p.salePrice - costPerUnit;
     const marginPct = p.salePrice > 0 ? (margin / p.salePrice) * 100 : 0;
-    return {
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      salePrice: p.salePrice,
-      costPerUnit,
-      margin,
-      marginPercent: Math.round(marginPct * 100) / 100,
-    };
-  });
+    result.push({
+      id: p.id, name: p.name, sku: p.sku, salePrice: p.salePrice,
+      costPerUnit, margin, marginPercent: Math.round(marginPct * 100) / 100,
+    });
+  }
   return c.json(result);
 });
 
-// GET /api/costs/history/:productId — production cost history
-costsRoute.get("/history/:productId", (c) => {
+costsRoute.get("/history/:productId", async (c) => {
   const productId = Number(c.req.param("productId"));
-  const product = db.select().from(products).where(eq(products.id, productId)).get();
+  const product = await db.select().from(products).where(eq(products.id, productId)).get();
   if (!product) return c.json({ error: "Product not found" }, 404);
-
-  const history = db.select().from(productionOrders)
+  const history = await db.select().from(productionOrders)
     .where(eq(productionOrders.productId, productId))
     .orderBy(desc(productionOrders.createdAt))
     .all();
-
   return c.json({ product, history });
 });
 

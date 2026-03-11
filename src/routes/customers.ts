@@ -5,32 +5,29 @@ import { eq, like, or, sql } from "drizzle-orm";
 
 const customersRoute = new Hono();
 
-// GET /api/customers — list + search
-customersRoute.get("/", (c) => {
+customersRoute.get("/", async (c) => {
   const q = c.req.query("q")?.trim();
   if (q) {
     const pattern = `%${q}%`;
-    const rows = db.select().from(customers)
+    const rows = await db.select().from(customers)
       .where(or(like(customers.name, pattern), like(customers.phone, pattern)))
       .all();
     return c.json(rows);
   }
-  return c.json(db.select().from(customers).all());
+  return c.json(await db.select().from(customers).all());
 });
 
-// GET /api/customers/:id
-customersRoute.get("/:id", (c) => {
+customersRoute.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const row = db.select().from(customers).where(eq(customers.id, id)).get();
+  const row = await db.select().from(customers).where(eq(customers.id, id)).get();
   if (!row) return c.json({ error: "Customer not found" }, 404);
   return c.json(row);
 });
 
-// POST /api/customers
 customersRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.name) return c.json({ error: "name required" }, 400);
-  const result = db.insert(customers).values({
+  const result = await db.insert(customers).values({
     name: body.name,
     address: body.address || null,
     phone: body.phone || null,
@@ -38,17 +35,15 @@ customersRoute.post("/", async (c) => {
     taxId: body.taxId || null,
     notes: body.notes || null,
   }).run();
-  return c.json({ ok: true, id: result.lastInsertRowid }, 201);
+  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
 
-// PUT /api/customers/:id
 customersRoute.put("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const existing = db.select().from(customers).where(eq(customers.id, id)).get();
+  const existing = await db.select().from(customers).where(eq(customers.id, id)).get();
   if (!existing) return c.json({ error: "Customer not found" }, 404);
-
   const body = await c.req.json();
-  db.update(customers).set({
+  await db.update(customers).set({
     name: body.name ?? existing.name,
     address: body.address ?? existing.address,
     phone: body.phone ?? existing.phone,
@@ -60,12 +55,11 @@ customersRoute.put("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-// DELETE /api/customers/:id
-customersRoute.delete("/:id", (c) => {
+customersRoute.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const existing = db.select().from(customers).where(eq(customers.id, id)).get();
+  const existing = await db.select().from(customers).where(eq(customers.id, id)).get();
   if (!existing) return c.json({ error: "Customer not found" }, 404);
-  db.delete(customers).where(eq(customers.id, id)).run();
+  await db.delete(customers).where(eq(customers.id, id)).run();
   return c.json({ ok: true });
 });
 

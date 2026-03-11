@@ -1,11 +1,11 @@
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 
-export function generateRunningNumber(prefix: string, tableName: string, columnName: string): string {
+export async function generateRunningNumber(prefix: string, tableName: string, columnName: string): Promise<string> {
   const today = new Date();
   const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
   const pattern = `${prefix}-${dateStr}-%`;
-  const result = db.all(sql`SELECT ${sql.raw(columnName)} FROM ${sql.raw(tableName)} WHERE ${sql.raw(columnName)} LIKE ${pattern} ORDER BY ${sql.raw(columnName)} DESC LIMIT 1`) as any[];
+  const result = await db.all(sql`SELECT ${sql.raw(columnName)} FROM ${sql.raw(tableName)} WHERE ${sql.raw(columnName)} LIKE ${pattern} ORDER BY ${sql.raw(columnName)} DESC LIMIT 1`) as any[];
   let seq = 1;
   if (result.length > 0) {
     const last = result[0][columnName] as string;
