@@ -75,7 +75,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v: number) => `฿${v.toLocaleString()}`} />
+                <Tooltip formatter={(v) => `฿${Number(v ?? 0).toLocaleString()}`} />
                 <Legend />
                 <Line type="monotone" dataKey="revenue" name="รายได้" stroke="#6366f1" strokeWidth={2} />
                 <Line type="monotone" dataKey="cost" name="ต้นทุน" stroke="#f59e0b" strokeWidth={2} />
@@ -91,10 +91,10 @@ export default function DashboardPage() {
           {expenseByCategory.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={expenseByCategory} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={90} label={({ category, percent }) => `${category} ${(percent * 100).toFixed(0)}%`}>
+                <Pie data={expenseByCategory} dataKey="total" nameKey="category" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                   {expenseByCategory.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                 </Pie>
-                <Tooltip formatter={(v: number) => `฿${v.toLocaleString()}`} />
+                <Tooltip formatter={(v) => `฿${Number(v ?? 0).toLocaleString()}`} />
               </PieChart>
             </ResponsiveContainer>
           ) : <p className="text-gray-400 text-center py-10">ไม่พบข้อมูล</p>}
