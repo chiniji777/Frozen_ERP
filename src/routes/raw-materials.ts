@@ -32,7 +32,7 @@ rawMaterialsRoute.post("/", async (c) => {
     supplier: body.supplier || null,
     notes: body.notes || null,
   }).run();
-  return c.json({ ok: true, id: result.lastInsertRowid }, 201);
+  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
 
 rawMaterialsRoute.put("/:id", async (c) => {

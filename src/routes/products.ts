@@ -41,7 +41,7 @@ productsRoute.post("/", async (c) => {
     stock: body.stock ?? 0,
     imageUrl: body.imageUrl || null,
   }).run();
-  return c.json({ ok: true, id: result.lastInsertRowid }, 201);
+  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
 
 productsRoute.put("/:id", async (c) => {

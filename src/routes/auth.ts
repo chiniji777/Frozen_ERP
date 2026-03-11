@@ -49,7 +49,7 @@ auth.post("/register", authMiddleware, requireRole("admin"), async (c) => {
     role: role || "staff",
     email: email || null,
   }).run();
-  return c.json({ ok: true, id: result.lastInsertRowid }, 201);
+  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
 
 export { auth };

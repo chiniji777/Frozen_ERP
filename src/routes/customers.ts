@@ -35,7 +35,7 @@ customersRoute.post("/", async (c) => {
     taxId: body.taxId || null,
     notes: body.notes || null,
   }).run();
-  return c.json({ ok: true, id: result.lastInsertRowid }, 201);
+  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
 
 customersRoute.put("/:id", async (c) => {
