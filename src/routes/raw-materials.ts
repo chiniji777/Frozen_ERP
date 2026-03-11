@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { db } from "../db";
-import { rawMaterials } from "../schema";
+import { db } from "../db.js";
+import { rawMaterials } from "../schema.js";
 import { eq, like, sql } from "drizzle-orm";
 
 const rawMaterialsRoute = new Hono();

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { db } from "../db";
-import { productionOrders, bom, bomItems, rawMaterials, products } from "../schema";
+import { db } from "../db.js";
+import { productionOrders, bom, bomItems, rawMaterials, products } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 
 const productionRoute = new Hono();

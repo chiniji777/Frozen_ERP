@@ -1,7 +1,7 @@
-import { db } from "./db";
+import { db } from "./db.js";
 import { eq } from "drizzle-orm";
-import * as schema from "./schema";
-import { hashPassword } from "./auth";
+import * as schema from "./schema.js";
+import { hashPassword } from "./auth.js";
 
 export async function seedAdmin() {
   const existing = await db.select().from(schema.users).where(

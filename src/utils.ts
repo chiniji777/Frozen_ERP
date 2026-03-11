@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 import { sql } from "drizzle-orm";
 
 export async function generateRunningNumber(prefix: string, tableName: string, columnName: string): Promise<string> {

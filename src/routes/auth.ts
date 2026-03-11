@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import { db } from "../db";
-import { users } from "../schema";
+import { db } from "../db.js";
+import { users } from "../schema.js";
 import { eq } from "drizzle-orm";
-import { signToken, authMiddleware, requireRole, hashPassword, verifyPassword } from "../auth";
+import { signToken, authMiddleware, requireRole, hashPassword, verifyPassword } from "../auth.js";
 
 const auth = new Hono();
 

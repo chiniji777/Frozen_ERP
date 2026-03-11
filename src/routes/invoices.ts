@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import { db } from "../db";
-import { invoices, invoiceItems, salesOrders, soItems } from "../schema";
+import { db } from "../db.js";
+import { invoices, invoiceItems, salesOrders, soItems } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
-import { generateRunningNumber } from "../utils";
+import { generateRunningNumber } from "../utils.js";
 
 const invoicesRoute = new Hono();
 
