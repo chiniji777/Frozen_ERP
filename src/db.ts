@@ -100,6 +100,105 @@ sqlite.exec(`
   );
 `);
 
+
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS sales_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    order_number TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'draft',
+    subtotal REAL NOT NULL DEFAULT 0,
+    vat_rate REAL NOT NULL DEFAULT 7,
+    vat_amount REAL NOT NULL DEFAULT 0,
+    total_amount REAL NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS so_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sales_order_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    unit_price REAL NOT NULL,
+    amount REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS delivery_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sales_order_id INTEGER NOT NULL,
+    dn_number TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    shipped_at TEXT,
+    delivered_at TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS dn_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    delivery_note_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sales_order_id INTEGER NOT NULL,
+    delivery_note_id INTEGER,
+    invoice_number TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'draft',
+    subtotal REAL NOT NULL DEFAULT 0,
+    vat_rate REAL NOT NULL DEFAULT 7,
+    vat_amount REAL NOT NULL DEFAULT 0,
+    total_amount REAL NOT NULL DEFAULT 0,
+    due_date TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS invoice_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity REAL NOT NULL,
+    unit_price REAL NOT NULL,
+    amount REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invoice_id INTEGER NOT NULL,
+    payment_number TEXT NOT NULL UNIQUE,
+    amount REAL NOT NULL,
+    method TEXT NOT NULL DEFAULT 'transfer',
+    status TEXT NOT NULL DEFAULT 'pending',
+    reference TEXT,
+    paid_at TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_id INTEGER NOT NULL,
+    receipt_number TEXT NOT NULL UNIQUE,
+    amount REAL NOT NULL,
+    issued_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL,
+    date TEXT NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // Seed default admin
 async function seedAdmin() {
   const existing = db.select().from(schema.users).where(

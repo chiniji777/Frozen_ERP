@@ -81,3 +81,102 @@ export const productionOrders = sqliteTable("production_orders", {
   notes: text("notes"),
   ...timestamps,
 });
+
+export const salesOrders = sqliteTable("sales_orders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  customerId: integer("customer_id").notNull(),
+  orderNumber: text("order_number").notNull().unique(),
+  status: text("status", { enum: ["draft", "confirmed", "delivered", "invoiced", "cancelled"] }).notNull().default("draft"),
+  subtotal: real("subtotal").notNull().default(0),
+  vatRate: real("vat_rate").notNull().default(7),
+  vatAmount: real("vat_amount").notNull().default(0),
+  totalAmount: real("total_amount").notNull().default(0),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const soItems = sqliteTable("so_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  salesOrderId: integer("sales_order_id").notNull(),
+  productId: integer("product_id").notNull(),
+  quantity: real("quantity").notNull(),
+  unitPrice: real("unit_price").notNull(),
+  amount: real("amount").notNull(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const deliveryNotes = sqliteTable("delivery_notes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  salesOrderId: integer("sales_order_id").notNull(),
+  dnNumber: text("dn_number").notNull().unique(),
+  status: text("status", { enum: ["pending", "shipped", "delivered"] }).notNull().default("pending"),
+  shippedAt: text("shipped_at"),
+  deliveredAt: text("delivered_at"),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const dnItems = sqliteTable("dn_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  deliveryNoteId: integer("delivery_note_id").notNull(),
+  productId: integer("product_id").notNull(),
+  quantity: real("quantity").notNull(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const invoices = sqliteTable("invoices", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  salesOrderId: integer("sales_order_id").notNull(),
+  deliveryNoteId: integer("delivery_note_id"),
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  status: text("status", { enum: ["draft", "sent", "paid", "overdue"] }).notNull().default("draft"),
+  subtotal: real("subtotal").notNull().default(0),
+  vatRate: real("vat_rate").notNull().default(7),
+  vatAmount: real("vat_amount").notNull().default(0),
+  totalAmount: real("total_amount").notNull().default(0),
+  dueDate: text("due_date"),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const invoiceItems = sqliteTable("invoice_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  invoiceId: integer("invoice_id").notNull(),
+  productId: integer("product_id").notNull(),
+  quantity: real("quantity").notNull(),
+  unitPrice: real("unit_price").notNull(),
+  amount: real("amount").notNull(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const payments = sqliteTable("payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  invoiceId: integer("invoice_id").notNull(),
+  paymentNumber: text("payment_number").notNull().unique(),
+  amount: real("amount").notNull(),
+  method: text("method", { enum: ["cash", "transfer", "cheque"] }).notNull().default("transfer"),
+  status: text("status", { enum: ["pending", "completed"] }).notNull().default("pending"),
+  reference: text("reference"),
+  paidAt: text("paid_at"),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const receipts = sqliteTable("receipts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  paymentId: integer("payment_id").notNull(),
+  receiptNumber: text("receipt_number").notNull().unique(),
+  amount: real("amount").notNull(),
+  issuedAt: text("issued_at").default(sql`(datetime('now'))`).notNull(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const expenses = sqliteTable("expenses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  category: text("category", { enum: ["material", "labor", "rent", "utilities", "other"] }).notNull(),
+  description: text("description").notNull(),
+  amount: real("amount").notNull(),
+  date: text("date").notNull(),
+  notes: text("notes"),
+  ...timestamps,
+});
