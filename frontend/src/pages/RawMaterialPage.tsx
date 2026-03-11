@@ -1,0 +1,150 @@
+import { useState, useEffect, type FormEvent } from 'react';
+import { api } from '../api/client';
+import DataTable from '../components/DataTable';
+import Modal from '../components/Modal';
+import ConfirmDialog from '../components/ConfirmDialog';
+
+interface RawMaterial {
+  id: number;
+  name: string;
+  unit: string;
+  stock: number;
+  min_stock: number;
+  price_per_unit: number;
+}
+
+const emptyForm = { name: '', unit: 'กก.', stock: '', min_stock: '', price_per_unit: '' };
+
+export default function RawMaterialPage() {
+  const [data, setData] = useState<RawMaterial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<RawMaterial | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<RawMaterial | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    api.get<RawMaterial[]>('/raw-materials')
+      .then(setData)
+      .catch(() => setData([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const openAdd = () => { setEditing(null); setForm(emptyForm); setModalOpen(true); };
+  const openEdit = (m: RawMaterial) => {
+    setEditing(m);
+    setForm({
+      name: m.name,
+      unit: m.unit,
+      stock: String(m.stock),
+      min_stock: String(m.min_stock),
+      price_per_unit: String(m.price_per_unit),
+    });
+    setModalOpen(true);
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const body = {
+      ...form,
+      stock: Number(form.stock),
+      min_stock: Number(form.min_stock),
+      price_per_unit: Number(form.price_per_unit),
+    };
+    if (editing) {
+      await api.put(`/raw-materials/${editing.id}`, body);
+    } else {
+      await api.post('/raw-materials', body);
+    }
+    setModalOpen(false);
+    load();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    await api.del(`/raw-materials/${deleteTarget.id}`);
+    setDeleteTarget(null);
+    load();
+  };
+
+  const stockBadge = (m: RawMaterial) => {
+    if (m.stock <= 0) return <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">หมด</span>;
+    if (m.stock <= m.min_stock) return <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700">ต่ำกว่าขั้นต่ำ ({m.stock})</span>;
+    return <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">{m.stock}</span>;
+  };
+
+  if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-gray-800 mb-4">🧱 วัตถุดิบ</h1>
+
+      <DataTable
+        columns={[
+          { key: 'id', label: 'รหัส' },
+          { key: 'name', label: 'ชื่อวัตถุดิบ' },
+          { key: 'unit', label: 'หน่วย' },
+          { key: 'stock', label: 'คงเหลือ', render: (m) => stockBadge(m) },
+          { key: 'min_stock', label: 'ขั้นต่ำ' },
+          { key: 'price_per_unit', label: 'ราคา/หน่วย', render: (m) => `฿${Number(m.price_per_unit).toLocaleString()}` },
+        ]}
+        data={data}
+        getId={(m) => m.id}
+        searchPlaceholder="ค้นหาวัตถุดิบ..."
+        onAdd={openAdd}
+        onEdit={openEdit}
+        onDelete={(m) => setDeleteTarget(m)}
+      />
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? 'แก้ไขวัตถุดิบ' : 'เพิ่มวัตถุดิบใหม่'}
+      >
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อวัตถุดิบ</label>
+            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
+            <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนคงเหลือ</label>
+              <input type="number" required value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนขั้นต่ำ</label>
+              <input type="number" required value={form.min_stock} onChange={(e) => setForm({ ...form, min_stock: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ราคาต่อหน่วย (บาท)</label>
+            <input type="number" step="0.01" required value={form.price_per_unit} onChange={(e) => setForm({ ...form, price_per_unit: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
+            <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">{editing ? 'บันทึก' : 'เพิ่ม'}</button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        message={`ต้องการลบวัตถุดิบ "${deleteTarget?.name}" ใช่ไหม?`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
+  );
+}
