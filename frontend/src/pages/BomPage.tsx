@@ -90,7 +90,7 @@ export default function BomPage() {
   const removeItem = (i: number) => setFormItems(formItems.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: unknown) => {
     const next = [...formItems];
-    (next[i] as Record<string, unknown>)[field] = val;
+    (next[i] as unknown as Record<string, unknown>)[field] = val;
     if (field === 'raw_material_id') {
       const mat = materials.find((m) => m.id === Number(val));
       if (mat) next[i].unit = mat.unit;

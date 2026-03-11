@@ -61,7 +61,7 @@ export default function SalesOrderPage() {
   const removeItem = (i: number) => setFormItems(formItems.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: unknown) => {
     const next = [...formItems];
-    (next[i] as Record<string, unknown>)[field] = val;
+    (next[i] as unknown as Record<string, unknown>)[field] = val;
     if (field === 'product_id') {
       const prod = products.find((p) => p.id === Number(val));
       if (prod) next[i].unit_price = prod.price;
