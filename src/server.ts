@@ -13,6 +13,7 @@ import { invoicesRoute } from "./routes/invoices";
 import { paymentsRoute } from "./routes/payments";
 import { receiptsRoute } from "./routes/receipts";
 import { expensesRoute } from "./routes/expenses";
+import { dashboardRoute } from "./routes/dashboard";
 import { authMiddleware } from "./auth";
 import "./db"; // init DB + seed
 
@@ -58,6 +59,8 @@ app.route("/api/invoices", invoicesRoute);
 app.route("/api/payments", paymentsRoute);
 app.route("/api/receipts", receiptsRoute);
 app.route("/api/expenses", expensesRoute);
+app.use("/api/dashboard", authMiddleware);
+app.route("/api/dashboard", dashboardRoute);
 
 const port = 4000;
 console.log(`[erp] Server starting on port ${port}`);
