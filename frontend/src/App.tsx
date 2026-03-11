@@ -6,6 +6,9 @@ import DashboardPage from './pages/DashboardPage';
 import CustomerPage from './pages/CustomerPage';
 import ProductPage from './pages/ProductPage';
 import RawMaterialPage from './pages/RawMaterialPage';
+import BomPage from './pages/BomPage';
+import ProductionPage from './pages/ProductionPage';
+import CostPage from './pages/CostPage';
 
 export default function App() {
   return (
@@ -18,6 +21,9 @@ export default function App() {
             <Route path="/customers" element={<CustomerPage />} />
             <Route path="/products" element={<ProductPage />} />
             <Route path="/raw-materials" element={<RawMaterialPage />} />
+            <Route path="/bom" element={<BomPage />} />
+            <Route path="/production" element={<ProductionPage />} />
+            <Route path="/costs" element={<CostPage />} />
           </Route>
         </Routes>
       </AuthProvider>
