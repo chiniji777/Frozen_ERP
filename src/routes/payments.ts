@@ -21,6 +21,7 @@ paymentsRoute.get("/:id", async (c) => {
 paymentsRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.invoiceId || !body.amount) return c.json({ error: "invoiceId and amount required" }, 400);
+  if (body.amount <= 0) return c.json({ error: "amount must be > 0" }, 400);
   const invoice = await db.select().from(invoices).where(eq(invoices.id, body.invoiceId)).get();
   if (!invoice) return c.json({ error: "Invoice not found" }, 404);
   const paymentNumber = await generateRunningNumber("PAY", "payments", "payment_number");

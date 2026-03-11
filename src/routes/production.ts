@@ -45,6 +45,9 @@ productionRoute.get("/:id", async (c) => {
 productionRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.bomId || !body.quantity) return c.json({ error: "bomId and quantity required" }, 400);
+  if (body.quantity <= 0) return c.json({ error: "quantity must be > 0" }, 400);
+  if (body.laborCost != null && body.laborCost < 0) return c.json({ error: "laborCost must be >= 0" }, 400);
+  if (body.overheadCost != null && body.overheadCost < 0) return c.json({ error: "overheadCost must be >= 0" }, 400);
   const b = await db.select().from(bom).where(eq(bom.id, body.bomId)).get();
   if (!b) return c.json({ error: "BOM not found" }, 404);
   const items = await db.select({

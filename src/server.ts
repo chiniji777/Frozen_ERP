@@ -17,11 +17,16 @@ import { dashboardRoute } from "./routes/dashboard.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { seedAdmin } from "./seed.js";
+import { rateLimit } from "./rate-limit.js";
 
 export const app = new Hono();
 
 // Global middleware
-app.use("*", cors());
+app.use("*", cors({
+  origin: ["https://frozen.mhorkub.com"],
+  allowMethods: ["GET", "POST", "PUT", "DELETE"],
+  allowHeaders: ["Content-Type", "Authorization"],
+}));
 
 // Error handling
 app.onError((err, c) => {
@@ -31,6 +36,10 @@ app.onError((err, c) => {
 
 // Health check
 app.get("/api/health", (c) => c.json({ ok: true, service: "erp-backend" }));
+
+// Rate limit: login 5 attempts / 15 min, API 100 req / min
+app.use("/api/auth/login", rateLimit({ max: 5, windowMs: 15 * 60 * 1000, keyPrefix: "login" }));
+app.use("/api/*", rateLimit({ max: 100, windowMs: 60 * 1000, keyPrefix: "api" }));
 
 // Auth routes (public)
 app.route("/api/auth", auth);
