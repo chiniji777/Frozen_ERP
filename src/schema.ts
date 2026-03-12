@@ -84,6 +84,8 @@ export const bom = sqliteTable("bom", {
   productId: integer("product_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
+  laborCost: real("labor_cost").notNull().default(0),
+  overheadCost: real("overhead_cost").notNull().default(0),
   ...timestamps,
 });
 

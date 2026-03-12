@@ -139,7 +139,7 @@ export default function DeliveryNotePage() {
   const handleAction = async () => {
     if (!actionTarget) return;
     const { dn, action } = actionTarget;
-    await api.put(`/delivery-notes/${dn.id}/${action}`, {});
+    await api.post(`/delivery-notes/${dn.id}/${action}`, {});
     setActionTarget(null);
     setToast(action === 'ship' ? 'จัดส่งแล้ว' : action === 'deliver' ? 'ส่งถึงแล้ว' : 'ยกเลิกแล้ว');
     if (detailDN?.id === dn.id) { try { setDetailDN(await api.get<DeliveryNote>(`/delivery-notes/${dn.id}`)); } catch { /* */ } }

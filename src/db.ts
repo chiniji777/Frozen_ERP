@@ -120,6 +120,8 @@ export async function initDB() {
       product_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
+      labor_cost REAL NOT NULL DEFAULT 0,
+      overhead_cost REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );

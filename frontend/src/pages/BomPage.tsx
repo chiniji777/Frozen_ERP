@@ -29,6 +29,8 @@ interface Bom {
   name: string;
   description?: string;
   productId: number;
+  laborCost?: number;
+  overheadCost?: number;
   product?: Product;
   items: BomItem[];
 }
@@ -53,6 +55,8 @@ export default function BomPage() {
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formProductId, setFormProductId] = useState<number | ''>('');
+  const [formLaborCost, setFormLaborCost] = useState(0);
+  const [formOverheadCost, setFormOverheadCost] = useState(0);
   const [formItems, setFormItems] = useState<BomItem[]>([]);
 
   const load = async () => {
@@ -78,6 +82,8 @@ export default function BomPage() {
     setFormName('');
     setFormDescription('');
     setFormProductId('');
+    setFormLaborCost(0);
+    setFormOverheadCost(0);
     setFormItems([{ rawMaterialId: 0, quantity: 1, unit: '' }]);
     setModalOpen(true);
   };
@@ -87,6 +93,8 @@ export default function BomPage() {
     setFormName(b.name);
     setFormDescription(b.description || '');
     setFormProductId(b.productId);
+    setFormLaborCost(b.laborCost || 0);
+    setFormOverheadCost(b.overheadCost || 0);
     setFormItems(b.items.length > 0 ? b.items.map(it => ({
       rawMaterialId: it.rawMaterialId,
       quantity: it.quantity,
@@ -119,6 +127,8 @@ export default function BomPage() {
       name: formName,
       description: formDescription,
       productId: Number(formProductId),
+      laborCost: formLaborCost,
+      overheadCost: formOverheadCost,
       items: formItems.filter((it) => it.rawMaterialId > 0).map((it) => ({
         rawMaterialId: it.rawMaterialId,
         quantity: Number(it.quantity),
@@ -146,7 +156,8 @@ export default function BomPage() {
     ...it,
     pricePerUnit: it.pricePerUnit ?? materials.find(m => m.id === it.rawMaterialId)?.pricePerUnit ?? 0,
   }));
-  const liveTotal = calcTotalCost(liveFormItems);
+  const liveMaterialCost = calcTotalCost(liveFormItems);
+  const liveGrandTotal = liveMaterialCost + formLaborCost + formOverheadCost;
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
@@ -161,9 +172,10 @@ export default function BomPage() {
           { key: 'productId', label: 'สินค้า', render: (b: Bom) => b.product?.name || products.find((p) => p.id === b.productId)?.name || '-' },
           { key: 'items', label: 'วัตถุดิบ', render: (b: Bom) => `${b.items?.length ?? 0} รายการ` },
           {
-            key: 'totalCost', label: 'ต้นทุนวัตถุดิบ',
+            key: 'totalCost', label: 'ต้นทุนรวม',
             render: (b: Bom) => {
-              const total = calcTotalCost(b.items || []);
+              const materialCost = calcTotalCost(b.items || []);
+              const total = materialCost + (b.laborCost || 0) + (b.overheadCost || 0);
               return <span className="font-semibold text-emerald-700">฿{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>;
             },
           },
@@ -245,11 +257,49 @@ export default function BomPage() {
               })}
             </div>
 
-            {/* Total */}
+            {/* Material subtotal */}
             <div className="flex justify-end mt-3 pt-2 border-t">
-              <div className="text-sm font-bold text-gray-800">
-                ต้นทุนรวม: <span className="text-emerald-700 text-lg">฿{liveTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              <div className="text-sm text-gray-600">
+                ต้นทุนวัตถุดิบ: <span className="font-semibold text-emerald-700">฿{liveMaterialCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
+            </div>
+          </div>
+
+          {/* Labor & Overhead Costs */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ค่าแรง (Labor Cost)</label>
+              <input type="number" min="0" step="0.01" value={formLaborCost} onChange={(e) => setFormLaborCost(Number(e.target.value))}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ค่าใช้จ่ายอื่น (Overhead)</label>
+              <input type="number" min="0" step="0.01" value={formOverheadCost} onChange={(e) => setFormOverheadCost(Number(e.target.value))}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+          </div>
+
+          {/* Cost Breakdown */}
+          <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-500">ต้นทุนวัตถุดิบ</span>
+              <span className="font-medium">฿{liveMaterialCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            </div>
+            {formLaborCost > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">ค่าแรง</span>
+                <span className="font-medium">฿{formLaborCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {formOverheadCost > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">ค่าใช้จ่ายอื่น</span>
+                <span className="font-medium">฿{formOverheadCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-2 border-t border-gray-300">
+              <span className="font-bold text-gray-800">ต้นทุนรวมทั้งหมด</span>
+              <span className="font-bold text-emerald-700 text-lg">฿{liveGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
 

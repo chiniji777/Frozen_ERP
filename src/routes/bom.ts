@@ -76,6 +76,8 @@ bomRoute.post("/", async (c) => {
     productId: body.productId,
     name: body.name,
     description: body.description || null,
+    laborCost: body.laborCost || 0,
+    overheadCost: body.overheadCost || 0,
   }).run();
   const bomId = Number(result.lastInsertRowid);
   for (const item of body.items) {
@@ -99,6 +101,8 @@ bomRoute.put("/:id", async (c) => {
     productId: body.productId ?? existing.productId,
     name: body.name ?? existing.name,
     description: body.description ?? existing.description,
+    laborCost: body.laborCost ?? existing.laborCost,
+    overheadCost: body.overheadCost ?? existing.overheadCost,
     updatedAt: sql`datetime('now')`,
   }).where(eq(bom.id, id)).run();
   if (body.items) {

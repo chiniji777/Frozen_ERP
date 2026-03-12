@@ -14,7 +14,7 @@ interface Product { id: number; name: string; sku?: string; price: number; saleP
 interface UserInfo { id: number; username: string; displayName: string; role: string; }
 interface SOItem {
   productId: number; itemCode?: string; quantity: number; unitPrice: number;
-  rate?: number; uom: string; weight: number; productName?: string;
+  rate?: number; uom: string; productName?: string;
 }
 interface PaymentTermRow {
   paymentTerm: string; description: string; dueDate: string;
@@ -47,7 +47,7 @@ const statusCfg: Record<string, { label: string; color: string }> = {
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700' },
 };
 
-const emptyItem = (): SOItem => ({ productId: 0, itemCode: '', quantity: 1, unitPrice: 0, rate: 0, uom: 'Pcs.', weight: 0 });
+const emptyItem = (): SOItem => ({ productId: 0, itemCode: '', quantity: 1, unitPrice: 0, rate: 0, uom: 'Pcs.' });
 const emptyPT = (): PaymentTermRow => ({ paymentTerm: '', description: '', dueDate: '', invoicePortion: 0, paymentAmount: 0 });
 
 const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '' }: {
@@ -173,7 +173,6 @@ export default function SalesOrderPage() {
     return s;
   }, 0);
   const totalQty = formItems.reduce((s, it) => s + it.quantity, 0);
-  const totalWeight = formItems.reduce((s, it) => s + (it.weight || 0), 0);
   const vat = Math.round(vatableSubtotal * 7) / 100;
   const totalAmount = subtotal + vat;
   const totalCommission = Math.round(subtotal * formCommRate) / 100;
@@ -233,7 +232,7 @@ export default function SalesOrderPage() {
     setFormPoNotes(so.poNotes || '');
     setFormItems(so.items && so.items.length > 0 ? so.items.map(it => ({
       productId: it.productId, itemCode: it.itemCode || '', quantity: it.quantity,
-      unitPrice: it.unitPrice, rate: it.rate || 0, uom: it.uom, weight: it.weight,
+      unitPrice: it.unitPrice, rate: it.rate || 0, uom: it.uom,
       productName: it.productName,
     })) : [emptyItem()]);
     setFormPaymentTerms(so.paymentTerms || []);
@@ -346,7 +345,7 @@ export default function SalesOrderPage() {
       items: formItems.filter((it) => it.productId > 0).map((it) => ({
         productId: it.productId, itemCode: it.itemCode, quantity: Number(it.quantity),
         unitPrice: Number(it.unitPrice), rate: Number(it.rate) || null,
-        uom: it.uom, weight: Number(it.weight),
+        uom: it.uom,
       })),
       paymentTerms: formPaymentTerms.length ? formPaymentTerms : undefined,
     };
@@ -367,7 +366,7 @@ export default function SalesOrderPage() {
 
   const handleConfirm = async () => {
     if (!confirmTarget) return;
-    await api.put(`/sales-orders/${confirmTarget.id}/confirm`, {});
+    await api.post(`/sales-orders/${confirmTarget.id}/confirm`, {});
     setConfirmTarget(null);
     // Refresh detail if open
     if (detailOrder && detailOrder.id === confirmTarget.id) {
@@ -466,7 +465,6 @@ export default function SalesOrderPage() {
                   <th className="pb-2 pr-2 text-right">จำนวน</th>
                   <th className="pb-2 pr-2">หน่วย</th>
                   <th className="pb-2 pr-2 text-right">ราคา/หน่วย</th>
-                  <th className="pb-2 pr-2 text-right">น้ำหนัก</th>
                   <th className="pb-2 text-right">รวม</th>
                 </tr>
               </thead>
@@ -478,7 +476,6 @@ export default function SalesOrderPage() {
                     <td className="py-2.5 pr-2 text-right">{item.quantity.toLocaleString()}</td>
                     <td className="py-2.5 pr-2">{item.uom}</td>
                     <td className="py-2.5 pr-2 text-right">{Number(item.unitPrice).toLocaleString()}</td>
-                    <td className="py-2.5 pr-2 text-right">{item.weight ? `${item.weight} kg` : '-'}</td>
                     <td className="py-2.5 text-right font-medium">{(item.quantity * item.unitPrice).toLocaleString()}</td>
                   </tr>
                 ))}
@@ -707,7 +704,6 @@ export default function SalesOrderPage() {
                   <th className="pb-2 pr-2 text-right w-20">จำนวน</th>
                   <th className="pb-2 pr-2 w-16">หน่วย</th>
                   <th className="pb-2 pr-2 text-right w-24">ราคา/หน่วย</th>
-                  <th className="pb-2 pr-2 text-right w-20">น้ำหนัก</th>
                   <th className="pb-2 pr-2 text-right w-24">รวม</th>
                   <th className="pb-2 pr-2 text-center w-10">VAT</th>
                   <th className="pb-2 w-8"></th>
@@ -743,11 +739,6 @@ export default function SalesOrderPage() {
                           onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))}
                           className="w-24 px-2 py-1 border rounded text-sm text-right" />
                       </td>
-                      <td className="py-2 pr-2">
-                        <input type="number" step="0.01" value={item.weight}
-                          onChange={(e) => updateItem(i, 'weight', Number(e.target.value))}
-                          className="w-20 px-2 py-1 border rounded text-sm text-right" />
-                      </td>
                       <td className="py-2 pr-2 text-right font-medium">{(item.quantity * item.unitPrice).toLocaleString()}</td>
                       <td className="py-2 pr-2 text-center">
                         {hasVat ? <span className="text-xs text-green-600">✓</span> : <span className="text-xs text-gray-400">-</span>}
@@ -764,9 +755,8 @@ export default function SalesOrderPage() {
             </table>
           </div>
           <button type="button" onClick={addItem} className="mt-2 text-xs text-indigo-600 hover:text-indigo-800">+ Add Row</button>
-          <div className="mt-4 bg-gray-50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+          <div className="mt-4 bg-gray-50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <div><span className="text-gray-500">จำนวนรวม</span><div className="font-semibold">{totalQty.toLocaleString()}</div></div>
-            <div><span className="text-gray-500">น้ำหนักรวม</span><div className="font-semibold">{totalWeight.toLocaleString()} kg</div></div>
             <div><span className="text-gray-500">ยอดก่อน VAT</span><div className="font-semibold">{subtotal.toLocaleString()}</div></div>
             <div><span className="text-gray-500">VAT 7% <span className="text-xs">(เฉพาะสินค้ามี VAT)</span></span><div className="font-semibold">{vat.toLocaleString()}</div></div>
             <div><span className="text-gray-500">ยอดรวมทั้งสิ้น</span><div className="font-bold text-lg text-indigo-700">{totalAmount.toLocaleString()}</div></div>

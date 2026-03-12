@@ -191,7 +191,7 @@ export default function InvoicePage() {
   const handleAction = async () => {
     if (!actionTarget) return;
     const { inv, action } = actionTarget;
-    await api.put(`/invoices/${inv.id}/${action}`, {});
+    await api.post(`/invoices/${inv.id}/${action}`, {});
     setActionTarget(null);
     setToast(action === 'send' ? 'ส่งใบแจ้งหนี้แล้ว' : action === 'pay' ? 'บันทึกชำระเงินแล้ว' : 'ยกเลิกแล้ว');
     if (detailInv?.id === inv.id) { try { setDetailInv(await api.get<Invoice>(`/invoices/${inv.id}`)); } catch { /* */ } }
