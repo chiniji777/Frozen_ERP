@@ -391,7 +391,7 @@ export default function SalesOrderPage() {
     const soSubtotal = soItems.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
 
     return (
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto min-h-full flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -642,7 +642,7 @@ export default function SalesOrderPage() {
   // === FORM VIEW (Create / Edit) ===
   // ========================================
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto min-h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-800">
           {editing ? `แก้ไข ${editing.orderNumber}` : 'สร้าง Sales Order ใหม่'}

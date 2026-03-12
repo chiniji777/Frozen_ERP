@@ -214,7 +214,7 @@ export default function InvoicePage() {
     const items = iv.items || [];
 
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto min-h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setDetailInv(null)} className="text-gray-400 hover:text-gray-600">
@@ -322,7 +322,7 @@ export default function InvoicePage() {
   // ========== CREATE FORM ==========
   if (formOpen) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto min-h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-gray-800">สร้างใบแจ้งหนี้</h1>
           <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">← กลับรายการ</button>
@@ -363,7 +363,7 @@ export default function InvoicePage() {
             {formSource === 'multi' && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-2">เลือก SO หลายใบ</label>
-                <div className="max-h-40 overflow-y-auto border rounded-lg p-2 space-y-1">
+                <div className="max-h-[60vh] overflow-y-auto border rounded-lg p-2 space-y-1">
                   {orders.map((o) => (
                     <label key={o.id} className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm ${formMultiSOIds.includes(o.id) ? 'bg-indigo-50' : ''}`}>
                       <input type="checkbox" checked={formMultiSOIds.includes(o.id)}

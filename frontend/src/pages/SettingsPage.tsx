@@ -187,9 +187,9 @@ function CompanyTab() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">{editId ? 'แก้ไขข้อมูลบริษัท' : 'เพิ่มบริษัทใหม่'}</h2>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <h2 className="text-lg font-bold text-gray-800 px-6 pt-6 pb-4 shrink-0">{editId ? 'แก้ไขข้อมูลบริษัท' : 'เพิ่มบริษัทใหม่'}</h2>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto px-6 pb-6">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
                   {form.logoUrl ? <img src={form.logoUrl} alt="Logo" className="w-full h-full object-contain" /> : <span className="text-gray-400 text-xs text-center">โลโก้</span>}
