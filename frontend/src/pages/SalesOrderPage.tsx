@@ -93,7 +93,7 @@ export default function SalesOrderPage() {
   const [formPoNotes, setFormPoNotes] = useState('');
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
   const [attachments, setAttachments] = useState<SOAttachment[]>([]);
-  const [_companyName, setCompanyName] = useState('Frozen Food Plus Co., Ltd.');
+  const [, setCompanyName] = useState('Frozen Food Plus Co., Ltd.');
   const [creatingDn, setCreatingDn] = useState(false);
   const [creatingInv, setCreatingInv] = useState(false);
   const [toast, setToast] = useState('');

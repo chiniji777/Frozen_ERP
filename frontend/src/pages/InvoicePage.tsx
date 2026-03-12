@@ -156,9 +156,7 @@ export default function InvoicePage() {
       allItems.push(...items);
     }
     setFormItems(allItems);
-    if (next.length > 0) {
-      const _first = orders.find((o) => o.id === next[0]);
-    }
+    // TODO: handle first selected order if needed
   };
 
   const subtotal = formItems.reduce((s, it) => s + it.amount, 0);
