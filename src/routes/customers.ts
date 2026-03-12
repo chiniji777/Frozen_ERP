@@ -90,4 +90,52 @@ customersRoute.delete("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// POST /api/customers/import — bulk import
+customersRoute.post("/import", async (c) => {
+  const body = await c.req.json();
+  const rows = body.customers;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return c.json({ error: "customers array required" }, 400);
+  }
+
+  let imported = 0;
+  let skipped = 0;
+
+  for (const row of rows) {
+    const name = row.name || row.fullName;
+    if (!name) { skipped++; continue; }
+
+    // Check duplicate by code
+    if (row.code) {
+      const existing = await db.select({ id: customers.id }).from(customers).where(eq(customers.code, row.code)).get();
+      if (existing) { skipped++; continue; }
+    }
+
+    try {
+      await db.insert(customers).values({
+        code: row.code || null,
+        name,
+        fullName: row.fullName || null,
+        nickName: row.nickName || null,
+        address: row.address || null,
+        phone: row.phone || null,
+        email: row.email || null,
+        taxId: row.taxId || null,
+        territory: row.territory || null,
+        customerType: row.customerType || "Company",
+        creditLimit: row.creditLimit ?? 0,
+        paymentTerms: row.paymentTerms || null,
+        salesPartner: row.salesPartner || null,
+        commissionRate: row.commissionRate ?? 0,
+        notes: row.notes || null,
+      }).run();
+      imported++;
+    } catch {
+      skipped++;
+    }
+  }
+
+  return c.json({ ok: true, imported, skipped });
+});
+
 export { customersRoute };
