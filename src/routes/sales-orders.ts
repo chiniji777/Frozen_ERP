@@ -400,21 +400,19 @@ salesOrdersRoute.get("/:id/print", async (c) => {
   </div>
   <table class="items-table">
     <thead><tr>
-      <th class="text-center">#</th><th>Item Code</th><th>รายการ</th><th>UOM</th>
-      <th class="text-right">จำนวน</th><th class="text-right">น้ำหนัก(kg)</th>
-      <th class="text-right">ราคา/หน่วย</th><th class="text-right">จำนวนเงิน</th>
+      <th class="text-center">#</th><th>สินค้า</th><th class="text-right">จำนวน</th><th>หน่วย</th>
+      <th class="text-right">ราคา/หน่วย</th><th class="text-right">รวม</th>
     </tr></thead>
     <tbody>${items.map((it, i) => `<tr>
-      <td class="text-center">${i + 1}</td><td>${escapeHtml(it.itemCode) || "-"}</td><td>${escapeHtml(it.productName) || "-"}</td><td>${escapeHtml(it.uom) || "Pcs."}</td>
-      <td class="text-right">${fmt(it.quantity)}</td><td class="text-right">${fmt(it.weight || 0)}</td>
-      <td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.amount)}</td>
+      <td class="text-center">${i + 1}</td><td>${escapeHtml(it.productName) || "-"}</td>
+      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.uom) || "Pcs."}</td>
+      <td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.quantity * it.unitPrice)}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
     <div class="totals-row"><span>จำนวนรวม</span><span>${fmt(o.totalQuantity || 0)}</span></div>
-    <div class="totals-row"><span>น้ำหนักรวม</span><span>${fmt(o.totalNetWeight || 0)} kg</span></div>
-    <div class="totals-row"><span>ยอดรวม (Subtotal)</span><span>${fmt(o.subtotal)}</span></div>
-    <div class="totals-row"><span>VAT ${o.vatRate}%</span><span>${fmt(o.vatAmount)}</span></div>
+    <div class="totals-row"><span>ยอดก่อน VAT</span><span>฿${fmt(o.subtotal)}</span></div>
+    <div class="totals-row"><span>VAT ${o.vatRate}%</span><span>฿${fmt(o.vatAmount)}</span></div>
     <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>฿${fmt(o.totalAmount)}</span></div>
   </div></div>
   <div class="footer-grid">
