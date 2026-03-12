@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
@@ -10,20 +10,37 @@ interface Expense {
   description: string;
   amount: number;
   date: string;
+  slipImage: string | null;
+  notes: string;
 }
 
-const emptyForm = { category: '', description: '', amount: '', date: '' };
+interface ExpenseForm {
+  category: string;
+  description: string;
+  amount: string;
+  date: string;
+  notes: string;
+  slipImage: string;
+}
+
+const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '' };
 
 export default function ExpensePage() {
   const [data, setData] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<ExpenseForm>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [filterCat, setFilterCat] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [toast, setToast] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [slipPreview, setSlipPreview] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -33,9 +50,21 @@ export default function ExpensePage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  const loadCategories = () => {
+    api.get<string[]>('/expenses/categories')
+      .then(setCategories)
+      .catch(() => setCategories(['ค่าขนส่ง', 'ค่าน้ำมัน', 'ค่าวัตถุดิบ', 'ค่าบรรจุภัณฑ์', 'ค่าสาธารณูปโภค', 'ค่าแรงงาน', 'อื่นๆ']));
+  };
 
-  const categories = [...new Set(data.map((e) => e.category).filter(Boolean))];
+  useEffect(() => { load(); loadCategories(); }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(''), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const allCategories = [...new Set([...categories, ...data.map((e) => e.category).filter(Boolean)])];
 
   const filtered = data.filter((e) => {
     if (filterCat && e.category !== filterCat) return false;
@@ -46,11 +75,85 @@ export default function ExpensePage() {
 
   const monthlyTotal = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
 
-  const openAdd = () => { setEditing(null); setForm({ ...emptyForm, date: new Date().toISOString().slice(0, 10) }); setModalOpen(true); };
+  const openAdd = () => {
+    setEditing(null);
+    setForm({ ...emptyForm, date: new Date().toISOString().slice(0, 10) });
+    setSlipPreview('');
+    setModalOpen(true);
+  };
+
   const openEdit = (e: Expense) => {
     setEditing(e);
-    setForm({ category: e.category, description: e.description, amount: String(e.amount), date: e.date?.slice(0, 10) || '' });
+    setForm({
+      category: e.category, description: e.description, amount: String(e.amount),
+      date: e.date?.slice(0, 10) || '', notes: e.notes || '', slipImage: e.slipImage || '',
+    });
+    setSlipPreview(e.slipImage ? `/api/data/${e.slipImage}` : '');
     setModalOpen(true);
+  };
+
+  const handleSlipUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('slip', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/expenses/upload-slip', {
+        method: 'POST',
+        body: fd,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const json = await res.json() as { slipImage: string };
+      setForm((f) => ({ ...f, slipImage: json.slipImage }));
+      setSlipPreview(`/api/data/${json.slipImage}`);
+      setToast('อัปโหลดสลิปสำเร็จ');
+      return json.slipImage;
+    } catch {
+      setToast('อัปโหลดสลิปไม่สำเร็จ');
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleOcr = async () => {
+    if (!form.slipImage) {
+      setToast('กรุณาอัปโหลดสลิปก่อน');
+      return;
+    }
+    setOcrLoading(true);
+    try {
+      // Re-upload for OCR or use existing file — call OCR slip API
+      const fd = new FormData();
+      // Fetch the existing file and re-send for OCR
+      const imgRes = await fetch(`/api/data/${form.slipImage}`);
+      const blob = await imgRes.blob();
+      fd.append('slip', blob, 'slip.jpg');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/ocr-slip/ocr', {
+        method: 'POST',
+        body: fd,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('OCR failed');
+      const json = await res.json() as { parsed?: { amount?: number; date?: string; payer?: string } };
+      if (json.parsed) {
+        setForm((f) => ({
+          ...f,
+          amount: json.parsed?.amount ? String(json.parsed.amount) : f.amount,
+          date: json.parsed?.date ? normalizeDate(json.parsed.date) : f.date,
+          description: json.parsed?.payer ? json.parsed.payer : f.description,
+        }));
+        setToast('OCR สำเร็จ — กรอกข้อมูลอัตโนมัติ');
+      } else {
+        setToast('OCR ไม่สามารถอ่านข้อมูลได้');
+      }
+    } catch {
+      setToast('OCR ไม่สำเร็จ');
+    } finally {
+      setOcrLoading(false);
+    }
   };
 
   const handleSubmit = async (ev: FormEvent) => {
@@ -61,20 +164,22 @@ export default function ExpensePage() {
     } else {
       await api.post('/expenses', body);
     }
-    setModalOpen(false); load();
+    setModalOpen(false);
+    load();
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     await api.del(`/expenses/${deleteTarget.id}`);
-    setDeleteTarget(null); load();
+    setDeleteTarget(null);
+    load();
   };
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">💸 ค่าใช้จ่าย</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-4">ค่าใช้จ่าย</h1>
 
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div>
@@ -82,7 +187,7 @@ export default function ExpensePage() {
           <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
             className="px-3 py-1.5 border rounded-lg text-sm">
             <option value="">ทั้งหมด</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div>
@@ -97,17 +202,18 @@ export default function ExpensePage() {
         </div>
         <div className="ml-auto bg-indigo-50 rounded-lg px-4 py-2">
           <span className="text-sm text-gray-500">ยอดรวม: </span>
-          <span className="text-lg font-bold text-indigo-700">฿{monthlyTotal.toLocaleString()}</span>
+          <span className="text-lg font-bold text-indigo-700">{monthlyTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
         </div>
       </div>
 
       <DataTable
         columns={[
           { key: 'id', label: 'รหัส' },
-          { key: 'date', label: 'วันที่', render: (e) => e.date?.slice(0, 10) || '-' },
+          { key: 'date', label: 'วันที่', render: (e: Expense) => e.date?.slice(0, 10) || '-' },
           { key: 'category', label: 'หมวด' },
           { key: 'description', label: 'รายละเอียด' },
-          { key: 'amount', label: 'จำนวนเงิน', render: (e) => `฿${Number(e.amount).toLocaleString()}` },
+          { key: 'amount', label: 'จำนวนเงิน', render: (e: Expense) => `${Number(e.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}` },
+          { key: 'slipImage', label: 'สลิป', render: (e: Expense) => e.slipImage ? <span className="text-green-600 text-xs">มีสลิป</span> : <span className="text-gray-400 text-xs">-</span> },
         ]}
         data={filtered}
         getId={(e) => e.id}
@@ -120,28 +226,92 @@ export default function ExpensePage() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าใช้จ่ายใหม่'}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Slip upload + OCR */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">สลิป/ใบเสร็จ</label>
+            <div className="flex gap-2 items-start">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) await handleSlipUpload(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="px-3 py-2 text-sm rounded-lg border border-dashed border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+              >
+                {uploading ? 'กำลังอัปโหลด...' : (form.slipImage ? 'เปลี่ยนสลิป' : 'แนบสลิป')}
+              </button>
+              {form.slipImage && (
+                <button
+                  type="button"
+                  onClick={handleOcr}
+                  disabled={ocrLoading}
+                  className="px-3 py-2 text-sm rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+                >
+                  {ocrLoading ? 'กำลังอ่าน...' : 'OCR อ่านสลิป'}
+                </button>
+              )}
+            </div>
+            {slipPreview && (
+              <div className="mt-2">
+                <img src={slipPreview} alt="slip" className="max-h-48 rounded-lg border border-gray-200 object-contain" />
+              </div>
+            )}
+          </div>
+
+          {/* Category dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">หมวด</label>
-            <input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="เช่น ค่าขนส่ง, ค่าน้ำไฟ" />
+            <select
+              required
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+            >
+              <option value="">เลือกหมวด...</option>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
+
+          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
             <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+              placeholder="รายละเอียดค่าใช้จ่าย..." />
           </div>
+
+          {/* Amount + Date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label>
-              <input type="number" step="0.01" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              <input type="number" step="0.01" required value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">วันที่</label>
-              <input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}
+              <input type="date" required value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
           </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={2} placeholder="หมายเหตุเพิ่มเติม..."
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm resize-none" />
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
             <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">{editing ? 'บันทึก' : 'เพิ่ม'}</button>
@@ -151,6 +321,27 @@ export default function ExpensePage() {
 
       <ConfirmDialog open={!!deleteTarget} message={`ต้องการลบค่าใช้จ่าย "${deleteTarget?.description}" ใช่ไหม?`}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg animate-fade-in">
+          {toast}
+        </div>
+      )}
     </div>
   );
+}
+
+function normalizeDate(raw: string): string {
+  // Try DD/MM/YYYY → YYYY-MM-DD
+  const dmy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dmy) {
+    let year = parseInt(dmy[3]);
+    if (year > 2500) year -= 543; // Thai year
+    if (year < 100) year += 2000;
+    return `${year}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+  }
+  // Try YYYY-MM-DD
+  const ymd = raw.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (ymd) return `${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`;
+  return raw;
 }
