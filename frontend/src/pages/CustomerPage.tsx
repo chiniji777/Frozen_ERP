@@ -16,6 +16,10 @@ interface Customer {
   email: string;
   taxId: string;
   territory: string;
+  district?: string;
+  amphoe?: string;
+  province?: string;
+  zipcode?: string;
   customerType: 'Company' | 'Individual';
   creditLimit: number;
   paymentTerms: string;
@@ -59,6 +63,23 @@ const PAYMENT_TERMS = [
   'เครดิต 14 วัน (นับจากวันส่งสินค้า)',
   'เครดิต 30 วัน (นับจากวันส่งสินค้า)',
 ];
+
+const PAYMENT_TERMS_MAP: Record<string, string> = {
+  'Cash': 'ชำระก่อนส่ง',
+  'Net 7': 'เครดิต 7 วัน (นับจากวันส่งสินค้า)',
+  'Net 14': 'เครดิต 14 วัน (นับจากวันส่งสินค้า)',
+  'Net 15': 'เครดิต 14 วัน (นับจากวันส่งสินค้า)',
+  'Net 30': 'เครดิต 30 วัน (นับจากวันส่งสินค้า)',
+  'Net 45': 'เครดิต 30 วัน (นับจากวันส่งสินค้า)',
+  'Net 60': 'เครดิต 30 วัน (นับจากวันส่งสินค้า)',
+  'Net 90': 'เครดิต 30 วัน (นับจากวันส่งสินค้า)',
+};
+
+const mapPaymentTerms = (val: string): string => {
+  if (!val) return '';
+  if (PAYMENT_TERMS.includes(val)) return val;
+  return PAYMENT_TERMS_MAP[val] || val;
+};
 
 // --- Reusable InputField ---
 const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '', required = false }: {
@@ -214,12 +235,12 @@ export default function CustomerPage() {
       customerType: c.customerType || 'Company',
       phone: c.phone || '', email: c.email || '',
       address: c.address || '',
-      district: (c as unknown as Record<string, unknown>).district as string || '',
-      amphoe: (c as unknown as Record<string, unknown>).amphoe as string || '',
-      province: (c as unknown as Record<string, unknown>).province as string || '',
-      zipcode: hasZip ? maybeZip : ((c as unknown as Record<string, unknown>).zipcode as string || ''),
+      district: c.district || '',
+      amphoe: c.amphoe || '',
+      province: c.province || '',
+      zipcode: hasZip ? maybeZip : (c.zipcode || ''),
       taxId: c.taxId || '', creditLimit: c.creditLimit || 0,
-      paymentTerms: c.paymentTerms || '', salesPartner: c.salesPartner || '',
+      paymentTerms: mapPaymentTerms(c.paymentTerms || ''), salesPartner: c.salesPartner || '',
       commissionRate: c.commissionRate || 0, notes: c.notes || '',
     });
     setModalOpen(true);
