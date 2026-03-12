@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PrintMenu from '../components/PrintMenu';
 
 interface SalesOrder {
   id: number; order_number: string; customer_name?: string; customer_id?: number;
@@ -146,7 +147,9 @@ export default function DeliveryNotePage() {
     load();
   };
 
-  const handlePrint = (id: number) => { window.open(`/api/delivery-notes/${id}/print`, '_blank'); };
+  const getPrintOptions = (id: number) => [
+    { label: 'ใบส่งของ (DN)', icon: '🚚', path: `/delivery-notes/${id}/print` },
+  ];
   const tw = (items: DNItem[]) => items.reduce((s, it) => s + (it.weight || 0), 0);
   const tq = (items: DNItem[]) => items.reduce((s, it) => s + it.quantity, 0);
 
@@ -176,7 +179,7 @@ export default function DeliveryNotePage() {
               <button onClick={() => setActionTarget({ dn, action: 'cancel' })}
                 className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
             )}
-            <button onClick={() => handlePrint(dn.id)} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">🖨️ พิมพ์</button>
+            <PrintMenu options={getPrintOptions(dn.id)} />
           </div>
         </div>
 
@@ -334,7 +337,7 @@ export default function DeliveryNotePage() {
         extraActions={(d) => (
           <div className="flex gap-1">
             <button onClick={(e) => { e.stopPropagation(); openDetail(d); }} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
-            <button onClick={(e) => { e.stopPropagation(); handlePrint(d.id); }} className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">พิมพ์</button>
+            <PrintMenu options={getPrintOptions(d.id)} className="text-xs" />
           </div>
         )}
       />

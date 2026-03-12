@@ -20,6 +20,7 @@ import { settingsRoute } from "./routes/settings.js";
 import { dbdRoute } from "./routes/dbd.js";
 import { uomRoute } from "./routes/uom.js";
 import { ocrSlipRoute } from "./routes/ocr-slip.js";
+import { trackingRoute } from "./routes/delivery-tracking.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
@@ -72,6 +73,29 @@ app.use("/api/*", rateLimit({ max: 100, windowMs: 60 * 1000, keyPrefix: "api" })
 
 // Auth routes (public)
 app.route("/api/auth", auth);
+
+// Delivery tracking (public — QR code pages, no auth needed)
+app.route("/track", trackingRoute);
+
+// Serve delivery photo files (public)
+app.get("/api/delivery-photos/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  if (filename.includes("..") || filename.includes("/")) return c.json({ error: "Invalid" }, 400);
+  try {
+    const data = await readFile(join(process.cwd(), "data", "delivery-photos", filename));
+    return new Response(data, { headers: { "Content-Type": "image/jpeg" } });
+  } catch { return c.json({ error: "Not found" }, 404); }
+});
+
+// Serve signature files (public for confirmation display)
+app.get("/api/signatures/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  if (filename.includes("..") || filename.includes("/")) return c.json({ error: "Invalid" }, 400);
+  try {
+    const data = await readFile(join(process.cwd(), "data", "signatures", filename));
+    return new Response(data, { headers: { "Content-Type": "image/png" } });
+  } catch { return c.json({ error: "Not found" }, 404); }
+});
 
 // Protected routes
 app.use("/api/customers/*", authMiddleware);

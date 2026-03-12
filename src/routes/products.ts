@@ -34,6 +34,32 @@ productsRoute.get("/", async (c) => {
   return c.json(await db.select().from(products).all());
 });
 
+// --- Serve product image (MUST be before /:id to avoid route conflict) ---
+productsRoute.get("/image/:filename", async (c) => {
+  const rawFilename = c.req.param("filename");
+  const filename = basename(rawFilename).replace(/\0/g, "");
+  if (filename !== rawFilename) {
+    return c.json({ error: "Invalid filename" }, 400);
+  }
+  const ext = filename.split(".").pop()?.toLowerCase();
+  if (!ext || !ALLOWED_EXTS.has(ext)) {
+    return c.json({ error: "Invalid file type" }, 400);
+  }
+  const filepath = join(UPLOAD_DIR, filename);
+  try {
+    const data = await readFile(filepath);
+    const mimeMap: Record<string, string> = {
+      png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+      gif: "image/gif", webp: "image/webp",
+    };
+    return new Response(data, {
+      headers: { "Content-Type": mimeMap[ext] || "application/octet-stream", "Cache-Control": "public, max-age=86400" },
+    });
+  } catch {
+    return c.json({ error: "File not found" }, 404);
+  }
+});
+
 // --- Auto-generate SKU (MUST be before /:id to avoid route conflict) ---
 productsRoute.get("/next-sku", async (c) => {
   const category = c.req.query("category")?.trim() || "PRD";
@@ -128,32 +154,6 @@ productsRoute.post("/upload-image", async (c) => {
   await writeFile(filepath, buffer);
   const imageUrl = `/api/products/image/${filename}`;
   return c.json({ ok: true, imageUrl });
-});
-
-// --- Serve product image ---
-productsRoute.get("/image/:filename", async (c) => {
-  const rawFilename = c.req.param("filename");
-  const filename = basename(rawFilename).replace(/\0/g, "");
-  if (filename !== rawFilename) {
-    return c.json({ error: "Invalid filename" }, 400);
-  }
-  const ext = filename.split(".").pop()?.toLowerCase();
-  if (!ext || !ALLOWED_EXTS.has(ext)) {
-    return c.json({ error: "Invalid file type" }, 400);
-  }
-  const filepath = join(UPLOAD_DIR, filename);
-  try {
-    const data = await readFile(filepath);
-    const mimeMap: Record<string, string> = {
-      png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
-      gif: "image/gif", webp: "image/webp",
-    };
-    return new Response(data, {
-      headers: { "Content-Type": mimeMap[ext] || "application/octet-stream", "Cache-Control": "public, max-age=86400" },
-    });
-  } catch {
-    return c.json({ error: "File not found" }, 404);
-  }
 });
 
 export { productsRoute };

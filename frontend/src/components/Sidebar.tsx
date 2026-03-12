@@ -8,14 +8,12 @@ const menu = [
   { to: '/raw-materials', label: 'วัตถุดิบ', icon: '🧱' },
   { to: '/bom', label: 'BOM', icon: '📋' },
   { to: '/production', label: 'สั่งผลิต', icon: '🏭' },
-  { to: '/costs', label: 'ต้นทุน', icon: '💹' },
   { to: '/sales-orders', label: 'ใบสั่งขาย', icon: '📝' },
   { to: '/delivery-notes', label: 'ใบส่งของ', icon: '🚚' },
   { to: '/invoices', label: 'ใบแจ้งหนี้', icon: '📄' },
   { to: '/payments', label: 'จ่ายเงิน', icon: '💰' },
   { to: '/expenses', label: 'ค่าใช้จ่าย', icon: '💸' },
-  { to: '/uoms', label: 'หน่วยนับ', icon: '📏' },
-  { to: '/settings', label: 'ตั้งค่าบริษัท', icon: '⚙️' },
+  { to: '/settings', label: 'ตั้งค่า', icon: '⚙️' },
 ];
 
 interface Props {
@@ -44,24 +42,24 @@ export default function Sidebar({ open, onClose }: Props) {
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-4 text-xl font-bold border-b border-indigo-700">
+        <div className="p-5 text-xl font-bold border-b border-indigo-700">
           🏢 Nut Office ERP
         </div>
-        <nav className="mt-2 flex flex-col gap-0.5 px-2">
+        <nav className="mt-3 flex flex-col gap-1.5 px-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 80px)' }}>
           {allMenu.map((m) => (
             <NavLink
               key={m.to}
               to={m.to}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                `flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
                   isActive
-                    ? 'bg-indigo-700 text-white font-semibold'
-                    : 'text-indigo-200 hover:bg-indigo-800 hover:text-white'
+                    ? 'bg-white/15 text-white shadow-lg shadow-indigo-900/50 ring-1 ring-white/10'
+                    : 'text-indigo-200 hover:bg-white/10 hover:text-white hover:shadow-md'
                 }`
               }
             >
-              <span>{m.icon}</span>
+              <span className="text-lg">{m.icon}</span>
               <span>{m.label}</span>
             </NavLink>
           ))}

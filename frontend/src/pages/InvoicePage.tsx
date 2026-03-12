@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
+import PrintMenu from '../components/PrintMenu';
 
 interface SalesOrder {
   id: number; order_number: string; customer_name?: string; customer_id?: number;
@@ -198,7 +199,10 @@ export default function InvoicePage() {
     load();
   };
 
-  const handlePrint = (id: number) => { window.open(`/api/invoices/${id}/print`, '_blank'); };
+  const getPrintOptions = (id: number) => [
+    { label: 'ใบแจ้งหนี้ (Invoice)', icon: '📄', path: `/invoices/${id}/print` },
+    { label: 'ใบเสร็จรับเงิน', icon: '🧾', path: `/invoices/${id}/print-receipt` },
+  ];
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
@@ -228,7 +232,7 @@ export default function InvoicePage() {
               <button onClick={() => setActionTarget({ inv: iv, action: 'cancel' })}
                 className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
             )}
-            <button onClick={() => handlePrint(iv.id)} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">🖨️ พิมพ์</button>
+            <PrintMenu options={getPrintOptions(iv.id)} />
           </div>
         </div>
 

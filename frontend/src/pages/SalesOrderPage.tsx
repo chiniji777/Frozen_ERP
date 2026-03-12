@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
 import SearchableSelect from '../components/SearchableSelect';
+import PrintMenu from '../components/PrintMenu';
 
 interface Customer {
   id: number; name: string; fullName?: string; nickName?: string;
@@ -273,9 +274,11 @@ export default function SalesOrderPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const handlePrint = (orderId: number) => {
-    window.open(`/api/sales-orders/${orderId}/print`, '_blank');
-  };
+  const getPrintOptions = (orderId: number) => [
+    { label: 'ใบสั่งขาย (SO)', icon: '📋', path: `/sales-orders/${orderId}/print` },
+    { label: 'COA', icon: '🔬', path: `/sales-orders/${orderId}/coa` },
+    { label: 'สติ๊กเกอร์', icon: '🏷️', path: `/sales-orders/${orderId}/sticker` },
+  ];
 
   const handleCreateDn = async (soId: number) => {
     setCreatingDn(true);
@@ -429,10 +432,7 @@ export default function SalesOrderPage() {
                 {creatingInv ? 'กำลังสร้าง...' : '📄 สร้าง Invoice'}
               </button>
             )}
-            <button onClick={() => handlePrint(so.id)}
-              className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
-              🖨️ Print
-            </button>
+            <PrintMenu options={getPrintOptions(so.id)} />
           </div>
         </div>
 
@@ -625,7 +625,7 @@ export default function SalesOrderPage() {
           extraActions={(o) => (
             <div className="flex gap-1">
               <button onClick={(e) => { e.stopPropagation(); openDetail(o); }} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
-              <button onClick={(e) => { e.stopPropagation(); handlePrint(o.id); }} className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">Print</button>
+              <PrintMenu options={getPrintOptions(o.id)} className="text-xs" />
             </div>
           )}
         />

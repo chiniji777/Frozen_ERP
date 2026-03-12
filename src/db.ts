@@ -545,6 +545,43 @@ async function migratePurchaseOrders() {
     );
     CREATE INDEX IF NOT EXISTS idx_po_items_po ON po_items(purchase_order_id);
     CREATE INDEX IF NOT EXISTS idx_purchase_orders_production ON purchase_orders(production_order_id);
+
+    -- Delivery Tracking (QR Code)
+    CREATE TABLE IF NOT EXISTS delivery_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT NOT NULL UNIQUE,
+      delivery_note_id INTEGER NOT NULL,
+      sales_order_id INTEGER,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS delivery_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      delivery_note_id INTEGER NOT NULL,
+      token_id INTEGER,
+      photo_url TEXT NOT NULL,
+      latitude REAL,
+      longitude REAL,
+      taken_at TEXT NOT NULL DEFAULT (datetime('now')),
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS delivery_confirmations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      delivery_note_id INTEGER NOT NULL,
+      token_id INTEGER,
+      signature_url TEXT,
+      latitude REAL,
+      longitude REAL,
+      mac_address TEXT,
+      user_agent TEXT,
+      confirmed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_delivery_tokens_token ON delivery_tokens(token);
+    CREATE INDEX IF NOT EXISTS idx_delivery_tokens_dn ON delivery_tokens(delivery_note_id);
+    CREATE INDEX IF NOT EXISTS idx_delivery_photos_dn ON delivery_photos(delivery_note_id);
+    CREATE INDEX IF NOT EXISTS idx_delivery_confirmations_dn ON delivery_confirmations(delivery_note_id);
   `);
 }
 

@@ -16,6 +16,7 @@ export const users = sqliteTable("users", {
   phone: text("phone"),
   googleId: text("google_id"),
   avatarUrl: text("avatar_url"),
+  signatureUrl: text("signature_url"),
   ...timestamps,
 });
 
@@ -143,6 +144,8 @@ export const salesOrders = sqliteTable("sales_orders", {
   poDate: text("po_date"),
   poNotes: text("po_notes"),
   notes: text("notes"),
+  confirmedBy: integer("confirmed_by"),
+  confirmedAt: text("confirmed_at"),
   ...timestamps,
 });
 
@@ -166,6 +169,7 @@ export const soItems = sqliteTable("so_items", {
   rate: real("rate"),
   uom: text("uom").default("Pcs."),
   weight: real("weight").default(0),
+  packingDetail: text("packing_detail"),
   amount: real("amount").notNull(),
   createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
@@ -192,6 +196,8 @@ export const deliveryNotes = sqliteTable("delivery_notes", {
   shippedAt: text("shipped_at"),
   deliveredAt: text("delivered_at"),
   notes: text("notes"),
+  confirmedBy: integer("confirmed_by"),
+  confirmedAt: text("confirmed_at"),
   ...timestamps,
 });
 
@@ -215,6 +221,8 @@ export const invoices = sqliteTable("invoices", {
   totalAmount: real("total_amount").notNull().default(0),
   dueDate: text("due_date"),
   notes: text("notes"),
+  confirmedBy: integer("confirmed_by"),
+  confirmedAt: text("confirmed_at"),
   ...timestamps,
 });
 
@@ -309,6 +317,42 @@ export const suppliers = sqliteTable("suppliers", {
   paymentTerms: text("payment_terms"),
   notes: text("notes"),
   ...timestamps,
+});
+
+// ===== Delivery Tracking (QR Code) =====
+
+export const deliveryTokens = sqliteTable("delivery_tokens", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  token: text("token").notNull().unique(),
+  deliveryNoteId: integer("delivery_note_id").notNull(),
+  salesOrderId: integer("sales_order_id"),
+  expiresAt: text("expires_at"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const deliveryPhotos = sqliteTable("delivery_photos", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  deliveryNoteId: integer("delivery_note_id").notNull(),
+  tokenId: integer("token_id"),
+  photoUrl: text("photo_url").notNull(),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  takenAt: text("taken_at").default(sql`(datetime('now'))`).notNull(),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const deliveryConfirmations = sqliteTable("delivery_confirmations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  deliveryNoteId: integer("delivery_note_id").notNull(),
+  tokenId: integer("token_id"),
+  signatureUrl: text("signature_url"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  macAddress: text("mac_address"),
+  userAgent: text("user_agent"),
+  confirmedAt: text("confirmed_at").default(sql`(datetime('now'))`).notNull(),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
 
 export const poItems = sqliteTable("po_items", {

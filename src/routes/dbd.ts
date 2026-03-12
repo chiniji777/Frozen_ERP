@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
 import { customers } from "../schema.js";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql, like, or } from "drizzle-orm";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
@@ -445,35 +445,89 @@ dbdRoute.post("/save-to-customer", async (c) => {
   return c.json({ ok: true, action: "created", customerId: Number(result.lastInsertRowid), code, lookup }, 201);
 });
 
-// GET /api/dbd/search?q={query} — proxy search to DBD Proxy
+// GET /api/dbd/search?q={query} — proxy search to DBD Proxy + local fallback
 dbdRoute.get("/search", async (c) => {
   const q = c.req.query("q")?.trim();
   if (!q) return c.json({ error: "Query parameter 'q' required" }, 400);
-  if (!DBD_PROXY_URL || !DBD_PROXY_TOKEN) return c.json({ error: "DBD Proxy not configured" }, 503);
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(`${DBD_PROXY_URL}/api/search?q=${encodeURIComponent(q)}`, {
-      signal: controller.signal,
-      headers: { Authorization: `Bearer ${DBD_PROXY_TOKEN}` },
-    });
-    clearTimeout(timeout);
-    if (res.ok) {
-      const raw = await res.json() as { results?: Record<string, string>[] };
-      const results = (raw.results || []).map((r) => ({
-        taxId: r.tax_id || "",
-        name: r.company_name || "",
-        nameEn: r.company_name_en || "",
-        province: r.province || "",
-        status: r.status || "",
-      }));
-      return c.json({ results });
+  let proxyResults: { taxId: string; name: string; nameEn?: string; province?: string; status?: string }[] = [];
+  let detectedType = "อัตโนมัติ";
+
+  // Detect query type
+  const isDigitsOnly = /^\d+$/.test(q);
+  if (isDigitsOnly && q.length === 13) detectedType = "เลขผู้เสียภาษี";
+  else if (/บริษัท|หจก|จำกัด|ห้าง/.test(q)) detectedType = "ชื่อบริษัท";
+  else detectedType = "ค้นทั่วไป";
+
+  // Try DBD Proxy first (if configured)
+  if (DBD_PROXY_URL && DBD_PROXY_TOKEN) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(`${DBD_PROXY_URL}/api/search?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+        headers: { Authorization: `Bearer ${DBD_PROXY_TOKEN}` },
+      });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const raw = await res.json() as { results?: Record<string, string>[]; detectedType?: string };
+        proxyResults = (raw.results || []).map((r) => ({
+          taxId: r.tax_id || "",
+          name: r.company_name || "",
+          nameEn: r.company_name_en || "",
+          province: r.province || "",
+          status: r.status || "",
+        }));
+        if (raw.detectedType) detectedType = raw.detectedType;
+      }
+    } catch {
+      // Proxy failed, fall through to local search
     }
-    return c.json({ error: "DBD Proxy search failed", status: res.status }, 502);
-  } catch {
-    return c.json({ error: "Cannot connect to DBD Proxy" }, 503);
   }
+
+  // If exact Tax ID → try direct lookup
+  if (isDigitsOnly && q.length === 13 && proxyResults.length === 0) {
+    const lookup = await lookupTaxId(q);
+    if (lookup.found) {
+      proxyResults.push({
+        taxId: lookup.taxId || q,
+        name: lookup.companyName || "",
+        nameEn: lookup.companyNameEn || "",
+        province: lookup.province || "",
+        status: lookup.status || "",
+      });
+    }
+  }
+
+  // Always search local DB as supplement
+  const pattern = `%${q}%`;
+  const localRows = await db.select().from(customers)
+    .where(or(
+      like(customers.taxId, pattern),
+      like(customers.name, pattern),
+      like(customers.fullName, pattern),
+      like(customers.nickName, pattern),
+      like(customers.address, pattern),
+      like(customers.territory, pattern),
+    ))
+    .limit(20)
+    .all();
+
+  // Merge local results (avoid duplicates by taxId)
+  const existingTaxIds = new Set(proxyResults.map((r) => r.taxId));
+  for (const row of localRows) {
+    const tid = row.taxId || "";
+    if (tid && existingTaxIds.has(tid)) continue;
+    proxyResults.push({
+      taxId: tid,
+      name: row.fullName || row.name,
+      province: row.territory || "",
+      status: "ลูกค้าในระบบ",
+    });
+    existingTaxIds.add(tid);
+  }
+
+  return c.json({ results: proxyResults.slice(0, 20), detectedType });
 });
 
 export { dbdRoute };

@@ -10,7 +10,7 @@ const ProductPage = lazy(() => import('./pages/ProductPage'));
 const RawMaterialPage = lazy(() => import('./pages/RawMaterialPage'));
 const BomPage = lazy(() => import('./pages/BomPage'));
 const ProductionPage = lazy(() => import('./pages/ProductionPage'));
-const CostPage = lazy(() => import('./pages/CostPage'));
+// CostPage removed per user request
 const SalesOrderPage = lazy(() => import('./pages/SalesOrderPage'));
 const DeliveryNotePage = lazy(() => import('./pages/DeliveryNotePage'));
 const InvoicePage = lazy(() => import('./pages/InvoicePage'));
@@ -18,7 +18,7 @@ const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 const ReceiptPage = lazy(() => import('./pages/ReceiptPage'));
 const ExpensePage = lazy(() => import('./pages/ExpensePage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
-const UomPage = lazy(() => import('./pages/UomPage'));
+// UomPage merged into SettingsPage as tab
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
 function PageLoader() {
@@ -43,7 +43,7 @@ export default function App() {
               <Route path="/raw-materials" element={<RawMaterialPage />} />
               <Route path="/bom" element={<BomPage />} />
               <Route path="/production" element={<ProductionPage />} />
-              <Route path="/costs" element={<CostPage />} />
+              {/* CostPage removed */}
               <Route path="/sales-orders" element={<SalesOrderPage />} />
               <Route path="/delivery-notes" element={<DeliveryNotePage />} />
               <Route path="/invoices" element={<InvoicePage />} />
@@ -51,7 +51,7 @@ export default function App() {
               <Route path="/receipts" element={<ReceiptPage />} />
               <Route path="/expenses" element={<ExpensePage />} />
               <Route path="/users" element={<UserManagementPage />} />
-              <Route path="/uoms" element={<UomPage />} />
+              {/* UomPage merged into SettingsPage */}
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Routes>
