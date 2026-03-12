@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { db } from "../db.js";
 import { users } from "../schema.js";
 import { eq } from "drizzle-orm";
-import { signToken } from "../auth.js";
+import { signToken, authMiddleware } from "../auth.js";
 
 const ALLOWED_EMAILS = ["tanawat.pree@gmail.com"];
 
@@ -87,6 +87,25 @@ auth.post("/google", async (c) => {
   return c.json({
     ok: true,
     token,
+    user: {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+    },
+  });
+});
+
+// GET /api/auth/me — verify token and return current user
+auth.get("/me", authMiddleware, async (c) => {
+  const tokenUser = c.get("user") as { userId: number; username: string; email: string; role: string };
+  const user = await db.select().from(users).where(eq(users.id, tokenUser.userId)).get();
+  if (!user) {
+    return c.json({ error: "User not found" }, 404);
+  }
+  return c.json({
     user: {
       id: user.id,
       username: user.username,
