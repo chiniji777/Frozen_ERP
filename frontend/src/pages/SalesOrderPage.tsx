@@ -1,43 +1,84 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
-import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 
-interface Customer { id: number; name: string; }
-interface Product { id: number; name: string; price: number; }
-interface SOItem { product_id: number; quantity: number; unit_price: number; product_name?: string; }
+interface Customer {
+  id: number; name: string; fullName?: string; nickName?: string;
+  address?: string; phone?: string; email?: string; taxId?: string;
+  creditLimit?: number; paymentTerms?: string; salesPartner?: string;
+  commissionRate?: number;
+}
+interface Product { id: number; name: string; sku?: string; price: number; }
+interface SOItem {
+  productId: number; itemCode?: string; quantity: number; unitPrice: number;
+  rate?: number; uom: string; weight: number; productName?: string;
+}
+interface PaymentTermRow {
+  paymentTerm: string; description: string; dueDate: string;
+  invoicePortion: number; paymentAmount: number;
+}
 interface SalesOrder {
-  id: number;
-  order_number: string;
-  customer_id: number;
-  customer_name?: string;
-  status: string;
-  subtotal: number;
-  vat: number;
-  total_amount: number;
-  items: SOItem[];
-  created_at?: string;
+  id: number; orderNumber: string; customerId: number; status: string;
+  date?: string; deliveryStartDate?: string; deliveryEndDate?: string;
+  customerAddress?: string; shippingAddressName?: string; shippingAddress?: string;
+  contactPerson?: string; contact?: string; mobileNo?: string;
+  warehouse?: string; subtotal: number; vatRate: number; vatAmount: number;
+  totalAmount: number; totalQuantity?: number; totalNetWeight?: number;
+  paymentTermsTemplate?: string; salesPartner?: string; commissionRate?: number;
+  totalCommission?: number; notes?: string;
+  customer?: Customer; items?: SOItem[]; paymentTerms?: PaymentTermRow[];
+  createdAt?: string;
 }
 
 const statusCfg: Record<string, { label: string; color: string }> = {
-  draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700' },
-  confirmed: { label: 'ยืนยัน', color: 'bg-blue-100 text-blue-700' },
-  shipped: { label: 'จัดส่งแล้ว', color: 'bg-yellow-100 text-yellow-700' },
-  delivered: { label: 'ส่งถึงแล้ว', color: 'bg-green-100 text-green-700' },
-  cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' },
+  draft: { label: 'Draft', color: 'bg-gray-100 text-gray-700' },
+  confirmed: { label: 'Confirmed', color: 'bg-blue-100 text-blue-700' },
+  delivered: { label: 'Delivered', color: 'bg-green-100 text-green-700' },
+  invoiced: { label: 'Invoiced', color: 'bg-purple-100 text-purple-700' },
+  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700' },
 };
+
+const emptyItem = (): SOItem => ({ productId: 0, itemCode: '', quantity: 1, unitPrice: 0, rate: 0, uom: 'Pcs.', weight: 0 });
+const emptyPT = (): PaymentTermRow => ({ paymentTerm: '', description: '', dueDate: '', invoicePortion: 0, paymentAmount: 0 });
+
+const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '' }: {
+  label: string; value: string | number; onChange: (v: string) => void; type?: string; disabled?: boolean; placeholder?: string;
+}) => (
+  <div>
+    <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} placeholder={placeholder}
+      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-50" />
+  </div>
+);
 
 export default function SalesOrderPage() {
   const [data, setData] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<SalesOrder | null>(null);
 
+  // Form state
   const [formCustId, setFormCustId] = useState<number | ''>('');
-  const [formItems, setFormItems] = useState<SOItem[]>([{ product_id: 0, quantity: 1, unit_price: 0 }]);
+  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formDeliveryStart, setFormDeliveryStart] = useState('');
+  const [formDeliveryEnd, setFormDeliveryEnd] = useState('');
+  const [formCustAddress, setFormCustAddress] = useState('');
+  const [formShipName, setFormShipName] = useState('');
+  const [formShipAddress, setFormShipAddress] = useState('');
+  const [formContactPerson, setFormContactPerson] = useState('');
+  const [formContact, setFormContact] = useState('');
+  const [formMobileNo, setFormMobileNo] = useState('');
+  const [formItems, setFormItems] = useState<SOItem[]>([emptyItem()]);
+  const [formPaymentTemplate, setFormPaymentTemplate] = useState('');
+  const [formPaymentTerms, setFormPaymentTerms] = useState<PaymentTermRow[]>([]);
+  const [formSalesPartner, setFormSalesPartner] = useState('');
+  const [formCommRate, setFormCommRate] = useState(0);
+  const [formNotes, setFormNotes] = useState('');
+  const [formCreditLimit, setFormCreditLimit] = useState(0);
+  const [formTaxId, setFormTaxId] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -50,40 +91,93 @@ export default function SalesOrderPage() {
       setData(orders); setCustomers(custs); setProducts(prods);
     } finally { setLoading(false); }
   };
-
   useEffect(() => { load(); }, []);
 
-  const subtotal = formItems.reduce((s, it) => s + it.quantity * it.unit_price, 0);
-  const vat = subtotal * 0.07;
-  const totalAmount = subtotal + vat;
+  // Auto-fill when customer changes
+  const onCustomerChange = (custId: number) => {
+    setFormCustId(custId);
+    const c = customers.find((x) => x.id === custId);
+    if (c) {
+      setFormCustAddress(c.address || '');
+      setFormShipAddress(c.address || '');
+      setFormContactPerson(c.nickName || c.name || '');
+      setFormContact(c.phone || '');
+      setFormMobileNo(c.phone || '');
+      setFormSalesPartner(c.salesPartner || '');
+      setFormCommRate(c.commissionRate || 0);
+      setFormCreditLimit(c.creditLimit || 0);
+      setFormTaxId(c.taxId || '');
+      setFormPaymentTemplate(c.paymentTerms || '');
+    }
+  };
 
-  const addItem = () => setFormItems([...formItems, { product_id: 0, quantity: 1, unit_price: 0 }]);
+  // Calculations
+  const subtotal = formItems.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+  const totalQty = formItems.reduce((s, it) => s + it.quantity, 0);
+  const totalWeight = formItems.reduce((s, it) => s + (it.weight || 0), 0);
+  const vat = Math.round(subtotal * 7) / 100;
+  const totalAmount = subtotal + vat;
+  const totalCommission = Math.round(subtotal * formCommRate) / 100;
+
+  const addItem = () => setFormItems([...formItems, emptyItem()]);
   const removeItem = (i: number) => setFormItems(formItems.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: unknown) => {
     const next = [...formItems];
     (next[i] as unknown as Record<string, unknown>)[field] = val;
-    if (field === 'product_id') {
+    if (field === 'productId') {
       const prod = products.find((p) => p.id === Number(val));
-      if (prod) next[i].unit_price = prod.price;
+      if (prod) {
+        next[i].unitPrice = prod.price;
+        next[i].itemCode = prod.sku || '';
+      }
     }
     setFormItems(next);
   };
 
+  const addPT = () => setFormPaymentTerms([...formPaymentTerms, emptyPT()]);
+  const removePT = (i: number) => setFormPaymentTerms(formPaymentTerms.filter((_, idx) => idx !== i));
+  const updatePT = (i: number, field: string, val: unknown) => {
+    const next = [...formPaymentTerms];
+    (next[i] as unknown as Record<string, unknown>)[field] = val;
+    setFormPaymentTerms(next);
+  };
+
   const openAdd = () => {
-    setFormCustId('');
-    setFormItems([{ product_id: 0, quantity: 1, unit_price: 0 }]);
-    setModalOpen(true);
+    setFormCustId(''); setFormDate(new Date().toISOString().split('T')[0]);
+    setFormDeliveryStart(''); setFormDeliveryEnd('');
+    setFormCustAddress(''); setFormShipName(''); setFormShipAddress('');
+    setFormContactPerson(''); setFormContact(''); setFormMobileNo('');
+    setFormItems([emptyItem()]); setFormPaymentTemplate('');
+    setFormPaymentTerms([]); setFormSalesPartner(''); setFormCommRate(0);
+    setFormNotes(''); setFormCreditLimit(0); setFormTaxId('');
+    setFormOpen(true);
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     await api.post('/sales-orders', {
-      customer_id: Number(formCustId),
-      items: formItems.filter((it) => it.product_id > 0).map((it) => ({
-        product_id: it.product_id, quantity: Number(it.quantity), unit_price: Number(it.unit_price),
+      customerId: Number(formCustId),
+      date: formDate,
+      deliveryStartDate: formDeliveryStart || null,
+      deliveryEndDate: formDeliveryEnd || null,
+      customerAddress: formCustAddress || null,
+      shippingAddressName: formShipName || null,
+      shippingAddress: formShipAddress || null,
+      contactPerson: formContactPerson || null,
+      contact: formContact || null,
+      mobileNo: formMobileNo || null,
+      paymentTermsTemplate: formPaymentTemplate || null,
+      salesPartner: formSalesPartner || null,
+      commissionRate: formCommRate,
+      notes: formNotes || null,
+      items: formItems.filter((it) => it.productId > 0).map((it) => ({
+        productId: it.productId, itemCode: it.itemCode, quantity: Number(it.quantity),
+        unitPrice: Number(it.unitPrice), rate: Number(it.rate) || null,
+        uom: it.uom, weight: Number(it.weight),
       })),
+      paymentTerms: formPaymentTerms.length ? formPaymentTerms : undefined,
     });
-    setModalOpen(false); load();
+    setFormOpen(false); load();
   };
 
   const handleConfirm = async () => {
@@ -92,77 +186,244 @@ export default function SalesOrderPage() {
     setConfirmTarget(null); load();
   };
 
-  if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
+  if (loading) return <div className="text-center py-10 text-gray-400">Loading...</div>;
+
+  // === LIST VIEW ===
+  if (!formOpen) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">Sales Order</h1>
+        <DataTable
+          columns={[
+            { key: 'orderNumber', label: 'SO#' },
+            { key: 'customer', label: 'Customer', render: (o) => (o as SalesOrder).customer?.name || '-' },
+            { key: 'date', label: 'Date', render: (o) => (o as SalesOrder).date || '-' },
+            { key: 'totalAmount', label: 'Grand Total', render: (o) => `${Number((o as SalesOrder).totalAmount).toLocaleString()}` },
+            { key: 'status', label: 'Status', render: (o) => {
+              const cfg = statusCfg[(o as SalesOrder).status] ?? statusCfg.draft;
+              return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
+            }},
+          ]}
+          data={data}
+          getId={(o) => o.id}
+          searchPlaceholder="Search Sales Orders..."
+          onAdd={openAdd}
+          onEdit={(o) => { if (o.status === 'draft') setConfirmTarget(o); }}
+        />
+        <ConfirmDialog open={!!confirmTarget} message={`Confirm Sales Order "${confirmTarget?.orderNumber}"?`}
+          onConfirm={handleConfirm} onCancel={() => setConfirmTarget(null)} />
+      </div>
+    );
+  }
+
+  // === FORM VIEW (ERPNext style sections) ===
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-4">
+      <h3 className="text-sm font-semibold text-gray-700 mb-4 border-b pb-2">{title}</h3>
+      {children}
+    </div>
+  );
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">📝 ใบสั่งขาย (Sales Order)</h1>
-      <DataTable
-        columns={[
-          { key: 'order_number', label: 'เลขที่' },
-          { key: 'customer_name', label: 'ลูกค้า' },
-          { key: 'total_amount', label: 'ยอดรวม', render: (o) => `฿${Number(o.total_amount).toLocaleString()}` },
-          { key: 'status', label: 'สถานะ', render: (o) => {
-            const cfg = statusCfg[o.status] ?? statusCfg.draft;
-            return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
-          }},
-        ]}
-        data={data}
-        getId={(o) => o.id}
-        searchPlaceholder="ค้นหาใบสั่งขาย..."
-        onAdd={openAdd}
-        onEdit={(o) => { if (o.status === 'draft') setConfirmTarget(o); }}
-      />
+    <div className="max-w-5xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-gray-800">New Sales Order</h1>
+        <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">Back to List</button>
+      </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="สร้างใบสั่งขายใหม่">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ลูกค้า</label>
-            <select required value={formCustId} onChange={(e) => setFormCustId(Number(e.target.value))}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-              <option value="">-- เลือกลูกค้า --</option>
-              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">สินค้า</label>
-              <button type="button" onClick={addItem} className="text-xs text-indigo-600 hover:text-indigo-800">+ เพิ่มรายการ</button>
+      <form onSubmit={handleSubmit}>
+        {/* Section 1: Dashboard */}
+        <Section title="Dashboard">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Customer</label>
+              <select required value={formCustId} onChange={(e) => onCustomerChange(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="">-- Select Customer --</option>
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
-            <div className="flex flex-col gap-2">
-              {formItems.map((item, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <select value={item.product_id} onChange={(e) => updateItem(i, 'product_id', Number(e.target.value))}
-                    className="flex-1 px-2 py-1.5 border rounded-lg text-sm">
-                    <option value={0}>-- เลือกสินค้า --</option>
-                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <input type="number" min="1" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
-                    className="w-16 px-2 py-1.5 border rounded-lg text-sm text-right" placeholder="จำนวน" />
-                  <input type="number" step="0.01" value={item.unit_price} onChange={(e) => updateItem(i, 'unit_price', Number(e.target.value))}
-                    className="w-24 px-2 py-1.5 border rounded-lg text-sm text-right" placeholder="ราคา" />
-                  <span className="text-xs text-gray-400 w-20 text-right">฿{(item.quantity * item.unit_price).toLocaleString()}</span>
-                  {formItems.length > 1 && (
-                    <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 bg-gray-50 rounded-lg p-3 text-sm">
-              <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>฿{subtotal.toLocaleString()}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">VAT 7%</span><span>฿{vat.toLocaleString()}</span></div>
-              <div className="flex justify-between font-bold border-t mt-1 pt-1"><span>รวมทั้งหมด</span><span>฿{totalAmount.toLocaleString()}</span></div>
-            </div>
+            <InputField label="Company" value="Frozen Food Plus Co., Ltd." onChange={() => {}} disabled />
+            <InputField label="Date" value={formDate} onChange={setFormDate} type="date" />
+            <InputField label="Credit Limit" value={formCreditLimit} onChange={(v) => setFormCreditLimit(Number(v))} type="number" disabled />
+            <InputField label="Delivery Start Date" value={formDeliveryStart} onChange={setFormDeliveryStart} type="date" />
+            <InputField label="Delivery End Date" value={formDeliveryEnd} onChange={setFormDeliveryEnd} type="date" />
+            <InputField label="Tax ID" value={formTaxId} onChange={setFormTaxId} disabled />
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
-            <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">สร้าง</button>
-          </div>
-        </form>
-      </Modal>
+        </Section>
 
-      <ConfirmDialog open={!!confirmTarget} message={`ยืนยันใบสั่งขาย "${confirmTarget?.order_number}"?`}
-        onConfirm={handleConfirm} onCancel={() => setConfirmTarget(null)} />
+        {/* Section 2: Address & Contact */}
+        <Section title="Address & Contact">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField label="Customer Address" value={formCustAddress} onChange={setFormCustAddress} />
+            <InputField label="Shipping Address Name" value={formShipName} onChange={setFormShipName} />
+            <InputField label="Shipping Address" value={formShipAddress} onChange={setFormShipAddress} />
+            <InputField label="Contact Person" value={formContactPerson} onChange={setFormContactPerson} />
+            <InputField label="Contact" value={formContact} onChange={setFormContact} />
+            <InputField label="Mobile No" value={formMobileNo} onChange={setFormMobileNo} />
+          </div>
+        </Section>
+
+        {/* Section 3: Warehouse */}
+        <Section title="Warehouse">
+          <InputField label="Set Source Warehouse" value="Ladprao 43 - FFP" onChange={() => {}} disabled />
+        </Section>
+
+        {/* Section 4: Items */}
+        <Section title="Items">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-gray-500">
+                  <th className="pb-2 pr-2">#</th>
+                  <th className="pb-2 pr-2">Item Code</th>
+                  <th className="pb-2 pr-2">Item Name</th>
+                  <th className="pb-2 pr-2 text-right">Qty</th>
+                  <th className="pb-2 pr-2 text-right">Rate</th>
+                  <th className="pb-2 pr-2">UOM</th>
+                  <th className="pb-2 pr-2 text-right">Weight (kg)</th>
+                  <th className="pb-2 pr-2 text-right">Amount</th>
+                  <th className="pb-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {formItems.map((item, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="py-2 pr-2 text-gray-400">{i + 1}</td>
+                    <td className="py-2 pr-2">
+                      <input value={item.itemCode || ''} onChange={(e) => updateItem(i, 'itemCode', e.target.value)}
+                        className="w-24 px-2 py-1 border rounded text-sm" placeholder="Code" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <select value={item.productId} onChange={(e) => updateItem(i, 'productId', Number(e.target.value))}
+                        className="w-40 px-2 py-1 border rounded text-sm">
+                        <option value={0}>-- Select --</option>
+                        {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input type="number" min="0" step="0.01" value={item.quantity}
+                        onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
+                        className="w-20 px-2 py-1 border rounded text-sm text-right" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input type="number" step="0.01" value={item.unitPrice}
+                        onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))}
+                        className="w-24 px-2 py-1 border rounded text-sm text-right" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input value={item.uom} onChange={(e) => updateItem(i, 'uom', e.target.value)}
+                        className="w-16 px-2 py-1 border rounded text-sm" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input type="number" step="0.01" value={item.weight}
+                        onChange={(e) => updateItem(i, 'weight', Number(e.target.value))}
+                        className="w-20 px-2 py-1 border rounded text-sm text-right" />
+                    </td>
+                    <td className="py-2 pr-2 text-right text-gray-600">{(item.quantity * item.unitPrice).toLocaleString()}</td>
+                    <td className="py-2">
+                      {formItems.length > 1 && (
+                        <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600">x</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" onClick={addItem} className="mt-2 text-xs text-indigo-600 hover:text-indigo-800">+ Add Row</button>
+          <div className="mt-4 bg-gray-50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div><span className="text-gray-500">Total Qty</span><div className="font-semibold">{totalQty.toLocaleString()}</div></div>
+            <div><span className="text-gray-500">Total Net Weight</span><div className="font-semibold">{totalWeight.toLocaleString()} kg</div></div>
+            <div><span className="text-gray-500">Subtotal</span><div className="font-semibold">{subtotal.toLocaleString()}</div></div>
+            <div><span className="text-gray-500">Grand Total</span><div className="font-bold text-lg">{totalAmount.toLocaleString()}</div></div>
+          </div>
+        </Section>
+
+        {/* Section 5: Payment Terms */}
+        <Section title="Payment Terms">
+          <div className="mb-3">
+            <InputField label="Payment Terms Template" value={formPaymentTemplate} onChange={setFormPaymentTemplate} placeholder="e.g. Net 30" />
+          </div>
+          {formPaymentTerms.length > 0 && (
+            <table className="w-full text-sm mb-2">
+              <thead>
+                <tr className="border-b text-left text-xs text-gray-500">
+                  <th className="pb-2 pr-2">Payment Term</th>
+                  <th className="pb-2 pr-2">Description</th>
+                  <th className="pb-2 pr-2">Due Date</th>
+                  <th className="pb-2 pr-2 text-right">Portion %</th>
+                  <th className="pb-2 pr-2 text-right">Amount</th>
+                  <th className="pb-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {formPaymentTerms.map((pt, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="py-2 pr-2">
+                      <input value={pt.paymentTerm} onChange={(e) => updatePT(i, 'paymentTerm', e.target.value)}
+                        className="w-full px-2 py-1 border rounded text-sm" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input value={pt.description} onChange={(e) => updatePT(i, 'description', e.target.value)}
+                        className="w-full px-2 py-1 border rounded text-sm" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input type="date" value={pt.dueDate} onChange={(e) => updatePT(i, 'dueDate', e.target.value)}
+                        className="w-full px-2 py-1 border rounded text-sm" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input type="number" step="0.01" value={pt.invoicePortion}
+                        onChange={(e) => updatePT(i, 'invoicePortion', Number(e.target.value))}
+                        className="w-20 px-2 py-1 border rounded text-sm text-right" />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input type="number" step="0.01" value={pt.paymentAmount}
+                        onChange={(e) => updatePT(i, 'paymentAmount', Number(e.target.value))}
+                        className="w-24 px-2 py-1 border rounded text-sm text-right" />
+                    </td>
+                    <td className="py-2">
+                      <button type="button" onClick={() => removePT(i)} className="text-red-400 hover:text-red-600">x</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <button type="button" onClick={addPT} className="text-xs text-indigo-600 hover:text-indigo-800">+ Add Payment Term</button>
+        </Section>
+
+        {/* Section 6: Commission */}
+        <Section title="Sales Team / Commission">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <InputField label="Sales Partner" value={formSalesPartner} onChange={setFormSalesPartner} />
+            <InputField label="Commission Rate (%)" value={formCommRate} onChange={(v) => setFormCommRate(Number(v))} type="number" />
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Total Commission</label>
+              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold">
+                {totalCommission.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* Notes */}
+        <Section title="Notes">
+          <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            placeholder="Additional notes..." />
+        </Section>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 mb-8">
+          <button type="button" onClick={() => setFormOpen(false)}
+            className="px-6 py-2.5 text-sm rounded-lg border hover:bg-gray-50">Cancel</button>
+          <button type="submit"
+            className="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium">
+            Save Sales Order
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
