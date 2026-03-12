@@ -13,7 +13,7 @@ interface RawMaterial {
   price_per_unit: number;
 }
 
-const emptyForm = { name: '', unit: 'กก.', stock: '', min_stock: '', price_per_unit: '' };
+const emptyForm = { name: '', unit: 'กก.', stock: '', price_per_unit: '' };
 
 export default function RawMaterialPage() {
   const [data, setData] = useState<RawMaterial[]>([]);
@@ -39,9 +39,8 @@ export default function RawMaterialPage() {
     setForm({
       name: m.name,
       unit: m.unit,
-      stock: String(m.stock),
-      min_stock: String(m.min_stock),
-      price_per_unit: String(m.price_per_unit),
+      stock: String(m.stock ?? 0),
+      price_per_unit: String(m.price_per_unit ?? 0),
     });
     setModalOpen(true);
   };
@@ -50,9 +49,8 @@ export default function RawMaterialPage() {
     e.preventDefault();
     const body = {
       ...form,
-      stock: Number(form.stock),
-      min_stock: Number(form.min_stock),
-      price_per_unit: Number(form.price_per_unit),
+      stock: Number(form.stock) || 0,
+      price_per_unit: Number(form.price_per_unit) || 0,
     };
     if (editing) {
       await api.put(`/raw-materials/${editing.id}`, body);
@@ -88,8 +86,7 @@ export default function RawMaterialPage() {
           { key: 'name', label: 'ชื่อวัตถุดิบ' },
           { key: 'unit', label: 'หน่วย' },
           { key: 'stock', label: 'คงเหลือ', render: (m) => stockBadge(m) },
-          { key: 'min_stock', label: 'ขั้นต่ำ' },
-          { key: 'price_per_unit', label: 'ราคา/หน่วย', render: (m) => `฿${Number(m.price_per_unit).toLocaleString()}` },
+          { key: 'price_per_unit', label: 'ราคา/หน่วย', render: (m) => `฿${(Number(m.price_per_unit) || 0).toLocaleString()}` },
         ]}
         data={data}
         getId={(m) => m.id}
@@ -97,6 +94,7 @@ export default function RawMaterialPage() {
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={(m) => setDeleteTarget(m)}
+        onRowClick={openEdit}
       />
 
       <Modal
@@ -115,17 +113,10 @@ export default function RawMaterialPage() {
             <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนคงเหลือ</label>
-              <input type="number" required value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนขั้นต่ำ</label>
-              <input type="number" required value={form.min_stock} onChange={(e) => setForm({ ...form, min_stock: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนคงเหลือ</label>
+            <input type="number" required value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">ราคาต่อหน่วย (บาท)</label>
