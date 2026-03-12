@@ -57,6 +57,13 @@ interface LookupResult {
   address?: string;
   registeredDate?: string;
   status?: string;
+  capital?: string;
+  province?: string;
+  district?: string;
+  subDistrict?: string;
+  zipCode?: string;
+  phone?: string;
+  businessType?: string;
   type?: "Company" | "Individual";
   typeLabel?: string;
   source?: string;
@@ -127,14 +134,21 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
         const data = proxyResponse.data;
         const result: LookupResult = {
           found: true,
-          taxId: data.tax_id || taxId,
-          companyName: data.company_name || "",
-          companyNameEn: data.company_name_en || "",
+          taxId: data.taxId || data.tax_id || taxId,
+          companyName: data.companyName || data.company_name || "",
+          companyNameEn: data.companyNameEn || data.company_name_en || "",
           address: data.address || "",
-          registeredDate: data.registered_date || "",
+          registeredDate: data.registeredDate || data.registered_date || "",
           status: data.status || "",
-          type: ["2", "3", "5", "7"].includes(data.jp_type_code) ? "Company" : "Individual",
-          typeLabel: data.jp_type_desc || JURISTIC_TYPE_LABELS[data.jp_type_code || ""] || "",
+          capital: data.capital || data.paid_capital || "",
+          province: data.province || "",
+          district: data.district || "",
+          subDistrict: data.subDistrict || "",
+          zipCode: data.zipCode || "",
+          phone: data.phone || "",
+          businessType: data.businessTypeDesc || data.tsicDesc || "",
+          type: ["2", "3", "5", "7"].includes(data.jpTypeCode || data.jp_type_code || "") ? "Company" : "Individual",
+          typeLabel: data.jpTypeDesc || data.jp_type_desc || JURISTIC_TYPE_LABELS[data.jpTypeCode || data.jp_type_code || ""] || "",
           source: proxyResponse.source || "proxy",
         };
         setCache(taxId, result);
