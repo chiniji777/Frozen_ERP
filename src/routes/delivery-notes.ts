@@ -203,17 +203,16 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
   </div>
   <table class="items-table">
     <thead><tr>
-      <th class="text-center">#</th><th>Item Code</th><th>รายการ</th><th>หน่วย</th>
-      <th class="text-right">จำนวน</th>
+      <th class="text-center">#</th><th>สินค้า</th><th class="text-right">จำนวน</th><th>หน่วย</th>
     </tr></thead>
     <tbody>${items.map((it, i) => `<tr>
-      <td class="text-center">${i + 1}</td><td>${escapeHtml(it.itemCode) || "-"}</td>
-      <td>${escapeHtml(it.productName) || "-"}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td>
-      <td class="text-right">${fmt(it.quantity)}</td>
+      <td class="text-center">${i + 1}</td>
+      <td>${escapeHtml(it.productName) || "-"}</td>
+      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
-    <div class="totals-row grand"><span>จำนวนรวม</span><span>${fmt(items.reduce((s, it) => s + it.quantity, 0))} รายการ</span></div>
+    <div class="totals-row grand"><span>จำนวนรวม</span><span>${fmt(items.reduce((s, it) => s + it.quantity, 0))}</span></div>
   </div></div>
   ${dn.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(dn.notes)}</div>` : ""}
   ${signatureSection("ผู้รับสินค้า / Receiver", "ผู้ส่งสินค้า / Sender", sig)}`;
