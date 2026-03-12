@@ -111,7 +111,8 @@ export default function PurchaseOrderPage() {
 
   const updateItem = (i: number, field: keyof POItem, val: string | number) => {
     const next = [...formItems];
-    (next[i] as Record<string, unknown>)[field] = val;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (next[i] as any)[field] = val;
     // Auto-calc amount
     if (field === 'quantity' || field === 'unitPrice') {
       next[i].amount = Number(next[i].quantity) * Number(next[i].unitPrice);
