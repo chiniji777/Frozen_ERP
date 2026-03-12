@@ -3,11 +3,14 @@ import { db } from "../db.js";
 import { companySettings } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { join, basename } from "path";
 
 const settingsRoute = new Hono();
 
 const UPLOAD_DIR = join(process.cwd(), "data", "uploads");
+const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB
+const ALLOWED_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp"]);
+const ALLOWED_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 settingsRoute.get("/", async (c) => {
   const row = await db.select().from(companySettings).where(eq(companySettings.id, 1)).get();
@@ -42,9 +45,21 @@ settingsRoute.post("/logo", async (c) => {
     return c.json({ error: "No file uploaded" }, 400);
   }
 
+  if (file.size > MAX_LOGO_SIZE) {
+    return c.json({ error: "Logo too large (max 2MB)" }, 400);
+  }
+
+  if (!file.type || !ALLOWED_MIME_TYPES.has(file.type)) {
+    return c.json({ error: "Only PNG/JPG/GIF/WebP allowed" }, 400);
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+  if (!ALLOWED_EXTS.has(ext)) {
+    return c.json({ error: "File type not allowed" }, 400);
+  }
+
   await mkdir(UPLOAD_DIR, { recursive: true });
 
-  const ext = file.name.split(".").pop() || "png";
   const filename = `logo_${Date.now()}.${ext}`;
   const filepath = join(UPLOAD_DIR, filename);
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -60,23 +75,26 @@ settingsRoute.post("/logo", async (c) => {
 });
 
 settingsRoute.get("/logo/:filename", async (c) => {
-  const filename = c.req.param("filename");
-  if (filename.includes("..") || filename.includes("/")) {
+  const rawFilename = c.req.param("filename");
+  const filename = basename(rawFilename).replace(/\0/g, "");
+  if (filename !== rawFilename) {
     return c.json({ error: "Invalid filename" }, 400);
+  }
+  const ext = filename.split(".").pop()?.toLowerCase();
+  if (!ext || !ALLOWED_EXTS.has(ext)) {
+    return c.json({ error: "Invalid file type" }, 400);
   }
   const filepath = join(UPLOAD_DIR, filename);
   try {
     const data = await readFile(filepath);
-    const ext = filename.split(".").pop()?.toLowerCase();
     const mimeMap: Record<string, string> = {
       png: "image/png",
       jpg: "image/jpeg",
       jpeg: "image/jpeg",
       gif: "image/gif",
-      svg: "image/svg+xml",
       webp: "image/webp",
     };
-    const contentType = mimeMap[ext || ""] || "application/octet-stream";
+    const contentType = mimeMap[ext] || "application/octet-stream";
     return new Response(data, {
       headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=86400" },
     });
