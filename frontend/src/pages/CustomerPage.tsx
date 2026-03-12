@@ -1,8 +1,9 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { searchByZipcode, searchByDistrict, type ThaiAddress } from '../utils/thaiAddress';
 
 interface Customer {
   id: number;
@@ -29,11 +30,14 @@ interface CustomerForm {
   code: string;
   name: string;
   nickName: string;
-  territory: string;
   customerType: 'Company' | 'Individual';
   phone: string;
   email: string;
   address: string;
+  district: string;
+  amphoe: string;
+  province: string;
+  zipcode: string;
   taxId: string;
   creditLimit: number;
   paymentTerms: string;
@@ -43,10 +47,18 @@ interface CustomerForm {
 }
 
 const emptyForm: CustomerForm = {
-  code: '', name: '', nickName: '', territory: '', customerType: 'Company',
-  phone: '', email: '', address: '', taxId: '',
-  creditLimit: 0, paymentTerms: '', salesPartner: '', commissionRate: 0, notes: '',
+  code: '', name: '', nickName: '', customerType: 'Company',
+  phone: '', email: '', address: '', district: '', amphoe: '', province: '', zipcode: '',
+  taxId: '', creditLimit: 0, paymentTerms: '', salesPartner: '', commissionRate: 0, notes: '',
 };
+
+const PAYMENT_TERMS = [
+  'ชำระก่อนส่ง',
+  'ชำระหลังส่ง',
+  'เครดิต 7 วัน (นับจากวันส่งสินค้า)',
+  'เครดิต 14 วัน (นับจากวันส่งสินค้า)',
+  'เครดิต 30 วัน (นับจากวันส่งสินค้า)',
+];
 
 // --- Reusable InputField ---
 const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '', required = false }: {
@@ -107,7 +119,6 @@ function ViewDetail({ customer, open, onClose }: { customer: Customer | null; op
           <InfoRow label="รหัส" value={customer.code} />
           <InfoRow label="ชื่อเต็ม" value={customer.fullName || customer.name} />
           <InfoRow label="ชื่อย่อ" value={customer.nickName} />
-          <InfoRow label="พื้นที่" value={customer.territory} />
           <InfoRow label="ประเภท" value={<TypeBadge type={customer.customerType} />} />
         </Section>
 
@@ -154,6 +165,10 @@ export default function CustomerPage() {
   const [toast, setToast] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number | string>>(new Set());
   const [bulkDbdLoading, setBulkDbdLoading] = useState(false);
+  const [addrSuggestions, setAddrSuggestions] = useState<ThaiAddress[]>([]);
+  const [showAddrDropdown, setShowAddrDropdown] = useState(false);
+  const [salesPartners, setSalesPartners] = useState<string[]>([]);
+  const addrRef = useRef<HTMLDivElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -165,6 +180,21 @@ export default function CustomerPage() {
 
   useEffect(() => { load(); }, []);
 
+  // Extract unique salesPartners from loaded data
+  useEffect(() => {
+    const partners = [...new Set(data.map((c) => c.salesPartner).filter(Boolean))].sort();
+    setSalesPartners(partners);
+  }, [data]);
+
+  // Close address dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (addrRef.current && !addrRef.current.contains(e.target as Node)) setShowAddrDropdown(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   // Toast auto-dismiss
   useEffect(() => {
     if (!toast) return;
@@ -175,10 +205,19 @@ export default function CustomerPage() {
   const openAdd = () => { setEditing(null); setForm(emptyForm); setModalOpen(true); };
   const openEdit = (c: Customer) => {
     setEditing(c);
+    // Parse address to extract district/amphoe/province/zipcode if stored in address field
+    const addrParts = (c.address || '').split(' ');
+    const maybeZip = addrParts[addrParts.length - 1];
+    const hasZip = /^\d{5}$/.test(maybeZip);
     setForm({
       code: c.code || '', name: c.fullName || c.name, nickName: c.nickName || '',
-      territory: c.territory || '', customerType: c.customerType || 'Company',
-      phone: c.phone || '', email: c.email || '', address: c.address || '',
+      customerType: c.customerType || 'Company',
+      phone: c.phone || '', email: c.email || '',
+      address: c.address || '',
+      district: (c as unknown as Record<string, unknown>).district as string || '',
+      amphoe: (c as unknown as Record<string, unknown>).amphoe as string || '',
+      province: (c as unknown as Record<string, unknown>).province as string || '',
+      zipcode: hasZip ? maybeZip : ((c as unknown as Record<string, unknown>).zipcode as string || ''),
       taxId: c.taxId || '', creditLimit: c.creditLimit || 0,
       paymentTerms: c.paymentTerms || '', salesPartner: c.salesPartner || '',
       commissionRate: c.commissionRate || 0, notes: c.notes || '',
@@ -190,13 +229,58 @@ export default function CustomerPage() {
     setForm((f) => ({ ...f, [key]: val }));
   };
 
+  // Address auto-fill from zipcode or district search
+  const handleZipcodeChange = (val: string) => {
+    const zip = val.replace(/\D/g, '').slice(0, 5);
+    setField('zipcode', zip);
+    if (zip.length === 5) {
+      const results = searchByZipcode(zip);
+      setAddrSuggestions(results);
+      if (results.length === 1) {
+        selectAddress(results[0]);
+      } else if (results.length > 1) {
+        setShowAddrDropdown(true);
+      }
+    } else {
+      setAddrSuggestions([]);
+      setShowAddrDropdown(false);
+    }
+  };
+
+  const handleDistrictSearch = (val: string) => {
+    setField('district', val);
+    if (val.length >= 2) {
+      const results = searchByDistrict(val);
+      setAddrSuggestions(results);
+      setShowAddrDropdown(results.length > 0);
+    } else {
+      setAddrSuggestions([]);
+      setShowAddrDropdown(false);
+    }
+  };
+
+  const selectAddress = (addr: ThaiAddress) => {
+    setForm((f) => ({
+      ...f,
+      district: addr.district,
+      amphoe: addr.amphoe,
+      province: addr.province,
+      zipcode: addr.zipcode,
+    }));
+    setShowAddrDropdown(false);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const payload = { ...form, fullName: form.name };
+    // Compose full address from parts
+    const fullAddress = [form.address, form.district, form.amphoe, form.province, form.zipcode]
+      .filter(Boolean).join(' ');
+    const payload = { ...form, fullName: form.name, address: fullAddress, territory: form.province };
     if (editing) {
       await api.put(`/customers/${editing.id}`, payload);
     } else {
-      await api.post('/customers', payload);
+      // code auto-generate: don't send code, let backend handle it
+      await api.post('/customers', { ...payload, code: undefined });
     }
     setModalOpen(false);
     load();
@@ -285,7 +369,6 @@ export default function CustomerPage() {
           { key: 'code', label: 'รหัส' },
           { key: 'name', label: 'ชื่อ', render: (c: Customer) => c.fullName || c.name || '-' },
           { key: 'nickName', label: 'ชื่อย่อ' },
-          { key: 'territory', label: 'พื้นที่' },
           { key: 'customerType', label: 'ประเภท', render: (c: Customer) => <TypeBadge type={c.customerType} /> },
           { key: 'phone', label: 'โทรศัพท์' },
         ]}
@@ -329,10 +412,11 @@ export default function CustomerPage() {
         <form onSubmit={handleSubmit} className="space-y-1">
           <Section title="ข้อมูลทั่วไป">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField label="รหัสลูกค้า" value={form.code} onChange={(v) => setField('code', v)} placeholder="C-001" />
+              {editing && (
+                <InputField label="รหัสลูกค้า" value={form.code} onChange={() => {}} disabled />
+              )}
               <InputField label="ชื่อ / ชื่อบริษัท" value={form.name} onChange={(v) => setField('name', v)} required />
               <InputField label="ชื่อย่อ" value={form.nickName} onChange={(v) => setField('nickName', v)} />
-              <InputField label="พื้นที่" value={form.territory} onChange={(v) => setField('territory', v)} placeholder="กรุงเทพฯ" />
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">ประเภทลูกค้า</label>
                 <select
@@ -352,14 +436,49 @@ export default function CustomerPage() {
               <InputField label="โทรศัพท์" value={form.phone} onChange={(v) => setField('phone', v)} />
               <InputField label="อีเมล" value={form.email} onChange={(v) => setField('email', v)} type="email" />
               <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">ที่อยู่</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">ที่อยู่ (เลขที่ ถนน ซอย)</label>
                 <textarea
                   value={form.address}
                   onChange={(e) => setField('address', e.target.value)}
                   rows={2}
+                  placeholder="เลขที่ ถนน ซอย..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm resize-none"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">รหัสไปรษณีย์</label>
+                <input
+                  type="text"
+                  value={form.zipcode}
+                  onChange={(e) => handleZipcodeChange(e.target.value)}
+                  placeholder="10110"
+                  maxLength={5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                />
+              </div>
+              <div className="relative" ref={addrRef}>
+                <label className="block text-xs font-medium text-gray-500 mb-1">ตำบล/แขวง</label>
+                <input
+                  type="text"
+                  value={form.district}
+                  onChange={(e) => handleDistrictSearch(e.target.value)}
+                  onFocus={() => addrSuggestions.length > 0 && setShowAddrDropdown(true)}
+                  placeholder="พิมพ์ชื่อตำบล..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                />
+                {showAddrDropdown && addrSuggestions.length > 0 && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {addrSuggestions.map((addr, i) => (
+                      <button key={i} type="button" onClick={() => selectAddress(addr)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 border-b border-gray-50">
+                        {addr.district} &rarr; {addr.amphoe} &rarr; {addr.province} {addr.zipcode}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <InputField label="อำเภอ/เขต" value={form.amphoe} onChange={(v) => setField('amphoe', v)} />
+              <InputField label="จังหวัด" value={form.province} onChange={(v) => setField('province', v)} />
             </div>
           </Section>
 
@@ -398,13 +517,9 @@ export default function CustomerPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                 >
                   <option value="">เลือก...</option>
-                  <option value="Cash">เงินสด</option>
-                  <option value="Net 7">Net 7</option>
-                  <option value="Net 15">Net 15</option>
-                  <option value="Net 30">Net 30</option>
-                  <option value="Net 45">Net 45</option>
-                  <option value="Net 60">Net 60</option>
-                  <option value="Net 90">Net 90</option>
+                  {PAYMENT_TERMS.map((term) => (
+                    <option key={term} value={term}>{term}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -412,7 +527,19 @@ export default function CustomerPage() {
 
           <Section title="การขาย">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField label="พนักงานขาย" value={form.salesPartner} onChange={(v) => setField('salesPartner', v)} />
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">พนักงานขาย</label>
+                <select
+                  value={form.salesPartner}
+                  onChange={(e) => setField('salesPartner', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                >
+                  <option value="">เลือก...</option>
+                  {salesPartners.map((sp) => (
+                    <option key={sp} value={sp}>{sp}</option>
+                  ))}
+                </select>
+              </div>
               <InputField label="ค่าคอมมิชชั่น (%)" value={form.commissionRate} onChange={(v) => setField('commissionRate', Number(v))} type="number" />
             </div>
           </Section>
