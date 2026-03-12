@@ -164,7 +164,7 @@ invoicesRoute.post("/", async (c) => {
     vatRate,
     vatAmount,
     totalAmount,
-    dueDate: body.dueDate || body.due_date || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    dueDate: body.dueDate || body.due_date || null,
     notes: body.notes || null,
   }).run();
 

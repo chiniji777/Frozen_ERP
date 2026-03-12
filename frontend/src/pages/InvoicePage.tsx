@@ -86,6 +86,9 @@ export default function InvoicePage() {
   const [detailInv, setDetailInv] = useState<Invoice | null>(null);
   const [actionTarget, setActionTarget] = useState<{ inv: Invoice; action: string } | null>(null);
   const [toast, setToast] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editNotes, setEditNotes] = useState('');
   const location = useLocation();
 
   // Reset to list view when sidebar re-navigates to this page
@@ -207,6 +210,30 @@ export default function InvoicePage() {
     load();
   };
 
+  const startEdit = () => {
+    if (!detailInv) return;
+    setEditDueDate(detailInv.due_date?.slice(0, 10) || '');
+    setEditNotes(detailInv.notes || '');
+    setEditMode(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!detailInv) return;
+    try {
+      await api.put(`/invoices/${detailInv.id}`, {
+        due_date: editDueDate || null,
+        notes: editNotes || null,
+      });
+      const updated = await api.get<Invoice>(`/invoices/${detailInv.id}`);
+      setDetailInv(updated);
+      setEditMode(false);
+      setToast('บันทึกสำเร็จ');
+      load();
+    } catch {
+      setToast('บันทึกไม่สำเร็จ');
+    }
+  };
+
   const getPrintOptions = (id: number) => [
     { label: 'ใบแจ้งหนี้ (Invoice)', icon: '📄', path: `/invoices/${id}/print` },
     { label: 'ใบเสร็จรับเงิน', icon: '🧾', path: `/invoices/${id}/print-receipt` },
@@ -232,15 +259,27 @@ export default function InvoicePage() {
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
           </div>
           <div className="flex gap-2">
-            {cfg.next && (
+            {iv.status !== 'cancelled' && iv.status !== 'paid' && !editMode && (
+              <button onClick={startEdit}
+                className="px-4 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">✏️ แก้ไข</button>
+            )}
+            {editMode && (
+              <>
+                <button onClick={handleSaveEdit}
+                  className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">💾 บันทึก</button>
+                <button onClick={() => setEditMode(false)}
+                  className="px-4 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">ยกเลิก</button>
+              </>
+            )}
+            {!editMode && cfg.next && (
               <button onClick={() => setActionTarget({ inv: iv, action: cfg.next! })}
                 className={`px-4 py-2 text-sm text-white rounded-lg ${cfg.nextColor}`}>{cfg.nextLabel}</button>
             )}
-            {(iv.status === 'draft') && (
+            {!editMode && (iv.status === 'draft') && (
               <button onClick={() => setActionTarget({ inv: iv, action: 'cancel' })}
                 className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
             )}
-            <PrintMenu options={getPrintOptions(iv.id)} />
+            {!editMode && <PrintMenu options={getPrintOptions(iv.id)} />}
           </div>
         </div>
 
@@ -280,7 +319,12 @@ export default function InvoicePage() {
             <InfoRow label="เลขประจำตัวผู้เสียภาษี" value={iv.billing_tax_id} />
             <InfoRow label="ที่อยู่" value={iv.billing_address} />
             <InfoRow label="ครบกำหนดชำระ" value={
-              <span className={isOverdue(iv) ? 'text-red-600 font-semibold' : ''}>{iv.due_date?.slice(0, 10) || '-'}</span>
+              editMode ? (
+                <input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)}
+                  className="px-2 py-1 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+              ) : (
+                <span className={isOverdue(iv) ? 'text-red-600 font-semibold' : ''}>{iv.due_date?.slice(0, 10) || '-'}</span>
+              )
             } />
           </div>
         </Section>
@@ -317,7 +361,17 @@ export default function InvoicePage() {
           </div>
         </Section>
 
-        {iv.notes && <Section title="หมายเหตุ"><p className="text-sm text-gray-700 whitespace-pre-wrap">{iv.notes}</p></Section>}
+        {(iv.notes || editMode) && (
+          <Section title="หมายเหตุ">
+            {editMode ? (
+              <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={3}
+                className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                placeholder="หมายเหตุเพิ่มเติม..." />
+            ) : (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{iv.notes}</p>
+            )}
+          </Section>
+        )}
 
         <ConfirmDialog open={!!actionTarget}
           message={actionTarget?.action === 'send' ? `ส่งใบแจ้งหนี้ "${actionTarget?.inv.invoice_number}" ให้ลูกค้า?` : actionTarget?.action === 'cancel' ? `ยกเลิก "${actionTarget?.inv.invoice_number}"?` : `ยืนยันว่า "${actionTarget?.inv.invoice_number}" ชำระเงินแล้ว?`}
