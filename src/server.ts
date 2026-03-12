@@ -36,9 +36,14 @@ app.onError((err, c) => {
   return c.json({ error: "Internal server error" }, 500);
 });
 
-// Lazy DB init — run once on first request, not on cold start
+// Health check FIRST — no DB, no middleware, instant response
+app.get("/api/health", (c) => c.json({ ok: true, service: "erp-backend" }));
+
+// Lazy DB init — run once on first API request (not on cold start)
 let dbReady: Promise<void> | null = null;
 app.use("/api/*", async (c, next) => {
+  // Skip DB init for health check
+  if (c.req.path === "/api/health") return next();
   if (!dbReady) {
     dbReady = initDB().catch((err) => {
       console.error("[db] initDB failed:", err);
@@ -54,11 +59,8 @@ app.use("/api/*", async (c, next) => {
   return next();
 });
 
-// Health check (no DB needed)
-app.get("/api/health", (c) => c.json({ ok: true, service: "erp-backend" }));
-
-// Rate limit: auth 10 attempts / 15 min, API 100 req / min
-app.use("/api/auth/google", rateLimit({ max: 10, windowMs: 15 * 60 * 1000, keyPrefix: "auth" }));
+// Rate limit: login 5 attempts / 15 min, API 100 req / min
+app.use("/api/auth/login", rateLimit({ max: 5, windowMs: 15 * 60 * 1000, keyPrefix: "auth-login" }));
 app.use("/api/*", rateLimit({ max: 100, windowMs: 60 * 1000, keyPrefix: "api" }));
 
 // Auth routes (public)
