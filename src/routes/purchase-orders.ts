@@ -61,16 +61,23 @@ purchaseOrdersRoute.post("/:id/receive", async (c) => {
   return c.json({ ok: true, message: "PO received — raw material stock updated" });
 });
 
-// DELETE /:id — delete non-received PO
-purchaseOrdersRoute.delete("/:id", async (c) => {
+// PATCH /:id/cancel — cancel PO (no delete)
+purchaseOrdersRoute.patch("/:id/cancel", async (c) => {
   const id = Number(c.req.param("id"));
+  const user = c.get("user");
   const po = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).get();
   if (!po) return c.json({ error: "Purchase order not found" }, 404);
-  if (po.status === "received") return c.json({ error: "Cannot delete received PO" }, 400);
+  if (po.status === "cancelled") return c.json({ error: "Already cancelled" }, 400);
+  if (po.status === "received") return c.json({ error: "Cannot cancel received PO" }, 400);
 
-  await db.delete(poItems).where(eq(poItems.purchaseOrderId, id)).run();
-  await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id)).run();
-  return c.json({ ok: true });
+  await db.update(purchaseOrders).set({
+    status: "cancelled",
+    cancelledAt: sql`datetime('now')`,
+    cancelledBy: user?.userId ?? null,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(purchaseOrders.id, id)).run();
+
+  return c.json({ ok: true, status: "cancelled" });
 });
 
 export { purchaseOrdersRoute };
