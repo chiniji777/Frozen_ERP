@@ -137,6 +137,7 @@ export default function BomPage() {
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={(b) => setDeleteTarget(b)}
+        onRowClick={openEdit}
       />
 
       <Modal

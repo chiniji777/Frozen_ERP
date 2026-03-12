@@ -123,6 +123,9 @@ export default function ProductionPage() {
         onEdit={(o) => {
           if (o.status === 'draft' || o.status === 'in_progress') setCompleteTarget(o);
         }}
+        onRowClick={(o) => {
+          if (o.status === 'draft' || o.status === 'in_progress') setCompleteTarget(o);
+        }}
       />
 
       {/* ปุ่มเสร็จผลิตแสดงในตาราง — ใช้ onEdit เป็น trigger */}

@@ -271,6 +271,7 @@ export default function DeliveryNotePage() {
         getId={(d) => d.id}
         searchPlaceholder="ค้นหาใบส่งของ..."
         onAdd={openAdd}
+        onRowClick={(d) => setViewDN(d)}
         extraActions={(d) => (
           <div className="flex gap-1">
             <button onClick={() => setViewDN(d)}

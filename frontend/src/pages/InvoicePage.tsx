@@ -375,6 +375,7 @@ export default function InvoicePage() {
         getId={(iv) => iv.id}
         searchPlaceholder="ค้นหาใบแจ้งหนี้..."
         onAdd={openAdd}
+        onRowClick={(iv) => setViewInv(iv)}
         extraActions={(iv) => (
           <div className="flex gap-1">
             <button onClick={() => setViewInv(iv)}
