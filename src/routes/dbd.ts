@@ -27,8 +27,14 @@ interface DbdResponse {
   ResultList?: DbdResultItem[];
 }
 
-// JuristicType mapping
-const JURISTIC_TYPES: Record<string, string> = {
+// JuristicType → DB enum ("Company" | "Individual")
+function mapJuristicType(code: string | undefined): "Company" | "Individual" {
+  // All juristic persons from DBD are companies (not individuals)
+  return "Company";
+}
+
+// JuristicType display labels (for response only, not stored in DB)
+const JURISTIC_TYPE_LABELS: Record<string, string> = {
   "2": "ห้างหุ้นส่วนสามัญ",
   "3": "ห้างหุ้นส่วนจำกัด",
   "5": "บริษัทจำกัด",
@@ -51,7 +57,8 @@ interface LookupResult {
   address?: string;
   registeredDate?: string;
   status?: string;
-  type?: string;
+  type?: "Company" | "Individual";
+  typeLabel?: string;
   source?: string;
   warning?: string;
 }
@@ -105,8 +112,12 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
+    const headers: Record<string, string> = {};
+    const apiKey = process.env.DBD_API_KEY;
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
     const res = await fetch(`https://openapi.dbd.go.th/api/v1/juristic_person/${taxId}`, {
       signal: controller.signal,
+      headers,
     });
     clearTimeout(timeout);
     if (res.ok) {
@@ -122,7 +133,8 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
           address: addr?.FullAddress || "",
           registeredDate: item.RegisterDate || "",
           status: item.JuristicStatus || "",
-          type: JURISTIC_TYPES[item.JuristicType || ""] || "Company",
+          type: mapJuristicType(item.JuristicType),
+          typeLabel: JURISTIC_TYPE_LABELS[item.JuristicType || ""] || "",
           source: "dbd",
         };
         setCache(taxId, result);
@@ -182,7 +194,7 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
         address: match["Territory"] || "",
         registeredDate: "",
         status: "",
-        type: match["Type"] || "Company",
+        type: (match["Type"] === "Individual" ? "Individual" : "Company"),
         source: "local",
         warning,
       };
@@ -270,7 +282,7 @@ dbdRoute.post("/bulk-update", async (c) => {
         .set({
           fullName: lookup.companyName,
           address: lookup.address || row.address,
-          customerType: (lookup.type as "Company" | "Individual") || row.customerType,
+          customerType: lookup.type || row.customerType,
           updatedAt: new Date().toISOString().replace("T", " ").slice(0, 19),
         })
         .where(eq(customers.id, row.id))
