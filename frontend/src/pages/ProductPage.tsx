@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
@@ -19,8 +19,8 @@ interface Product {
 }
 
 const emptyForm = {
-  name: '', sku: '', category: '', salePrice: '', stock: '', unit: 'ชิ้น',
-  imageUrl: '', rawMaterial: '', rawMaterialYield: '', description: '',
+  name: '', category: '', salePrice: '', unit: 'ชิ้น',
+  imageUrl: '', description: '',
 };
 
 export default function ProductPage() {
@@ -31,6 +31,9 @@ export default function ProductPage() {
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -48,36 +51,70 @@ export default function ProductPage() {
     ? data.filter((p) => p.category === categoryFilter)
     : data;
 
-  const openAdd = () => { setEditing(null); setForm(emptyForm); setModalOpen(true); };
+  const openAdd = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setImagePreview('');
+    setModalOpen(true);
+  };
+
   const openEdit = (p: Product) => {
     setEditing(p);
     setForm({
       name: p.name || '',
-      sku: p.sku || '',
       category: p.category || '',
       salePrice: String(p.salePrice ?? 0),
-      stock: String(p.stock ?? 0),
       unit: p.unit || 'ชิ้น',
       imageUrl: p.imageUrl || '',
-      rawMaterial: p.rawMaterial || '',
-      rawMaterialYield: p.rawMaterialYield != null ? String(p.rawMaterialYield) : '',
       description: p.description || '',
     });
+    setImagePreview(p.imageUrl || '');
     setModalOpen(true);
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/products/upload-image', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const result = await res.json();
+      setForm((f) => ({ ...f, imageUrl: result.imageUrl }));
+      setImagePreview(result.imageUrl);
+    } catch {
+      alert('อัปโหลดรูปไม่สำเร็จ');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    let sku: string | null = null;
+    if (!editing) {
+      // Auto-generate SKU for new products
+      const prefix = form.category ? form.category.substring(0, 3).toUpperCase() : 'PRD';
+      const res = await api.get<{ sku: string }>(`/products/next-sku?category=${encodeURIComponent(prefix)}`);
+      sku = res.sku;
+    }
+
     const body = {
       name: form.name,
-      sku: form.sku || null,
+      sku: editing ? editing.sku : sku,
       category: form.category || null,
       salePrice: Number(form.salePrice),
-      stock: Number(form.stock),
+      stock: editing ? editing.stock : 0,
       unit: form.unit,
       imageUrl: form.imageUrl || null,
-      rawMaterial: form.rawMaterial || null,
-      rawMaterialYield: form.rawMaterialYield ? Number(form.rawMaterialYield) : null,
+      rawMaterial: null,
+      rawMaterialYield: null,
       description: form.description || null,
     };
     if (editing) {
@@ -130,12 +167,17 @@ export default function ProductPage() {
 
       <DataTable
         columns={[
+          {
+            key: 'imageUrl',
+            label: 'รูป',
+            render: (p) => p.imageUrl
+              ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded object-cover" />
+              : <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">—</div>,
+          },
           { key: 'sku', label: 'รหัสสินค้า' },
           { key: 'name', label: 'ชื่อสินค้า' },
           { key: 'category', label: 'หมวดหมู่' },
           { key: 'salePrice', label: 'ราคา', render: (p) => `฿${Number(p.salePrice).toLocaleString()}` },
-          { key: 'rawMaterial', label: 'วัตถุดิบ' },
-          { key: 'rawMaterialYield', label: 'Yield %', render: (p) => p.rawMaterialYield != null ? `${p.rawMaterialYield}%` : '-' },
           { key: 'unit', label: 'หน่วย' },
           { key: 'stock', label: 'คงเหลือ', render: (p) => stockBadge(p.stock) },
         ]}
@@ -145,6 +187,7 @@ export default function ProductPage() {
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={(p) => setDeleteTarget(p)}
+        onRowClick={openEdit}
       />
 
       <Modal
@@ -153,57 +196,76 @@ export default function ProductPage() {
         title={editing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          {editing && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">รหัสสินค้า (SKU)</label>
-              <input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+              <input
+                value={editing.sku || ''}
+                disabled
+                className="w-full px-3 py-2 border rounded-lg bg-gray-50 text-gray-400 text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1">รหัสสร้างอัตโนมัติ ไม่สามารถแก้ไขได้</p>
             </div>
+          )}
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
               <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
               <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ราคาขาย (บาท)</label>
               <input type="number" step="0.01" required value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">วัตถุดิบ</label>
-              <input value={form.rawMaterial} onChange={(e) => setForm({ ...form, rawMaterial: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ผลผลิตวัตถุดิบ (Yield %)</label>
-              <input type="number" step="0.01" value={form.rawMaterialYield} onChange={(e) => setForm({ ...form, rawMaterialYield: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
               <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนคงเหลือ</label>
-              <input type="number" required value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">รูปสินค้า (URL)</label>
-              <input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">รูปสินค้า</label>
+            <div className="flex items-center gap-4">
+              {imagePreview && (
+                <img src={imagePreview} alt="preview" className="w-16 h-16 rounded-lg object-cover border" />
+              )}
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="px-3 py-2 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {uploading ? 'กำลังอัปโหลด...' : imagePreview ? 'เปลี่ยนรูป' : 'เลือกรูป'}
+                </button>
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={() => { setForm((f) => ({ ...f, imageUrl: '' })); setImagePreview(''); }}
+                    className="ml-2 px-3 py-2 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50"
+                  >
+                    ลบรูป
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <div>
