@@ -20,12 +20,22 @@ export async function verifyToken(token: string) {
 }
 
 export async function authMiddleware(c: Context, next: Next) {
+  // Check Authorization header first
   const header = c.req.header("Authorization");
-  if (!header?.startsWith("Bearer ")) {
+  let token: string | undefined;
+
+  if (header?.startsWith("Bearer ")) {
+    token = header.slice(7);
+  } else {
+    // Fallback: check query param (for window.open print routes)
+    token = c.req.query("token") || undefined;
+  }
+
+  if (!token) {
     return c.json({ error: "Unauthorized — token required" }, 401);
   }
   try {
-    const user = await verifyToken(header.slice(7));
+    const user = await verifyToken(token);
     c.set("user", user);
     return next();
   } catch {
