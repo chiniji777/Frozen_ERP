@@ -1,7 +1,8 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
+import SearchableSelect from '../components/SearchableSelect';
 
 interface Customer {
   id: number; name: string; fullName?: string; nickName?: string;
@@ -109,6 +110,16 @@ export default function SalesOrderPage() {
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  // Searchable select options
+  const customerOptions = useMemo(() =>
+    customers.map((c) => ({ value: c.id, label: c.name, searchText: c.nickName || '' })),
+    [customers]
+  );
+  const productOptions = useMemo(() =>
+    products.map((p) => ({ value: p.id, label: p.name, searchText: p.sku || '' })),
+    [products]
+  );
 
   // Auto-fill when customer changes
   const onCustomerChange = (custId: number) => {
@@ -392,11 +403,13 @@ export default function SalesOrderPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Customer</label>
-              <select required value={formCustId} onChange={(e) => onCustomerChange(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                <option value="">-- Select Customer --</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={customerOptions}
+                value={formCustId}
+                onChange={(v) => onCustomerChange(Number(v))}
+                placeholder="พิมพ์ชื่อ/รหัสลูกค้า..."
+                required
+              />
             </div>
             <InputField label="Company" value={companyName} onChange={() => {}} disabled />
             <InputField label="Date" value={formDate} onChange={setFormDate} type="date" />
@@ -450,11 +463,13 @@ export default function SalesOrderPage() {
                         className="w-24 px-2 py-1 border rounded text-sm" placeholder="Code" />
                     </td>
                     <td className="py-2 pr-2">
-                      <select value={item.productId} onChange={(e) => updateItem(i, 'productId', Number(e.target.value))}
-                        className="w-40 px-2 py-1 border rounded text-sm">
-                        <option value={0}>-- Select --</option>
-                        {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
+                      <SearchableSelect
+                        options={productOptions}
+                        value={item.productId}
+                        onChange={(v) => updateItem(i, 'productId', Number(v))}
+                        placeholder="ค้นสินค้า..."
+                        className="w-48"
+                      />
                     </td>
                     <td className="py-2 pr-2">
                       <input type="number" min="0" step="0.01" value={item.quantity}
