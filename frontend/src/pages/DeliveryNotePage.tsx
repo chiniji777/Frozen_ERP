@@ -161,7 +161,7 @@ export default function DeliveryNotePage() {
     const cfg = statusCfg[dn.status] ?? statusCfg.draft;
     const items = dn.items || [];
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto min-h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setDetailDN(null)} className="text-gray-400 hover:text-gray-600">
@@ -256,14 +256,14 @@ export default function DeliveryNotePage() {
   // ========== CREATE FORM ==========
   if (formOpen) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto min-h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-gray-800">สร้างใบส่งของ</h1>
           <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">← กลับรายการ</button>
         </div>
         <form onSubmit={handleCreate}>
           <Section title="เลือกใบสั่งขาย">
-            <div className="max-h-48 overflow-y-auto border rounded-lg p-2">
+            <div className="max-h-[60vh] overflow-y-auto border rounded-lg p-2">
               {orders.length === 0 ? <p className="text-sm text-gray-400 py-2 text-center">ไม่มี SO ที่ confirmed</p> :
                 orders.map((o) => (
                   <label key={o.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 ${formSOIds.includes(o.id) ? 'bg-indigo-50' : ''}`}>
