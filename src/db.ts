@@ -47,6 +47,7 @@ async function migrateCustomers() {
     ["payment_terms", "TEXT"],
     ["sales_partner", "TEXT"],
     ["commission_rate", "REAL DEFAULT 0"],
+    ["locations", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
@@ -350,6 +351,7 @@ async function migrateSalesOrders() {
     ["payment_terms_template", "TEXT"],
     ["sales_partner", "TEXT"],
     ["commission_rate", "REAL DEFAULT 0"],
+    ["locations", "TEXT"],
     ["total_commission", "REAL DEFAULT 0"],
     ["po_number", "TEXT"],
     ["po_date", "TEXT"],

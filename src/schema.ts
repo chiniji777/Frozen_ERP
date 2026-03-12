@@ -34,6 +34,7 @@ export const customers = sqliteTable("customers", {
   paymentTerms: text("payment_terms"),
   salesPartner: text("sales_partner"),
   commissionRate: real("commission_rate").default(0),
+  locations: text("locations"),
   notes: text("notes"),
   ...timestamps,
 });
@@ -120,6 +121,7 @@ export const salesOrders = sqliteTable("sales_orders", {
   paymentTermsTemplate: text("payment_terms_template"),
   salesPartner: text("sales_partner"),
   commissionRate: real("commission_rate").default(0),
+  locations: text("locations"),
   totalCommission: real("total_commission").default(0),
   poNumber: text("po_number"),
   poDate: text("po_date"),
