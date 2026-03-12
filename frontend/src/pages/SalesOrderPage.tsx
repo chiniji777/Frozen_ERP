@@ -91,6 +91,9 @@ export default function SalesOrderPage() {
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
   const [attachments, setAttachments] = useState<SOAttachment[]>([]);
   const [companyName, setCompanyName] = useState('Frozen Food Plus Co., Ltd.');
+  const [creatingDn, setCreatingDn] = useState(false);
+  const [creatingInv, setCreatingInv] = useState(false);
+  const [toast, setToast] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -177,8 +180,47 @@ export default function SalesOrderPage() {
     e.target.value = '';
   };
 
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(''), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const handlePrint = (orderId: number) => {
     window.open(`/api/sales-orders/${orderId}/print`, '_blank');
+  };
+
+  const handleCreateDn = async () => {
+    if (!detailOrder) return;
+    setCreatingDn(true);
+    try {
+      await api.post('/delivery-notes', { sales_order_id: detailOrder.id });
+      setToast('สร้างใบส่งของ (DN) สำเร็จ');
+      const updated = await api.get<SalesOrder>(`/sales-orders/${detailOrder.id}`);
+      setDetailOrder(updated);
+      load();
+    } catch {
+      setToast('ไม่สามารถสร้าง DN ได้');
+    } finally {
+      setCreatingDn(false);
+    }
+  };
+
+  const handleCreateInvoice = async () => {
+    if (!detailOrder) return;
+    setCreatingInv(true);
+    try {
+      await api.post('/invoices', { sales_order_id: detailOrder.id });
+      setToast('สร้างใบแจ้งหนี้ (Invoice) สำเร็จ');
+      const updated = await api.get<SalesOrder>(`/sales-orders/${detailOrder.id}`);
+      setDetailOrder(updated);
+      load();
+    } catch {
+      setToast('ไม่สามารถสร้าง Invoice ได้');
+    } finally {
+      setCreatingInv(false);
+    }
   };
 
   const openAdd = () => {
@@ -267,6 +309,18 @@ export default function SalesOrderPage() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold">{detailOrder.orderNumber}</h2>
                 <div className="flex gap-2">
+                  {detailOrder.status === 'confirmed' && (
+                    <button onClick={handleCreateDn} disabled={creatingDn}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                      {creatingDn ? 'กำลังสร้าง...' : 'สร้าง DN'}
+                    </button>
+                  )}
+                  {detailOrder.status === 'delivered' && (
+                    <button onClick={handleCreateInvoice} disabled={creatingInv}
+                      className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                      {creatingInv ? 'กำลังสร้าง...' : 'สร้าง Invoice'}
+                    </button>
+                  )}
                   <button onClick={() => handlePrint(detailOrder.id)} className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Print</button>
                   <button onClick={() => setDetailOrder(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
                 </div>
@@ -307,6 +361,11 @@ export default function SalesOrderPage() {
         )}
         <ConfirmDialog open={!!confirmTarget} message={`Confirm Sales Order "${confirmTarget?.orderNumber}"?`}
           onConfirm={handleConfirm} onCancel={() => setConfirmTarget(null)} />
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">
+            {toast}
+          </div>
+        )}
       </div>
     );
   }
