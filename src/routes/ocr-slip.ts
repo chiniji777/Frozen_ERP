@@ -99,7 +99,9 @@ ocrSlipRoute.post("/ocr", async (c) => {
   if (file.size > 10 * 1024 * 1024) return c.json({ error: "Max 10MB" }, 400);
 
   // Save file
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const allowedExts = ["jpg", "jpeg", "png", "webp"];
+  let ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  if (!allowedExts.includes(ext)) ext = "jpg";
   const filename = `slip_ocr_${Date.now()}.${ext}`;
   const dir = join(process.cwd(), "data", "attachments");
   await mkdir(dir, { recursive: true });
@@ -127,7 +129,8 @@ ocrSlipRoute.post("/ocr", async (c) => {
   // Match by payer name
   let customerMatches: typeof allUnpaid = [];
   if (parsed.payer && exactMatches.length === 0) {
-    const pattern = `%${parsed.payer}%`;
+    const escapedPayer = parsed.payer.replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const pattern = `%${escapedPayer}%`;
     const matched = await db.select().from(customers)
       .where(or(like(customers.name, pattern), like(customers.fullName, pattern), like(customers.nickName, pattern)))
       .all();
@@ -141,7 +144,6 @@ ocrSlipRoute.post("/ocr", async (c) => {
   return c.json({
     ocrText, parsed, slipImage: slipPath,
     matches: { exactMatches, customerMatches: customerMatches.length > 0 ? customerMatches : undefined, combinations },
-    allUnpaid,
   });
 });
 
@@ -168,7 +170,6 @@ ocrSlipRoute.post("/match-amount", async (c) => {
     exactMatches,
     combinations,
     closest: exactMatches.length === 0 ? closest : undefined,
-    pool,
   });
 });
 
