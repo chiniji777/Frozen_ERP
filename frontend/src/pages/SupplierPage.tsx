@@ -176,7 +176,7 @@ export default function SupplierPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await api.delete(`/suppliers/${deleteTarget.id}`);
+      await api.del(`/suppliers/${deleteTarget.id}`);
       showToast('ลบผู้ขายสำเร็จ');
       setDeleteTarget(null);
       load();
