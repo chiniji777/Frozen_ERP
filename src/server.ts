@@ -14,6 +14,7 @@ import { paymentsRoute } from "./routes/payments.js";
 import { receiptsRoute } from "./routes/receipts.js";
 import { expensesRoute } from "./routes/expenses.js";
 import { dashboardRoute } from "./routes/dashboard.js";
+import { settingsRoute } from "./routes/settings.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
@@ -71,6 +72,8 @@ app.route("/api/receipts", receiptsRoute);
 app.route("/api/expenses", expensesRoute);
 app.use("/api/dashboard", authMiddleware);
 app.route("/api/dashboard", dashboardRoute);
+app.use("/api/settings", authMiddleware);
+app.route("/api/settings", settingsRoute);
 
 // Serve attachment files
 app.use("/api/attachments/*", authMiddleware);

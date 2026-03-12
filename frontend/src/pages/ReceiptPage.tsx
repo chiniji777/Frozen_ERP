@@ -22,15 +22,18 @@ export default function ReceiptPage() {
   const [formPayId, setFormPayId] = useState<number | ''>('');
   const [printTarget, setPrintTarget] = useState<Receipt | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const [companyName, setCompanyName] = useState('Nut Office ERP');
 
   const load = async () => {
     setLoading(true);
     try {
-      const [recs, pays] = await Promise.all([
+      const [recs, pays, settings] = await Promise.all([
         api.get<Receipt[]>('/receipts').catch(() => []),
         api.get<Payment[]>('/payments').catch(() => []),
+        api.get<{ companyName?: string }>('/settings').catch(() => ({})),
       ]);
       setData(recs); setPayments(pays);
+      if (settings.companyName) setCompanyName(settings.companyName);
     } finally { setLoading(false); }
   };
 
@@ -94,7 +97,7 @@ export default function ReceiptPage() {
       <Modal open={!!printTarget} onClose={() => setPrintTarget(null)} title="ใบเสร็จรับเงิน">
         <div ref={printRef}>
           <div className="text-center mb-6">
-            <h2 className="text-xl font-bold">🏢 Nut Office ERP</h2>
+            <h2 className="text-xl font-bold">🏢 {companyName}</h2>
             <p className="text-gray-500 text-sm">ใบเสร็จรับเงิน</p>
           </div>
           <table className="w-full text-sm mb-4">

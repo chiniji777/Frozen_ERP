@@ -239,6 +239,35 @@ export async function initDB() {
   await migrateSalesOrders();
   await migrateSoItems();
   await migrateSoPaymentTerms();
+  await migrateCompanySettings();
+}
+
+async function migrateCompanySettings() {
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS company_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT,
+      company_name_en TEXT,
+      address TEXT,
+      address_en TEXT,
+      tax_id TEXT,
+      phone TEXT,
+      email TEXT,
+      website TEXT,
+      branch TEXT,
+      logo_url TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  const existing = await client.execute("SELECT COUNT(*) as cnt FROM company_settings");
+  const count = Number(existing.rows[0]?.cnt ?? 0);
+  if (count === 0) {
+    await client.execute(`
+      INSERT INTO company_settings (company_name, company_name_en, branch)
+      VALUES ('บริษัท โฟรเซ่น ฟู้ด พลัส จำกัด', 'Frozen Food Plus Co., Ltd.', 'สำนักงานใหญ่')
+    `);
+  }
 }
 
 async function migrateSalesOrders() {

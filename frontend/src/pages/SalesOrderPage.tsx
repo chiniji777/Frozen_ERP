@@ -90,16 +90,19 @@ export default function SalesOrderPage() {
   const [formPoNotes, setFormPoNotes] = useState('');
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
   const [attachments, setAttachments] = useState<SOAttachment[]>([]);
+  const [companyName, setCompanyName] = useState('Frozen Food Plus Co., Ltd.');
 
   const load = async () => {
     setLoading(true);
     try {
-      const [orders, custs, prods] = await Promise.all([
+      const [orders, custs, prods, settings] = await Promise.all([
         api.get<SalesOrder[]>('/sales-orders').catch(() => []),
         api.get<Customer[]>('/customers').catch(() => []),
         api.get<Product[]>('/products').catch(() => []),
+        api.get<{ companyNameEn?: string }>('/settings').catch(() => ({})),
       ]);
       setData(orders); setCustomers(custs); setProducts(prods);
+      if (settings.companyNameEn) setCompanyName(settings.companyNameEn);
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
@@ -335,7 +338,7 @@ export default function SalesOrderPage() {
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
-            <InputField label="Company" value="Frozen Food Plus Co., Ltd." onChange={() => {}} disabled />
+            <InputField label="Company" value={companyName} onChange={() => {}} disabled />
             <InputField label="Date" value={formDate} onChange={setFormDate} type="date" />
             <InputField label="Credit Limit" value={formCreditLimit} onChange={(v) => setFormCreditLimit(Number(v))} type="number" disabled />
             <InputField label="Delivery Start Date" value={formDeliveryStart} onChange={setFormDeliveryStart} type="date" />
