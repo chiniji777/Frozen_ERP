@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api/client';
 
 interface CompanyProfile {
@@ -25,7 +26,9 @@ export default function PrintMenu({ options, className = '' }: Props) {
   const [open, setOpen] = useState(false);
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<number | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; flipUp: boolean }>({ top: 0, left: 0, flipUp: false });
 
   useEffect(() => {
     api.get<CompanyProfile[]>('/settings/profiles').then(data => {
@@ -35,14 +38,48 @@ export default function PrintMenu({ options, className = '' }: Props) {
     }).catch(() => {});
   }, []);
 
+  const calcPosition = useCallback(() => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const dropH = 300; // estimated max dropdown height
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const flipUp = spaceBelow < dropH && rect.top > dropH;
+    setPos({
+      top: flipUp ? rect.top : rect.bottom + 4,
+      left: Math.max(8, rect.right - 288), // 288 = w-72 (18rem)
+      flipUp,
+    });
+  }, []);
+
+  // Recalc on open
+  useEffect(() => {
+    if (open) calcPosition();
+  }, [open, calcPosition]);
+
   // Close on outside click
   useEffect(() => {
+    if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target)) return;
+      if (dropRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open]);
+
+  // Close on scroll/resize
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [open]);
 
   const handlePrint = (opt: PrintOption) => {
     const params = new URLSearchParams();
@@ -69,20 +106,17 @@ export default function PrintMenu({ options, className = '' }: Props) {
     );
   }
 
-  return (
-    <div className={`relative inline-block ${className}`} ref={ref}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 inline-flex items-center gap-1.5"
-      >
-        <span>🖨️</span> พิมพ์เอกสาร
-        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
+  const dropdown = open
+    ? createPortal(
+        <div
+          ref={dropRef}
+          className="fixed w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-[9999] overflow-hidden"
+          style={{
+            top: pos.flipUp ? undefined : pos.top,
+            bottom: pos.flipUp ? window.innerHeight - pos.top + 4 : undefined,
+            left: pos.left,
+          }}
+        >
           {/* Company selector */}
           {companies.length > 1 && (
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
@@ -115,8 +149,24 @@ export default function PrintMenu({ options, className = '' }: Props) {
               </button>
             ))}
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+    : null;
+
+  return (
+    <div className={`relative inline-block ${className}`}>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen(!open)}
+        className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 inline-flex items-center gap-1.5"
+      >
+        <span>🖨️</span> พิมพ์เอกสาร
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {dropdown}
     </div>
   );
 }
