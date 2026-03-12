@@ -9,6 +9,7 @@ const timestamps = {
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
+  password: text("password"),
   displayName: text("display_name").notNull(),
   role: text("role", { enum: ["admin", "manager", "staff"] }).notNull().default("staff"),
   email: text("email").notNull().unique(),

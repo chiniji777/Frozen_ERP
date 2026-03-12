@@ -2,9 +2,9 @@ import { SignJWT, jwtVerify } from "jose";
 import type { Context, Next } from "hono";
 
 if (!process.env.JWT_SECRET) {
-  console.error("[auth] JWT_SECRET not set! Auth will not work.");
+  throw new Error("[auth] JWT_SECRET not set! Cannot start server without it.");
 }
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || "missing-secret");
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
 export async function signToken(payload: { userId: number; username: string; email: string; role: string }): Promise<string> {
   return new SignJWT(payload)
