@@ -1,19 +1,71 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { deliveryNotes, dnItems, salesOrders, soItems, products } from "../schema.js";
+import { deliveryNotes, dnItems, salesOrders, soItems, products, customers } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
 
 const deliveryNotesRoute = new Hono();
 
+// Helper: enrich DN with customer/SO/product info
+async function enrichDN(dn: typeof deliveryNotes.$inferSelect) {
+  const items = await db.select({
+    id: dnItems.id,
+    deliveryNoteId: dnItems.deliveryNoteId,
+    productId: dnItems.productId,
+    quantity: dnItems.quantity,
+    productName: products.name,
+    itemCode: products.sku,
+  }).from(dnItems)
+    .leftJoin(products, eq(dnItems.productId, products.id))
+    .where(eq(dnItems.deliveryNoteId, dn.id)).all();
+
+  const formattedItems = items.map(it => ({
+    ...it,
+    product_name: it.productName,
+    item_code: it.itemCode,
+    uom: "Pcs.",
+    weight: 0,
+  }));
+
+  let customerName = "";
+  let soOrderNumber = "";
+  if (dn.salesOrderId) {
+    const so = await db.select().from(salesOrders).where(eq(salesOrders.id, dn.salesOrderId)).get();
+    if (so) {
+      soOrderNumber = so.orderNumber;
+      const cust = await db.select().from(customers).where(eq(customers.id, so.customerId)).get();
+      if (cust) customerName = cust.name;
+    }
+  }
+
+  return {
+    ...dn,
+    dn_number: dn.dnNumber,
+    sales_order_id: dn.salesOrderId,
+    sales_order_ids: dn.salesOrderIds,
+    so_order_number: soOrderNumber,
+    customer_name: customerName,
+    driver_phone: dn.driverPhone,
+    pickup_point: dn.pickupPoint,
+    created_at: dn.createdAt,
+    items: formattedItems,
+  };
+}
+
 deliveryNotesRoute.get("/", async (c) => {
   const notes = await db.select().from(deliveryNotes).all();
   const result = [];
   for (const dn of notes) {
-    const items = await db.select().from(dnItems).where(eq(dnItems.deliveryNoteId, dn.id)).all();
-    result.push({ ...dn, items });
+    result.push(await enrichDN(dn));
   }
   return c.json(result);
+});
+
+deliveryNotesRoute.get("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const dn = await db.select().from(deliveryNotes).where(eq(deliveryNotes.id, id)).get();
+  if (!dn) return c.json({ error: "Delivery note not found" }, 404);
+  return c.json(await enrichDN(dn));
 });
 
 deliveryNotesRoute.post("/", async (c) => {

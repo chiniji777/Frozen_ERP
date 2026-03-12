@@ -208,7 +208,7 @@ export const invoices = sqliteTable("invoices", {
   salesOrderId: integer("sales_order_id").notNull(),
   deliveryNoteId: integer("delivery_note_id"),
   invoiceNumber: text("invoice_number").notNull().unique(),
-  status: text("status", { enum: ["draft", "sent", "partially_paid", "paid", "overdue"] }).notNull().default("draft"),
+  status: text("status", { enum: ["draft", "sent", "partially_paid", "paid", "overdue", "cancelled"] }).notNull().default("draft"),
   subtotal: real("subtotal").notNull().default(0),
   vatRate: real("vat_rate").notNull().default(7),
   vatAmount: real("vat_amount").notNull().default(0),

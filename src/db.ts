@@ -366,18 +366,14 @@ async function migrateRawMaterials() {
 
 async function seedAdminUser() {
   const client = getClient();
-  const existing = await client.execute("SELECT id, password FROM users WHERE username = 'admin'");
-  if (existing.rows.length === 0) {
+  // Only seed admin if users table is completely empty (fresh DB)
+  const userCount = await client.execute("SELECT COUNT(*) as cnt FROM users");
+  const count = Number(userCount.rows[0]?.cnt ?? 0);
+  if (count === 0) {
     const hashed = await Bun.password.hash("admin123");
     await client.execute({
       sql: "INSERT INTO users (username, password, display_name, role, email) VALUES (?, ?, ?, ?, ?)",
       args: ["admin", hashed, "Admin", "admin", "admin@frozen-erp.local"],
-    });
-  } else if (!existing.rows[0].password) {
-    const hashed = await Bun.password.hash("admin123");
-    await client.execute({
-      sql: "UPDATE users SET password = ? WHERE username = 'admin'",
-      args: [hashed],
     });
   }
 }

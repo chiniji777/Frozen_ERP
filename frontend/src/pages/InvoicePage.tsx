@@ -181,9 +181,9 @@ export default function InvoicePage() {
         uom: it.uom, amount: Number(it.amount),
       })),
     };
-    if (formSource === 'so' && formSOId) payload.sales_order_id = Number(formSOId);
-    if (formSource === 'dn' && formDNId) payload.delivery_note_id = Number(formDNId);
-    if (formSource === 'multi' && formMultiSOIds.length) payload.sales_order_ids = formMultiSOIds;
+    if (formSource === 'so' && formSOId) payload.salesOrderId = Number(formSOId);
+    if (formSource === 'dn' && formDNId) payload.deliveryNoteId = Number(formDNId);
+    if (formSource === 'multi' && formMultiSOIds.length) payload.salesOrderIds = formMultiSOIds;
     await api.post('/invoices', payload);
     setFormOpen(false); load();
   };

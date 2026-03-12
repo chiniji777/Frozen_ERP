@@ -91,7 +91,7 @@ export default function PaymentPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     await api.post('/payments', {
-      invoice_id: Number(formInvId),
+      invoiceId: Number(formInvId),
       amount: Number(formAmount),
       method: formMethod,
       reference: formRef,

@@ -26,10 +26,31 @@ async function updateInvoicePaymentStatus(invoiceId: number) {
   return { totalPaid, invoiceTotal: invoice.totalAmount, isPaid: totalPaid >= invoice.totalAmount };
 }
 
-// GET /payments — list all
+// GET /payments — list all with invoice/customer info
 paymentsRoute.get("/", async (c) => {
   const rows = await db.select().from(payments).all();
-  return c.json(rows);
+  const result = [];
+  for (const p of rows) {
+    const inv = await db.select().from(invoices).where(eq(invoices.id, p.invoiceId)).get();
+    let customerName = "";
+    if (inv?.salesOrderId) {
+      const so = await db.select().from(salesOrders).where(eq(salesOrders.id, inv.salesOrderId)).get();
+      if (so) {
+        const cust = await db.select().from(customers).where(eq(customers.id, so.customerId)).get();
+        if (cust) customerName = cust.name;
+      }
+    }
+    result.push({
+      ...p,
+      invoice_id: p.invoiceId,
+      invoice_number: inv?.invoiceNumber || "",
+      customer_name: customerName,
+      invoice_status: inv?.status || "",
+      slip_url: p.slipImage ? `/api/attachments/${p.slipImage.replace("attachments/", "")}` : null,
+      created_at: p.createdAt,
+    });
+  }
+  return c.json(result);
 });
 
 // GET /payments/:id — detail with invoice info

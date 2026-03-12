@@ -280,7 +280,7 @@ export default function SalesOrderPage() {
   const handleCreateDn = async (soId: number) => {
     setCreatingDn(true);
     try {
-      await api.post('/delivery-notes', { sales_order_id: soId });
+      await api.post('/delivery-notes', { salesOrderId: soId });
       setToast('สร้างใบส่งของ (DN) สำเร็จ');
       const updated = await api.get<SalesOrder>(`/sales-orders/${soId}`);
       setDetailOrder(updated);
@@ -294,7 +294,7 @@ export default function SalesOrderPage() {
   const handleCreateInvoice = async (soId: number) => {
     setCreatingInv(true);
     try {
-      await api.post('/invoices', { sales_order_id: soId });
+      await api.post('/invoices', { salesOrderId: soId });
       setToast('สร้างใบแจ้งหนี้ (Invoice) สำเร็จ');
       const updated = await api.get<SalesOrder>(`/sales-orders/${soId}`);
       setDetailOrder(updated);
@@ -412,10 +412,16 @@ export default function SalesOrderPage() {
               </>
             )}
             {so.status === 'confirmed' && (
-              <button onClick={() => handleCreateDn(so.id)} disabled={creatingDn}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                {creatingDn ? 'กำลังสร้าง...' : '📦 สร้าง DN'}
-              </button>
+              <>
+                <button onClick={() => handleCreateDn(so.id)} disabled={creatingDn}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {creatingDn ? 'กำลังสร้าง...' : '📦 สร้าง DN'}
+                </button>
+                <button onClick={() => handleCreateInvoice(so.id)} disabled={creatingInv}
+                  className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                  {creatingInv ? 'กำลังสร้าง...' : '📄 สร้าง Invoice'}
+                </button>
+              </>
             )}
             {so.status === 'delivered' && (
               <button onClick={() => handleCreateInvoice(so.id)} disabled={creatingInv}
