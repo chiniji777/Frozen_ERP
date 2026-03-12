@@ -30,7 +30,7 @@ export default function ReceiptPage() {
       const [recs, pays, settings] = await Promise.all([
         api.get<Receipt[]>('/receipts').catch(() => []),
         api.get<Payment[]>('/payments').catch(() => []),
-        api.get<{ companyName?: string }>('/settings').catch(() => ({})),
+        api.get<{ companyName?: string }>('/settings').catch(() => ({} as { companyName?: string })),
       ]);
       setData(recs); setPayments(pays);
       if (settings.companyName) setCompanyName(settings.companyName);

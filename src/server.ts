@@ -18,7 +18,8 @@ import { settingsRoute } from "./routes/settings.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
-import { join, basename } from "path";
+import { join } from "path";
+import { readFile, access } from "fs/promises";
 
 export const app = new Hono();
 
@@ -35,7 +36,25 @@ app.onError((err, c) => {
   return c.json({ error: "Internal server error" }, 500);
 });
 
-// Health check
+// Lazy DB init — run once on first request, not on cold start
+let dbReady: Promise<void> | null = null;
+app.use("/api/*", async (c, next) => {
+  if (!dbReady) {
+    dbReady = initDB().catch((err) => {
+      console.error("[db] initDB failed:", err);
+      dbReady = null; // retry next request
+      throw err;
+    });
+  }
+  try {
+    await dbReady;
+  } catch {
+    return c.json({ error: "Database initialization failed" }, 503);
+  }
+  return next();
+});
+
+// Health check (no DB needed)
 app.get("/api/health", (c) => c.json({ ok: true, service: "erp-backend" }));
 
 // Rate limit: auth 10 attempts / 15 min, API 100 req / min
@@ -82,16 +101,13 @@ app.get("/api/attachments/:filename", async (c) => {
   if (filename.includes("..") || filename.includes("/")) return c.json({ error: "Invalid filename" }, 400);
   const filePath = join(process.cwd(), "data", "attachments", filename);
   try {
-    const file = Bun.file(filePath);
-    if (!await file.exists()) return c.json({ error: "File not found" }, 404);
-    return new Response(file.stream(), {
-      headers: { "Content-Type": file.type || "application/octet-stream", "Content-Disposition": `inline; filename="${filename}"` },
+    await access(filePath);
+    const data = await readFile(filePath);
+    return new Response(data, {
+      headers: { "Content-Type": "application/octet-stream", "Content-Disposition": `inline; filename="${filename}"` },
     });
   } catch { return c.json({ error: "File not found" }, 404); }
 });
-
-// Init DB on startup
-const _init = initDB().catch(console.error);
 
 const port = 4000;
 console.log(`[erp] Server starting on port ${port}`);

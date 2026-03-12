@@ -2,8 +2,15 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "./schema.js";
 
+const isVercel = !!process.env.VERCEL;
+const dbUrl = process.env.TURSO_DATABASE_URL || (isVercel ? "" : "file:data/erp.db");
+
+if (!dbUrl) {
+  console.error("[db] TURSO_DATABASE_URL not set! DB will not work.");
+}
+
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || "file:data/erp.db",
+  url: dbUrl || "file:data/erp.db",
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 

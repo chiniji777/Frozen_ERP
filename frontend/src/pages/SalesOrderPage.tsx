@@ -99,7 +99,7 @@ export default function SalesOrderPage() {
         api.get<SalesOrder[]>('/sales-orders').catch(() => []),
         api.get<Customer[]>('/customers').catch(() => []),
         api.get<Product[]>('/products').catch(() => []),
-        api.get<{ companyNameEn?: string }>('/settings').catch(() => ({})),
+        api.get<{ companyNameEn?: string }>('/settings').catch(() => ({} as { companyNameEn?: string })),
       ]);
       setData(orders); setCustomers(custs); setProducts(prods);
       if (settings.companyNameEn) setCompanyName(settings.companyNameEn);

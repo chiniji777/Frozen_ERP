@@ -6,14 +6,18 @@ interface RateLimitEntry {
 }
 
 const store = new Map<string, RateLimitEntry>();
+let lastCleanup = Date.now();
 
-// Cleanup expired entries every 5 min
-setInterval(() => {
+// Inline cleanup — no setInterval (serverless-safe)
+function cleanupIfNeeded() {
   const now = Date.now();
-  for (const [key, entry] of store) {
-    if (entry.resetAt <= now) store.delete(key);
+  if (now - lastCleanup > 300_000) {
+    for (const [key, entry] of store) {
+      if (entry.resetAt <= now) store.delete(key);
+    }
+    lastCleanup = now;
   }
-}, 300_000);
+}
 
 function getClientIP(c: Context): string {
   return c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
@@ -23,6 +27,7 @@ function getClientIP(c: Context): string {
 
 export function rateLimit(opts: { max: number; windowMs: number; keyPrefix?: string }) {
   return async (c: Context, next: Next) => {
+    cleanupIfNeeded();
     const ip = getClientIP(c);
     const key = `${opts.keyPrefix || "rl"}:${ip}`;
     const now = Date.now();
