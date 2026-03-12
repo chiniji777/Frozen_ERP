@@ -5,6 +5,57 @@ import { eq, sql } from "drizzle-orm";
 
 const purchaseOrdersRoute = new Hono();
 
+// POST / — create new PO
+purchaseOrdersRoute.post("/", async (c) => {
+  const body = await c.req.json();
+
+  // Validate required fields
+  if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
+    return c.json({ error: "items array is required and must not be empty" }, 400);
+  }
+
+  for (const item of body.items) {
+    if (!item.rawMaterialId || !item.quantity || item.quantity <= 0) {
+      return c.json({ error: "Each item must have rawMaterialId and quantity > 0" }, 400);
+    }
+  }
+
+  // Auto-gen PO number
+  const poNumber = `PO-${Date.now()}`;
+
+  // Calculate total
+  const totalAmount = body.items.reduce((sum: number, item: any) => {
+    const amount = (item.quantity || 0) * (item.unitPrice || 0);
+    return sum + amount;
+  }, 0);
+
+  // Insert PO header
+  const poResult = await db.insert(purchaseOrders).values({
+    poNumber,
+    productionOrderId: body.productionOrderId || null,
+    status: "draft",
+    supplier: body.supplier || null,
+    totalAmount: Math.ceil(totalAmount * 100) / 100,
+    notes: body.notes || null,
+  }).run();
+  const poId = Number(poResult.lastInsertRowid);
+
+  // Insert PO items
+  for (const item of body.items) {
+    const amount = (item.quantity || 0) * (item.unitPrice || 0);
+    await db.insert(poItems).values({
+      purchaseOrderId: poId,
+      rawMaterialId: item.rawMaterialId,
+      quantity: item.quantity,
+      unit: item.unit || "กก.",
+      unitPrice: item.unitPrice || 0,
+      amount: Math.ceil(amount * 100) / 100,
+    }).run();
+  }
+
+  return c.json({ ok: true, id: poId, poNumber, totalAmount: Math.ceil(totalAmount * 100) / 100 }, 201);
+});
+
 // GET / — list all POs
 purchaseOrdersRoute.get("/", async (c) => {
   const pos = await db.select().from(purchaseOrders).all();
