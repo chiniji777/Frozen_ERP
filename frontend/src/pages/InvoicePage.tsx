@@ -157,7 +157,7 @@ export default function InvoicePage() {
     }
     setFormItems(allItems);
     if (next.length > 0) {
-      const first = orders.find((o) => o.id === next[0]);
+      const _first = orders.find((o) => o.id === next[0]);
     }
   };
 
