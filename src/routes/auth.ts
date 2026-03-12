@@ -72,8 +72,82 @@ auth.get("/users", authMiddleware, async (c) => {
     username: users.username,
     displayName: users.displayName,
     role: users.role,
+    email: users.email,
   }).from(users).all();
-  return c.json(allUsers);
+  // Frontend expects `active` field — all users in DB are active
+  return c.json(allUsers.map((u) => ({ ...u, active: true })));
+});
+
+// POST /api/auth/users — create new user
+auth.post("/users", authMiddleware, async (c) => {
+  const body = await c.req.json();
+  const { username, password, displayName, email, role } = body;
+
+  if (!username || !password || !displayName || !email) {
+    return c.json({ error: "username, password, displayName, and email are required" }, 400);
+  }
+
+  // Check duplicate username
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).get();
+  if (existing) {
+    return c.json({ error: "Username already exists" }, 409);
+  }
+
+  // Check duplicate email
+  const existingEmail = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+  if (existingEmail) {
+    return c.json({ error: "Email already exists" }, 409);
+  }
+
+  const hashedPassword = await Bun.password.hash(password);
+
+  const result = await db.insert(users).values({
+    username,
+    password: hashedPassword,
+    displayName,
+    email,
+    role: role || "staff",
+  }).returning({ id: users.id });
+
+  return c.json({ ok: true, id: result[0].id }, 201);
+});
+
+// PUT /api/auth/users/:id — update user
+auth.put("/users/:id", authMiddleware, async (c) => {
+  const id = Number(c.req.param("id"));
+  const body = await c.req.json();
+  const { displayName, email, role, password } = body;
+
+  const existing = await db.select().from(users).where(eq(users.id, id)).get();
+  if (!existing) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (displayName !== undefined) updates.displayName = displayName;
+  if (email !== undefined) updates.email = email;
+  if (role !== undefined) updates.role = role;
+  if (password) updates.password = await Bun.password.hash(password);
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: "No fields to update" }, 400);
+  }
+
+  await db.update(users).set(updates).where(eq(users.id, id));
+  return c.json({ ok: true });
+});
+
+// DELETE /api/auth/users/:id — delete user
+auth.delete("/users/:id", authMiddleware, async (c) => {
+  const id = Number(c.req.param("id"));
+
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).get();
+  if (!existing) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  await db.delete(users).where(eq(users.id, id));
+  return c.json({ ok: true });
 });
 
 export { auth };
