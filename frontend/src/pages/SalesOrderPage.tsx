@@ -10,7 +10,8 @@ interface Customer {
   creditLimit?: number; paymentTerms?: string; salesPartner?: string;
   commissionRate?: number;
 }
-interface Product { id: number; name: string; sku?: string; price: number; salePrice?: number; }
+interface Product { id: number; name: string; sku?: string; price: number; salePrice?: number; unit?: string; }
+interface UserInfo { id: number; username: string; displayName: string; role: string; }
 interface SOItem {
   productId: number; itemCode?: string; quantity: number; unitPrice: number;
   rate?: number; uom: string; weight: number; productName?: string;
@@ -63,6 +64,7 @@ export default function SalesOrderPage() {
   const [data, setData] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [teamUsers, setTeamUsers] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<SalesOrder | null>(null);
@@ -99,13 +101,14 @@ export default function SalesOrderPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [orders, custs, prods, settings] = await Promise.all([
+      const [orders, custs, prods, settings, usrs] = await Promise.all([
         api.get<SalesOrder[]>('/sales-orders').catch(() => []),
         api.get<Customer[]>('/customers').catch(() => []),
         api.get<Product[]>('/products').catch(() => []),
         api.get<{ companyNameEn?: string }>('/settings').catch(() => ({} as { companyNameEn?: string })),
+        api.get<UserInfo[]>('/auth/users').catch(() => []),
       ]);
-      setData(orders); setCustomers(custs); setProducts(prods);
+      setData(orders); setCustomers(custs); setProducts(prods); setTeamUsers(usrs);
       if (settings.companyNameEn) setCompanyName(settings.companyNameEn);
     } finally { setLoading(false); }
   };
@@ -122,11 +125,17 @@ export default function SalesOrderPage() {
   );
 
   // Auto-fill when customer changes
+  const [noAddressWarning, setNoAddressWarning] = useState(false);
+  const [formNickName, setFormNickName] = useState('');
+  const [formEmail, setFormEmail] = useState('');
   const onCustomerChange = (custId: number) => {
     setFormCustId(custId);
     const c = customers.find((x) => x.id === custId);
     if (c) {
+      setFormNickName(c.nickName || '');
+      setFormEmail(c.email || '');
       setFormCustAddress(c.address || '');
+      setFormShipName(c.fullName || c.name || '');
       setFormShipAddress(c.address || '');
       setFormContactPerson(c.nickName || c.name || '');
       setFormContact(c.phone || '');
@@ -136,6 +145,7 @@ export default function SalesOrderPage() {
       setFormCreditLimit(c.creditLimit || 0);
       setFormTaxId(c.taxId || '');
       setFormPaymentTemplate(c.paymentTerms || '');
+      setNoAddressWarning(!c.address);
     }
   };
 
@@ -158,6 +168,7 @@ export default function SalesOrderPage() {
         next[i].unitPrice = prod.salePrice ?? prod.price;
         next[i].itemCode = prod.sku || '';
         next[i].productName = prod.name;
+        if (prod.unit) next[i].uom = prod.unit;
       }
     }
     setFormItems(next);
@@ -236,14 +247,16 @@ export default function SalesOrderPage() {
   };
 
   const openAdd = () => {
-    setFormCustId(''); setFormDate(new Date().toISOString().split('T')[0]);
-    setFormDeliveryStart(''); setFormDeliveryEnd('');
+    const today = new Date().toISOString().split('T')[0];
+    setFormCustId(''); setFormDate(today);
+    setFormDeliveryStart(today); setFormDeliveryEnd(today);
     setFormCustAddress(''); setFormShipName(''); setFormShipAddress('');
     setFormContactPerson(''); setFormContact(''); setFormMobileNo('');
     setFormItems([emptyItem()]); setFormPaymentTemplate('');
     setFormPaymentTerms([]); setFormSalesPartner(''); setFormCommRate(0);
     setFormNotes(''); setFormCreditLimit(0); setFormTaxId('');
     setFormPoNumber(''); setFormPoDate(''); setFormPoNotes('');
+    setFormNickName(''); setFormEmail(''); setNoAddressWarning(false);
     setDetailOrder(null);
     setFormOpen(true);
   };
@@ -411,13 +424,19 @@ export default function SalesOrderPage() {
                 required
               />
             </div>
-            <InputField label="Company" value={companyName} onChange={() => {}} disabled />
+            <InputField label="Nickname" value={formNickName} onChange={setFormNickName} disabled />
             <InputField label="Date" value={formDate} onChange={setFormDate} type="date" />
             <InputField label="Credit Limit" value={formCreditLimit} onChange={(v) => setFormCreditLimit(Number(v))} type="number" disabled />
             <InputField label="Delivery Start Date" value={formDeliveryStart} onChange={setFormDeliveryStart} type="date" />
             <InputField label="Delivery End Date" value={formDeliveryEnd} onChange={setFormDeliveryEnd} type="date" />
             <InputField label="Tax ID" value={formTaxId} onChange={setFormTaxId} disabled />
+            <InputField label="Email" value={formEmail} onChange={setFormEmail} disabled />
           </div>
+          {noAddressWarning && (
+            <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+              ลูกค้ายังไม่มีที่อยู่ในระบบ กรุณาไปเพิ่มที่อยู่ในหน้า Customer ก่อน
+            </div>
+          )}
         </Section>
 
         {/* Section 2: Address & Contact */}
@@ -432,12 +451,7 @@ export default function SalesOrderPage() {
           </div>
         </Section>
 
-        {/* Section 3: Warehouse */}
-        <Section title="Warehouse">
-          <InputField label="Set Source Warehouse" value="Ladprao 43 - FFP" onChange={() => {}} disabled />
-        </Section>
-
-        {/* Section 4: Items */}
+        {/* Section 3: Items */}
         <Section title="Items">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -566,7 +580,14 @@ export default function SalesOrderPage() {
         {/* Section 6: Commission */}
         <Section title="Sales Team / Commission">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <InputField label="Sales Partner" value={formSalesPartner} onChange={setFormSalesPartner} />
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Sales Partner</label>
+              <select value={formSalesPartner} onChange={(e) => setFormSalesPartner(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                <option value="">-- เลือกพนักงานขาย --</option>
+                {teamUsers.map((u) => <option key={u.id} value={u.displayName}>{u.displayName}</option>)}
+              </select>
+            </div>
             <InputField label="Commission Rate (%)" value={formCommRate} onChange={(v) => setFormCommRate(Number(v))} type="number" />
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Total Commission</label>

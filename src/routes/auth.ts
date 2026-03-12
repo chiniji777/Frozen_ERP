@@ -65,4 +65,15 @@ auth.get("/me", authMiddleware, async (c) => {
   });
 });
 
+// GET /api/auth/users — list all users (for dropdowns like Sales Team)
+auth.get("/users", authMiddleware, async (c) => {
+  const allUsers = await db.select({
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+    role: users.role,
+  }).from(users).all();
+  return c.json(allUsers);
+});
+
 export { auth };
