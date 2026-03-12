@@ -18,6 +18,7 @@ const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 const ReceiptPage = lazy(() => import('./pages/ReceiptPage'));
 const ExpensePage = lazy(() => import('./pages/ExpensePage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
+const UomPage = lazy(() => import('./pages/UomPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
 function PageLoader() {
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="/receipts" element={<ReceiptPage />} />
               <Route path="/expenses" element={<ExpensePage />} />
               <Route path="/users" element={<UserManagementPage />} />
+              <Route path="/uoms" element={<UomPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Routes>

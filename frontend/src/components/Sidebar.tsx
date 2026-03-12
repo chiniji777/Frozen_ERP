@@ -14,6 +14,7 @@ const menu = [
   { to: '/invoices', label: 'ใบแจ้งหนี้', icon: '📄' },
   { to: '/payments', label: 'จ่ายเงิน', icon: '💰' },
   { to: '/expenses', label: 'ค่าใช้จ่าย', icon: '💸' },
+  { to: '/uoms', label: 'หน่วยนับ', icon: '📏' },
   { to: '/settings', label: 'ตั้งค่าบริษัท', icon: '⚙️' },
 ];
 
