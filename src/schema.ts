@@ -19,11 +19,20 @@ export const users = sqliteTable("users", {
 
 export const customers = sqliteTable("customers", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code"),
   name: text("name").notNull(),
+  fullName: text("full_name"),
+  nickName: text("nick_name"),
   address: text("address"),
   phone: text("phone"),
   email: text("email"),
   taxId: text("tax_id"),
+  territory: text("territory"),
+  customerType: text("customer_type", { enum: ["Company", "Individual"] }).default("Company"),
+  creditLimit: real("credit_limit").default(0),
+  paymentTerms: text("payment_terms"),
+  salesPartner: text("sales_partner"),
+  commissionRate: real("commission_rate").default(0),
   notes: text("notes"),
   ...timestamps,
 });

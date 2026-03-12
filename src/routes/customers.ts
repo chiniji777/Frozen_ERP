@@ -10,7 +10,16 @@ customersRoute.get("/", async (c) => {
   if (q) {
     const pattern = `%${q}%`;
     const rows = await db.select().from(customers)
-      .where(or(like(customers.name, pattern), like(customers.phone, pattern)))
+      .where(or(
+        like(customers.name, pattern),
+        like(customers.phone, pattern),
+        like(customers.code, pattern),
+        like(customers.fullName, pattern),
+        like(customers.nickName, pattern),
+        like(customers.territory, pattern),
+        like(customers.email, pattern),
+        like(customers.salesPartner, pattern),
+      ))
       .all();
     return c.json(rows);
   }
@@ -28,11 +37,20 @@ customersRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.name) return c.json({ error: "name required" }, 400);
   const result = await db.insert(customers).values({
+    code: body.code || null,
     name: body.name,
+    fullName: body.fullName || null,
+    nickName: body.nickName || null,
     address: body.address || null,
     phone: body.phone || null,
     email: body.email || null,
     taxId: body.taxId || null,
+    territory: body.territory || null,
+    customerType: body.customerType || "Company",
+    creditLimit: body.creditLimit ?? 0,
+    paymentTerms: body.paymentTerms || null,
+    salesPartner: body.salesPartner || null,
+    commissionRate: body.commissionRate ?? 0,
     notes: body.notes || null,
   }).run();
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
@@ -44,11 +62,20 @@ customersRoute.put("/:id", async (c) => {
   if (!existing) return c.json({ error: "Customer not found" }, 404);
   const body = await c.req.json();
   await db.update(customers).set({
+    code: body.code ?? existing.code,
     name: body.name ?? existing.name,
+    fullName: body.fullName ?? existing.fullName,
+    nickName: body.nickName ?? existing.nickName,
     address: body.address ?? existing.address,
     phone: body.phone ?? existing.phone,
     email: body.email ?? existing.email,
     taxId: body.taxId ?? existing.taxId,
+    territory: body.territory ?? existing.territory,
+    customerType: body.customerType ?? existing.customerType,
+    creditLimit: body.creditLimit ?? existing.creditLimit,
+    paymentTerms: body.paymentTerms ?? existing.paymentTerms,
+    salesPartner: body.salesPartner ?? existing.salesPartner,
+    commissionRate: body.commissionRate ?? existing.commissionRate,
     notes: body.notes ?? existing.notes,
     updatedAt: sql`datetime('now')`,
   }).where(eq(customers.id, id)).run();
