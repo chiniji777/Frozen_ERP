@@ -260,3 +260,25 @@ export const expenses = sqliteTable("expenses", {
   notes: text("notes"),
   ...timestamps,
 });
+
+export const purchaseOrders = sqliteTable("purchase_orders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  poNumber: text("po_number").notNull().unique(),
+  productionOrderId: integer("production_order_id"),
+  status: text("status", { enum: ["draft", "confirmed", "received", "cancelled"] }).notNull().default("draft"),
+  supplier: text("supplier"),
+  totalAmount: real("total_amount").notNull().default(0),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const poItems = sqliteTable("po_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  purchaseOrderId: integer("purchase_order_id").notNull(),
+  rawMaterialId: integer("raw_material_id").notNull(),
+  quantity: real("quantity").notNull(),
+  unit: text("unit").notNull().default("กก."),
+  unitPrice: real("unit_price").notNull().default(0),
+  amount: real("amount").notNull().default(0),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
 import { customers } from "../schema.js";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
@@ -307,6 +307,89 @@ dbdRoute.post("/bulk-update", async (c) => {
     skipped: rows.length - updated,
     results,
   });
+});
+
+// Generate next customer code (AR00001, AR00002, ...)
+async function nextCustomerCode(): Promise<string> {
+  const last = await db.select({ code: customers.code }).from(customers)
+    .where(sql`code LIKE 'AR%'`)
+    .orderBy(sql`code DESC`)
+    .limit(1)
+    .get();
+  const num = last?.code ? parseInt(last.code.replace("AR", ""), 10) + 1 : 1;
+  return `AR${String(num).padStart(5, "0")}`;
+}
+
+// POST /api/dbd/save-to-customer — lookup tax ID then save/update customer
+dbdRoute.post("/save-to-customer", async (c) => {
+  const body = await c.req.json() as { taxId?: string; customerId?: number };
+
+  if (!body.taxId || !/^\d{13}$/.test(body.taxId)) {
+    return c.json({ error: "Valid 13-digit taxId required" }, 400);
+  }
+
+  const lookup = await lookupTaxId(body.taxId);
+
+  if (!lookup.found) {
+    return c.json({ error: "ไม่พบข้อมูลบริษัทจาก Tax ID นี้", lookup }, 404);
+  }
+
+  const now = sql`datetime('now')`;
+
+  if (body.customerId) {
+    const existing = await db.select().from(customers).where(eq(customers.id, body.customerId)).get();
+    if (!existing) return c.json({ error: "Customer not found" }, 404);
+
+    const duplicate = await db.select({ id: customers.id }).from(customers)
+      .where(eq(customers.taxId, body.taxId))
+      .get();
+    if (duplicate && duplicate.id !== body.customerId) {
+      return c.json({ error: "Tax ID นี้ถูกใช้โดยลูกค้ารายอื่นแล้ว", duplicateCustomerId: duplicate.id }, 409);
+    }
+
+    await db.update(customers)
+      .set({
+        taxId: body.taxId,
+        fullName: lookup.companyName || existing.fullName,
+        name: lookup.companyName || existing.name,
+        address: lookup.address || existing.address,
+        customerType: lookup.type || existing.customerType,
+        updatedAt: now,
+      })
+      .where(eq(customers.id, body.customerId))
+      .run();
+
+    return c.json({ ok: true, action: "updated", customerId: body.customerId, lookup });
+  }
+
+  const existingByTax = await db.select().from(customers).where(eq(customers.taxId, body.taxId)).get();
+
+  if (existingByTax) {
+    await db.update(customers)
+      .set({
+        fullName: lookup.companyName || existingByTax.fullName,
+        name: lookup.companyName || existingByTax.name,
+        address: lookup.address || existingByTax.address,
+        customerType: lookup.type || existingByTax.customerType,
+        updatedAt: now,
+      })
+      .where(eq(customers.id, existingByTax.id))
+      .run();
+
+    return c.json({ ok: true, action: "updated", customerId: existingByTax.id, lookup });
+  }
+
+  const code = await nextCustomerCode();
+  const result = await db.insert(customers).values({
+    code,
+    name: lookup.companyName || "",
+    fullName: lookup.companyName || "",
+    address: lookup.address || null,
+    taxId: body.taxId,
+    customerType: lookup.type || "Company",
+  }).run();
+
+  return c.json({ ok: true, action: "created", customerId: Number(result.lastInsertRowid), code, lookup }, 201);
 });
 
 export { dbdRoute };
