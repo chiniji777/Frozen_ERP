@@ -433,12 +433,14 @@ salesOrdersRoute.get("/:id/print", async (c) => {
   ${o.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(o.notes)}</div>` : ""}
   ${signatureSection("ผู้สั่งซื้อ / Customer", "ผู้อนุมัติ / Authorized", sig)}`;
 
-  // Add QR code if DN exists for this SO
+  // Add QR code — always show, link to this print page
+  const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
   const dn = await db.select().from(deliveryNotes).where(eq(deliveryNotes.salesOrderId, id)).get();
   if (dn) {
     const token = await getOrCreateToken(dn.id, id);
-    const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
     body += await qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
+  } else {
+    body += await qrSection(`${baseUrl}/api/sales-orders/${id}/print${companyId ? `?companyId=${companyId}` : ""}`, "สแกนเพื่อดูใบสั่งขาย / Scan to view Sales Order");
   }
 
   return c.html(wrapHtml(`Sales Order ${o.orderNumber}`, "so", body, o.status === "draft" ? "DRAFT" : undefined));

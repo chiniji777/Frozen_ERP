@@ -305,14 +305,16 @@ invoicesRoute.get("/:id/print", async (c) => {
   ${iv.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(iv.notes)}</div>` : ""}
   ${signatureSection("ผู้รับบริการ / Customer", "ผู้อนุมัติ / Authorized", sig)}`;
 
-  // Add QR code if DN exists
+  // Add QR code — always show
+  const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
   const dn = iv.deliveryNoteId
     ? await db.select().from(deliveryNotes).where(eq(deliveryNotes.id, iv.deliveryNoteId)).get()
     : await db.select().from(deliveryNotes).where(eq(deliveryNotes.salesOrderId, iv.salesOrderId)).get();
   if (dn) {
     const token = await getOrCreateToken(dn.id, iv.salesOrderId);
-    const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
     body += await qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
+  } else {
+    body += await qrSection(`${baseUrl}/api/invoices/${id}/print${companyId ? `?companyId=${companyId}` : ""}`, "สแกนเพื่อดูใบแจ้งหนี้ / Scan to view Invoice");
   }
 
   return c.html(wrapHtml(`Invoice ${iv.invoiceNumber}`, "inv", body, iv.status === "draft" ? "DRAFT" : undefined));
@@ -348,7 +350,7 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
     ? `RCP-${iv.invoiceNumber.replace("IV", "")}`
     : `RCP-${iv.invoiceNumber.replace("IV", "")}`;
 
-  const body = `
+  let body = `
   ${companyHeader(company, "receipt", receiptNumber, meta)}
   <div class="info-grid">
     <div class="info-card">
@@ -383,6 +385,10 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
     <div class="totals-row grand"><span>ยอดรับทั้งสิ้น</span><span>฿${fmt(totalPaid)}</span></div>
   </div></div>
   ${signatureSection("ผู้ชำระเงิน / Payer", "ผู้รับเงิน / Receiver", sig)}`;
+
+  // Add QR code for receipt
+  const rcptBaseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
+  body += await qrSection(`${rcptBaseUrl}/api/invoices/${id}/print-receipt${companyId ? `?companyId=${companyId}` : ""}`, "สแกนเพื่อดูใบเสร็จ / Scan to view Receipt");
 
   return c.html(wrapHtml(`Receipt for ${iv.invoiceNumber}`, "receipt", body));
 });
