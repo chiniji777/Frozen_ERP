@@ -13,9 +13,21 @@ export const users = sqliteTable("users", {
   displayName: text("display_name").notNull(),
   role: text("role", { enum: ["admin", "manager", "staff"] }).notNull().default("staff"),
   email: text("email").notNull().unique(),
+  phone: text("phone"),
   googleId: text("google_id"),
   avatarUrl: text("avatar_url"),
   ...timestamps,
+});
+
+export const uoms = sqliteTable("uoms", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  nameEn: text("name_en"),
+  category: text("category"),
+  isDefault: integer("is_default").default(0),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
 
 export const customers = sqliteTable("customers", {
@@ -50,12 +62,14 @@ export const products = sqliteTable("products", {
   imageUrl: text("image_url"),
   rawMaterial: text("raw_material"),
   rawMaterialYield: real("raw_material_yield"),
+  hasVat: integer("has_vat").default(1),
   description: text("description"),
   ...timestamps,
 });
 
 export const rawMaterials = sqliteTable("raw_materials", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").unique(),
   name: text("name").notNull(),
   pricePerUnit: real("price_per_unit").notNull().default(0),
   unit: text("unit").notNull().default("กก."),

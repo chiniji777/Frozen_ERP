@@ -9,6 +9,7 @@ interface User {
   username: string;
   displayName: string;
   email: string;
+  phone?: string;
   role: string;
   active: boolean;
   createdAt?: string;
@@ -18,11 +19,12 @@ interface UserForm {
   username: string;
   displayName: string;
   email: string;
+  phone: string;
   password: string;
   role: string;
 }
 
-const emptyForm: UserForm = { username: '', displayName: '', email: '', password: '', role: 'user' };
+const emptyForm: UserForm = { username: '', displayName: '', email: '', phone: '', password: '', role: 'user' };
 
 const ROLES = [
   { value: 'admin', label: 'Admin' },
@@ -86,6 +88,7 @@ export default function UserManagementPage() {
       username: u.username,
       displayName: u.displayName || '',
       email: u.email || '',
+      phone: u.phone || '',
       password: '',
       role: u.role || 'user',
     });
@@ -101,8 +104,10 @@ export default function UserManagementPage() {
     try {
       if (editing) {
         const payload: Record<string, unknown> = {
+          username: form.username,
           displayName: form.displayName,
           email: form.email,
+          phone: form.phone,
           role: form.role,
         };
         if (form.password) payload.password = form.password;
@@ -113,6 +118,7 @@ export default function UserManagementPage() {
           username: form.username,
           displayName: form.displayName,
           email: form.email,
+          phone: form.phone,
           password: form.password,
           role: form.role,
         });
@@ -149,6 +155,7 @@ export default function UserManagementPage() {
           { key: 'username', label: 'ชื่อผู้ใช้' },
           { key: 'displayName', label: 'ชื่อแสดง' },
           { key: 'email', label: 'อีเมล' },
+          { key: 'phone', label: 'เบอร์โทร' },
           { key: 'role', label: 'บทบาท', render: (u: User) => <RoleBadge role={u.role} /> },
           { key: 'active', label: 'สถานะ', render: (u: User) => <StatusBadge active={u.active !== false} /> },
         ]}
@@ -167,8 +174,7 @@ export default function UserManagementPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ใช้ (Username)</label>
             <input required value={form.username} onChange={(e) => setField('username', e.target.value)}
-              disabled={!!editing}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm disabled:bg-gray-50 disabled:text-gray-400"
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
               placeholder="username" />
           </div>
           <div>
@@ -182,6 +188,12 @@ export default function UserManagementPage() {
             <input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)}
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
               placeholder="user@example.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">เบอร์โทร</label>
+            <input type="tel" value={form.phone} onChange={(e) => setField('phone', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+              placeholder="0812345678" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

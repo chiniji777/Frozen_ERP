@@ -294,17 +294,25 @@ export default function CustomerPage() {
     setSearchQuery('');
     setDbdLoading(true);
     try {
-      const res = await api.get<{ found: boolean; companyName?: string; address?: string; type?: string; province?: string; registeredDate?: string; capital?: number }>(`/dbd/lookup/${taxId}`);
+      const res = await api.get<{ found: boolean; companyName?: string; companyNameEn?: string; address?: string;
+        type?: string; province?: string; district?: string; subDistrict?: string;
+        zipCode?: string; phone?: string; capital?: string; businessType?: string;
+        registeredDate?: string; status?: string; typeLabel?: string }>(`/dbd/lookup/${taxId}`);
       if (res.found) {
         setForm((f) => ({
           ...f,
           taxId,
           name: res.companyName || f.name,
+          nickName: res.companyNameEn || f.nickName,
           address: res.address || f.address,
           province: res.province || f.province,
+          amphoe: res.district || f.amphoe,
+          district: res.subDistrict || f.district,
+          zipcode: res.zipCode || f.zipcode,
+          phone: res.phone || f.phone,
           customerType: (res.type === 'Individual' ? 'Individual' : 'Company') as 'Company' | 'Individual',
         }));
-        setToast('ดึงข้อมูลจาก DBD สำเร็จ');
+        setToast(`ดึงข้อมูล ${res.companyName || 'บริษัท'} สำเร็จ`);
       } else {
         setToast('ไม่พบข้อมูลบริษัทจาก DBD');
       }
@@ -700,19 +708,6 @@ export default function CustomerPage() {
                   maxLength={13}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={handleDbdLookup}
-                  disabled={form.taxId.replace(/\D/g, '').length !== 13 || dbdLoading}
-                  className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-300 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
-                >
-                  {dbdLoading ? (
-                    <span className="flex items-center gap-1">
-                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                      กำลังค้น...
-                    </span>
-                  ) : 'ค้น DBD'}
-                </button>
               </div>
               <InputField label="วงเงินเครดิต (บาท)" value={form.creditLimit} onChange={(v) => setField('creditLimit', Number(v))} type="number" />
               <div>

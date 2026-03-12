@@ -297,13 +297,66 @@ export async function initDB() {
   await migratePayments();
   await migrateReceipts();
   await migratePurchaseOrders();
+  await migrateUoms();
+  await migrateRawMaterials();
   await seedAdminUser();
 }
 
 async function migrateUsers() {
   const client = getClient();
+  const newCols: [string, string][] = [
+    ["password", "TEXT"],
+    ["phone", "TEXT"],
+    ["google_id", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE users ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists
+    }
+  }
+}
+
+async function migrateUoms() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS uoms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      name_en TEXT,
+      category TEXT,
+      is_default INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_uoms_code ON uoms(code);
+    CREATE INDEX IF NOT EXISTS idx_uoms_category ON uoms(category);
+  `);
+  // Seed default UOMs
+  const existing = await client.execute("SELECT COUNT(*) as cnt FROM uoms");
+  const count = Number(existing.rows[0]?.cnt ?? 0);
+  if (count === 0) {
+    await client.executeMultiple(`
+      INSERT INTO uoms (code, name, name_en, category, is_default, sort_order) VALUES ('kg', 'กิโลกรัม', 'Kilogram', 'weight', 1, 1);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('g', 'กรัม', 'Gram', 'weight', 2);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('ton', 'ตัน', 'Ton', 'weight', 3);
+      INSERT INTO uoms (code, name, name_en, category, is_default, sort_order) VALUES ('pcs', 'ชิ้น', 'Piece', 'quantity', 1, 4);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('box', 'กล่อง', 'Box', 'quantity', 5);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('pack', 'แพ็ค', 'Pack', 'quantity', 6);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('bag', 'ถุง', 'Bag', 'quantity', 7);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('bottle', 'ขวด', 'Bottle', 'quantity', 8);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('can', 'กระป๋อง', 'Can', 'quantity', 9);
+      INSERT INTO uoms (code, name, name_en, category, sort_order) VALUES ('tray', 'ถาด', 'Tray', 'quantity', 10);
+    `);
+  }
+}
+
+async function migrateRawMaterials() {
+  const client = getClient();
   try {
-    await client.execute("ALTER TABLE users ADD COLUMN password TEXT");
+    await client.execute("ALTER TABLE raw_materials ADD COLUMN code TEXT");
   } catch {
     // column already exists
   }
@@ -503,6 +556,7 @@ async function migrateProducts() {
     ["raw_material", "TEXT"],
     ["raw_material_yield", "REAL"],
     ["description", "TEXT"],
+    ["has_vat", "INTEGER DEFAULT 1"],
   ];
   for (const [col, type] of newCols) {
     try {

@@ -73,6 +73,7 @@ auth.get("/users", authMiddleware, async (c) => {
     displayName: users.displayName,
     role: users.role,
     email: users.email,
+    phone: users.phone,
   }).from(users).all();
   // Frontend expects `active` field — all users in DB are active
   return c.json(allUsers.map((u) => ({ ...u, active: true })));
@@ -81,7 +82,7 @@ auth.get("/users", authMiddleware, async (c) => {
 // POST /api/auth/users — create new user
 auth.post("/users", authMiddleware, async (c) => {
   const body = await c.req.json();
-  const { username, password, displayName, email, role } = body;
+  const { username, password, displayName, email, role, phone } = body;
 
   if (!username || !password || !displayName || !email) {
     return c.json({ error: "username, password, displayName, and email are required" }, 400);
@@ -106,6 +107,7 @@ auth.post("/users", authMiddleware, async (c) => {
     password: hashedPassword,
     displayName,
     email,
+    phone: phone || null,
     role: role || "staff",
   }).returning({ id: users.id });
 
@@ -116,7 +118,7 @@ auth.post("/users", authMiddleware, async (c) => {
 auth.put("/users/:id", authMiddleware, async (c) => {
   const id = Number(c.req.param("id"));
   const body = await c.req.json();
-  const { displayName, email, role, password } = body;
+  const { displayName, email, role, password, phone, username } = body;
 
   const existing = await db.select().from(users).where(eq(users.id, id)).get();
   if (!existing) {
@@ -124,8 +126,10 @@ auth.put("/users/:id", authMiddleware, async (c) => {
   }
 
   const updates: Record<string, unknown> = {};
+  if (username !== undefined) updates.username = username;
   if (displayName !== undefined) updates.displayName = displayName;
   if (email !== undefined) updates.email = email;
+  if (phone !== undefined) updates.phone = phone;
   if (role !== undefined) updates.role = role;
   if (password) updates.password = await Bun.password.hash(password);
 
