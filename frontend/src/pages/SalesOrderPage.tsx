@@ -9,7 +9,7 @@ interface Customer {
   creditLimit?: number; paymentTerms?: string; salesPartner?: string;
   commissionRate?: number;
 }
-interface Product { id: number; name: string; sku?: string; price: number; }
+interface Product { id: number; name: string; sku?: string; price: number; salePrice?: number; }
 interface SOItem {
   productId: number; itemCode?: string; quantity: number; unitPrice: number;
   rate?: number; uom: string; weight: number; productName?: string;
@@ -141,8 +141,9 @@ export default function SalesOrderPage() {
     if (field === 'productId') {
       const prod = products.find((p) => p.id === Number(val));
       if (prod) {
-        next[i].unitPrice = prod.price;
+        next[i].unitPrice = prod.salePrice ?? prod.price;
         next[i].itemCode = prod.sku || '';
+        next[i].productName = prod.name;
       }
     }
     setFormItems(next);
