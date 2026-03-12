@@ -257,7 +257,7 @@ invoicesRoute.get("/:id/print", async (c) => {
   const items = await db.select({
     id: invoiceItems.id, productId: invoiceItems.productId, quantity: invoiceItems.quantity,
     unitPrice: invoiceItems.unitPrice, amount: invoiceItems.amount,
-    productName: products.name, sku: products.sku,
+    productName: products.name, sku: products.sku, unit: products.unit,
   }).from(invoiceItems)
     .leftJoin(products, eq(invoiceItems.productId, products.id))
     .where(eq(invoiceItems.invoiceId, id)).all();
@@ -288,17 +288,18 @@ invoicesRoute.get("/:id/print", async (c) => {
   </div>
   <table class="items-table">
     <thead><tr>
-      <th class="text-center">#</th><th>Item Code</th><th>รายการ</th>
-      <th class="text-right">จำนวน</th><th class="text-right">ราคา/หน่วย</th><th class="text-right">จำนวนเงิน</th>
+      <th class="text-center">#</th><th>สินค้า</th>
+      <th class="text-right">จำนวน</th><th>หน่วย</th><th class="text-right">ราคา/หน่วย</th><th class="text-right">รวม</th>
     </tr></thead>
     <tbody>${items.map((it, i) => `<tr>
-      <td class="text-center">${i + 1}</td><td>${escapeHtml(it.sku) || "-"}</td><td>${escapeHtml(it.productName) || "-"}</td>
-      <td class="text-right">${fmt(it.quantity)}</td><td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.amount)}</td>
+      <td class="text-center">${i + 1}</td><td>${escapeHtml(it.productName) || "-"}</td>
+      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td><td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.quantity * it.unitPrice)}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
-    <div class="totals-row"><span>ยอดรวม (Subtotal)</span><span>${fmt(iv.subtotal)}</span></div>
-    <div class="totals-row"><span>VAT ${iv.vatRate}%</span><span>${fmt(iv.vatAmount)}</span></div>
+    <div class="totals-row"><span>จำนวนรวม</span><span>${fmt(items.reduce((s, it) => s + it.quantity, 0))}</span></div>
+    <div class="totals-row"><span>ยอดก่อน VAT</span><span>฿${fmt(iv.subtotal)}</span></div>
+    <div class="totals-row"><span>VAT ${iv.vatRate}%</span><span>฿${fmt(iv.vatAmount)}</span></div>
     <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>฿${fmt(iv.totalAmount)}</span></div>
   </div></div>
   ${iv.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(iv.notes)}</div>` : ""}
