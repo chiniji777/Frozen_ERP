@@ -191,10 +191,10 @@ export function signatureSection(
   </div>`;
 }
 
-/** Generate QR code img tag using Google Charts API (no dependency needed) */
+/** Generate QR code img tag using qrserver.com API (Google Charts QR was shut down) */
 export function qrCodeImg(url: string, size = 120) {
   const encoded = encodeURIComponent(url);
-  return `<img src="https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&choe=UTF-8" width="${size}" height="${size}" alt="QR Code" style="image-rendering:pixelated">`;
+  return `<img src="https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&format=png" width="${size}" height="${size}" alt="QR Code" style="image-rendering:pixelated">`;
 }
 
 /** QR code section for document prints */

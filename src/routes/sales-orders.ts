@@ -566,7 +566,7 @@ salesOrdersRoute.get("/:id/sticker", async (c) => {
   const stickersHtml = targetItems.map((item, idx) => {
     const lot = `${lotBase}${String(idx + 1).padStart(3, "0")}`;
     const stockUrl = `${baseUrl}/products?search=${encodeURIComponent(item.sku || item.productName || "")}`;
-    const qrImg = `<img src="https://chart.googleapis.com/chart?cht=qr&chs=80x80&chl=${encodeURIComponent(stockUrl)}&choe=UTF-8" width="60" height="60" style="image-rendering:pixelated">`;
+    const qrImg = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(stockUrl)}&format=png" width="60" height="60" style="image-rendering:pixelated">`;
     return `
     <div class="sticker">
       <div class="sticker-header">${escapeHtml(company.companyNameEn)}</div>

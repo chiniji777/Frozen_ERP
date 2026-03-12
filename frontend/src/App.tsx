@@ -18,6 +18,8 @@ const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 const ReceiptPage = lazy(() => import('./pages/ReceiptPage'));
 const ExpensePage = lazy(() => import('./pages/ExpensePage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
+const SupplierPage = lazy(() => import('./pages/SupplierPage'));
+const PurchaseOrderPage = lazy(() => import('./pages/PurchaseOrderPage'));
 // UomPage merged into SettingsPage as tab
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
@@ -50,6 +52,8 @@ export default function App() {
               <Route path="/payments" element={<PaymentPage />} />
               <Route path="/receipts" element={<ReceiptPage />} />
               <Route path="/expenses" element={<ExpensePage />} />
+              <Route path="/suppliers" element={<SupplierPage />} />
+              <Route path="/purchase-orders" element={<PurchaseOrderPage />} />
               <Route path="/users" element={<UserManagementPage />} />
               {/* UomPage merged into SettingsPage */}
               <Route path="/settings" element={<SettingsPage />} />

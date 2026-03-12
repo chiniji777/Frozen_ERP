@@ -13,6 +13,8 @@ const menu = [
   { to: '/invoices', label: 'ใบแจ้งหนี้', icon: '📄' },
   { to: '/payments', label: 'จ่ายเงิน', icon: '💰' },
   { to: '/expenses', label: 'ค่าใช้จ่าย', icon: '💸' },
+  { to: '/suppliers', label: 'ผู้ขาย', icon: '🏪' },
+  { to: '/purchase-orders', label: 'จัดซื้อ', icon: '🛒' },
   { to: '/settings', label: 'ตั้งค่า', icon: '⚙️' },
 ];
 
