@@ -100,9 +100,9 @@ async function loadImportData(): Promise<CustomerImport[]> {
   }
 }
 
-// DBD Proxy config
-const DBD_PROXY_URL = "http://localhost:3457";
-const DBD_PROXY_TOKEN = "dbd-proxy-secret";
+// DBD Proxy config — from environment variables
+const DBD_PROXY_URL = process.env.DBD_PROXY_URL;
+const DBD_PROXY_TOKEN = process.env.DBD_PROXY_TOKEN;
 
 // Shared lookup function — used by both GET and bulk-update
 async function lookupTaxId(taxId: string): Promise<LookupResult> {
@@ -112,8 +112,8 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
 
   let externalFailed = false;
 
-  // Primary: DBD Proxy (localhost:3457)
-  try {
+  // Primary: DBD Proxy — skip if env vars not configured
+  if (DBD_PROXY_URL && DBD_PROXY_TOKEN) try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${DBD_PROXY_URL}/api/company/${taxId}`, {
@@ -133,7 +133,7 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
           address: data.address || "",
           registeredDate: data.registered_date || "",
           status: data.status || "",
-          type: data.jp_type_code === "5" ? "Company" : "Individual",
+          type: ["2", "3", "5", "7"].includes(data.jp_type_code) ? "Company" : "Individual",
           typeLabel: data.jp_type_desc || JURISTIC_TYPE_LABELS[data.jp_type_code || ""] || "",
           source: proxyResponse.source || "proxy",
         };
@@ -435,6 +435,7 @@ dbdRoute.post("/save-to-customer", async (c) => {
 dbdRoute.get("/search", async (c) => {
   const q = c.req.query("q")?.trim();
   if (!q) return c.json({ error: "Query parameter 'q' required" }, 400);
+  if (!DBD_PROXY_URL || !DBD_PROXY_TOKEN) return c.json({ error: "DBD Proxy not configured" }, 503);
 
   try {
     const controller = new AbortController();
@@ -445,8 +446,15 @@ dbdRoute.get("/search", async (c) => {
     });
     clearTimeout(timeout);
     if (res.ok) {
-      const data = await res.json();
-      return c.json(data);
+      const raw = await res.json() as { results?: Record<string, string>[] };
+      const results = (raw.results || []).map((r) => ({
+        taxId: r.tax_id || "",
+        name: r.company_name || "",
+        nameEn: r.company_name_en || "",
+        province: r.province || "",
+        status: r.status || "",
+      }));
+      return c.json({ results });
     }
     return c.json({ error: "DBD Proxy search failed", status: res.status }, 502);
   } catch {
