@@ -43,11 +43,12 @@ interface Invoice {
 
 type InvoiceSource = 'so' | 'dn' | 'multi';
 
-const statusCfg: Record<string, { label: string; color: string }> = {
-  draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700' },
-  sent: { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700' },
+const statusCfg: Record<string, { label: string; color: string; next?: string; nextLabel?: string; nextColor?: string }> = {
+  draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700', next: 'send', nextLabel: '📧 ส่งใบแจ้งหนี้', nextColor: 'bg-blue-600 hover:bg-blue-700' },
+  sent: { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700', next: 'pay', nextLabel: '💰 ชำระแล้ว', nextColor: 'bg-green-600 hover:bg-green-700' },
   paid: { label: 'ชำระแล้ว', color: 'bg-green-100 text-green-700' },
-  overdue: { label: 'เกินกำหนด', color: 'bg-red-100 text-red-700' },
+  overdue: { label: 'เกินกำหนด', color: 'bg-red-100 text-red-700', next: 'pay', nextLabel: '💰 ชำระแล้ว', nextColor: 'bg-green-600 hover:bg-green-700' },
+  cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' },
 };
 
 const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '' }: {
@@ -67,15 +68,12 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
-  const cfg = statusCfg[status] ?? statusCfg.draft;
-  return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
-};
-
-const MOCK_INVOICES: Invoice[] = [
-  { id: 1, invoice_number: 'INV-2026-0001', sales_order_id: 1, so_order_number: 'SO-2026-0010', customer_name: 'บริษัท ทดสอบ จำกัด', billing_company: 'บริษัท ทดสอบ จำกัด', billing_address: '123 ถ.สุขุมวิท', billing_tax_id: '0105500000001', subtotal: 10000, vat_rate: 7, vat_amount: 700, total_amount: 10700, status: 'draft', due_date: '2026-04-15', items: [{ product_name: 'สินค้า A', quantity: 10, unit_price: 1000, uom: 'Pcs.', amount: 10000 }] },
-  { id: 2, invoice_number: 'INV-2026-0002', sales_order_id: 2, so_order_number: 'SO-2026-0011', customer_name: 'ร้านค้าตัวอย่าง', billing_company: 'ร้านค้าตัวอย่าง', subtotal: 5000, vat_rate: 7, vat_amount: 350, total_amount: 5350, status: 'sent', due_date: '2026-03-20', items: [{ product_name: 'สินค้า B', quantity: 5, unit_price: 1000, uom: 'Kg', amount: 5000 }] },
-];
+const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex items-start py-1.5">
+    <span className="text-xs text-gray-500 w-32 shrink-0">{label}</span>
+    <span className="text-sm text-gray-800">{value || '-'}</span>
+  </div>
+);
 
 export default function InvoicePage() {
   const [data, setData] = useState<Invoice[]>([]);
@@ -83,9 +81,9 @@ export default function InvoicePage() {
   const [dns, setDns] = useState<DeliveryNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
-  const [viewInv, setViewInv] = useState<Invoice | null>(null);
-  const [sendTarget, setSendTarget] = useState<Invoice | null>(null);
-  const [paidTarget, setPaidTarget] = useState<Invoice | null>(null);
+  const [detailInv, setDetailInv] = useState<Invoice | null>(null);
+  const [actionTarget, setActionTarget] = useState<{ inv: Invoice; action: string } | null>(null);
+  const [toast, setToast] = useState('');
 
   const [formSource, setFormSource] = useState<InvoiceSource>('so');
   const [formSOId, setFormSOId] = useState<number | ''>('');
@@ -99,7 +97,7 @@ export default function InvoicePage() {
     setLoading(true);
     try {
       const [ivs, sos, dnList] = await Promise.all([
-        api.get<Invoice[]>('/invoices').catch(() => MOCK_INVOICES),
+        api.get<Invoice[]>('/invoices').catch(() => []),
         api.get<SalesOrder[]>('/sales-orders').catch(() => []),
         api.get<DeliveryNote[]>('/delivery-notes').catch(() => []),
       ]);
@@ -110,8 +108,10 @@ export default function InvoicePage() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
 
-  const isOverdue = (iv: Invoice) => iv.status !== 'paid' && new Date(iv.due_date) < new Date();
+  const isOverdue = (iv: Invoice) => iv.status !== 'paid' && iv.status !== 'cancelled' && iv.due_date && new Date(iv.due_date) < new Date();
+  const effectiveStatus = (iv: Invoice) => isOverdue(iv) ? 'overdue' : iv.status;
 
   const loadSOItems = async (soId: number): Promise<InvoiceItem[]> => {
     try {
@@ -130,8 +130,7 @@ export default function InvoicePage() {
 
   const onSOChange = async (soId: number) => {
     setFormSOId(soId);
-    const so = orders.find((o) => o.id === soId);
-    if (so) {
+    if (soId) {
       const items = await loadSOItems(soId);
       setFormItems(items);
     }
@@ -139,10 +138,7 @@ export default function InvoicePage() {
 
   const onDNChange = (dnId: number) => {
     setFormDNId(dnId);
-    const dn = dns.find((d) => d.id === dnId);
-    if (dn) {
-      setFormItems([]);
-    }
+    setFormItems([]);
   };
 
   const toggleMultiSO = async (soId: number) => {
@@ -156,7 +152,6 @@ export default function InvoicePage() {
       allItems.push(...items);
     }
     setFormItems(allItems);
-    // TODO: handle first selected order if needed
   };
 
   const subtotal = formItems.reduce((s, it) => s + it.amount, 0);
@@ -167,7 +162,12 @@ export default function InvoicePage() {
     setFormSource('so'); setFormSOId(''); setFormDNId('');
     setFormMultiSOIds([]); setFormDueDate(''); setFormNotes('');
     setFormItems([]);
-    setFormOpen(true);
+    setDetailInv(null); setFormOpen(true);
+  };
+
+  const openDetail = async (iv: Invoice) => {
+    try { const d = await api.get<Invoice>(`/invoices/${iv.id}`); setDetailInv(d); } catch { setDetailInv(iv); }
+    setFormOpen(false);
   };
 
   const handleCreate = async (e: FormEvent) => {
@@ -188,30 +188,140 @@ export default function InvoicePage() {
     setFormOpen(false); load();
   };
 
-  const handleSend = async () => {
-    if (!sendTarget) return;
-    await api.put(`/invoices/${sendTarget.id}/send`, {});
-    setSendTarget(null); load();
+  const handleAction = async () => {
+    if (!actionTarget) return;
+    const { inv, action } = actionTarget;
+    await api.put(`/invoices/${inv.id}/${action}`, {});
+    setActionTarget(null);
+    setToast(action === 'send' ? 'ส่งใบแจ้งหนี้แล้ว' : action === 'pay' ? 'บันทึกชำระเงินแล้ว' : 'ยกเลิกแล้ว');
+    if (detailInv?.id === inv.id) { try { setDetailInv(await api.get<Invoice>(`/invoices/${inv.id}`)); } catch { /* */ } }
+    load();
   };
 
-  const handlePaid = async () => {
-    if (!paidTarget) return;
-    await api.put(`/invoices/${paidTarget.id}/pay`, {});
-    setPaidTarget(null); load();
-  };
-
-  const handlePrint = (invId: number) => {
-    window.open(`/api/invoices/${invId}/print`, '_blank');
-  };
+  const handlePrint = (id: number) => { window.open(`/api/invoices/${id}/print`, '_blank'); };
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
+  // ========== DETAIL VIEW ==========
+  if (detailInv && !formOpen) {
+    const iv = detailInv;
+    const status = effectiveStatus(iv);
+    const cfg = statusCfg[status] ?? statusCfg.draft;
+    const items = iv.items || [];
+
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setDetailInv(null)} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h1 className="text-2xl font-bold text-gray-800">{iv.invoice_number}</h1>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+          </div>
+          <div className="flex gap-2">
+            {cfg.next && (
+              <button onClick={() => setActionTarget({ inv: iv, action: cfg.next! })}
+                className={`px-4 py-2 text-sm text-white rounded-lg ${cfg.nextColor}`}>{cfg.nextLabel}</button>
+            )}
+            {(iv.status === 'draft') && (
+              <button onClick={() => setActionTarget({ inv: iv, action: 'cancel' })}
+                className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
+            )}
+            <button onClick={() => handlePrint(iv.id)} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">🖨️ พิมพ์</button>
+          </div>
+        </div>
+
+        {/* Status Flow */}
+        <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
+          <div className="flex items-center justify-center gap-2 text-sm">
+            {['draft', 'sent', 'paid'].map((s, i) => {
+              const sc = statusCfg[s]!;
+              const statusOrder = ['draft', 'sent', 'paid'];
+              const currentIdx = statusOrder.indexOf(iv.status === 'overdue' ? 'sent' : iv.status);
+              const isActive = s === (iv.status === 'overdue' ? 'sent' : iv.status);
+              const isPast = currentIdx > i;
+              return (
+                <div key={s} className="flex items-center gap-2">
+                  {i > 0 && <div className={`w-8 h-0.5 ${isPast ? 'bg-green-400' : 'bg-gray-200'}`} />}
+                  <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${isActive ? (status === 'overdue' && s === 'sent' ? 'bg-red-100 text-red-700 ring-2 ring-offset-1 ring-red-300' : sc.color + ' ring-2 ring-offset-1 ring-indigo-300') : isPast ? 'bg-green-100 text-green-700' : 'bg-gray-50 text-gray-400'}`}>
+                    {isPast && !isActive ? '✓ ' : ''}{s === 'sent' && status === 'overdue' ? 'เกินกำหนด' : sc.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <Section title="ข้อมูลทั่วไป">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="ลูกค้า" value={<strong>{iv.customer_name}</strong>} />
+            <InfoRow label="อ้างอิง SO" value={iv.so_order_number} />
+            {iv.dn_number && <InfoRow label="อ้างอิง DN" value={iv.dn_number} />}
+            <InfoRow label="วันที่สร้าง" value={iv.created_at?.slice(0, 10)} />
+          </div>
+        </Section>
+
+        <Section title="ข้อมูลเรียกเก็บ">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="บริษัท" value={iv.billing_company} />
+            <InfoRow label="เลขประจำตัวผู้เสียภาษี" value={iv.billing_tax_id} />
+            <InfoRow label="ที่อยู่" value={iv.billing_address} />
+            <InfoRow label="ครบกำหนดชำระ" value={
+              <span className={isOverdue(iv) ? 'text-red-600 font-semibold' : ''}>{iv.due_date?.slice(0, 10) || '-'}</span>
+            } />
+          </div>
+        </Section>
+
+        <Section title={`รายการสินค้า (${items.length})`}>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b text-left text-xs text-gray-500">
+              <th className="pb-2 pr-2 w-8">#</th>
+              <th className="pb-2 pr-2">สินค้า</th>
+              <th className="pb-2 pr-2 text-right">จำนวน</th>
+              <th className="pb-2 pr-2">หน่วย</th>
+              <th className="pb-2 pr-2 text-right">ราคา/หน่วย</th>
+              <th className="pb-2 text-right">จำนวนเงิน</th>
+            </tr></thead>
+            <tbody>
+              {items.map((it, i) => (
+                <tr key={i} className="border-b border-gray-50">
+                  <td className="py-2.5 pr-2 text-gray-400">{i + 1}</td>
+                  <td className="py-2.5 pr-2 font-medium">{it.product_name || it.item_code || '-'}</td>
+                  <td className="py-2.5 pr-2 text-right">{it.quantity.toLocaleString()}</td>
+                  <td className="py-2.5 pr-2">{it.uom}</td>
+                  <td className="py-2.5 pr-2 text-right">฿{Number(it.unit_price).toLocaleString()}</td>
+                  <td className="py-2.5 text-right">฿{Number(it.amount).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="mt-4 bg-gray-50 rounded-lg p-4 space-y-1 text-sm">
+            <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>฿{Number(iv.subtotal).toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">VAT {iv.vat_rate}%</span><span>฿{Number(iv.vat_amount).toLocaleString()}</span></div>
+            <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
+              <span>Grand Total</span><span>฿{Number(iv.total_amount).toLocaleString()}</span>
+            </div>
+          </div>
+        </Section>
+
+        {iv.notes && <Section title="หมายเหตุ"><p className="text-sm text-gray-700 whitespace-pre-wrap">{iv.notes}</p></Section>}
+
+        <ConfirmDialog open={!!actionTarget}
+          message={actionTarget?.action === 'send' ? `ส่งใบแจ้งหนี้ "${actionTarget?.inv.invoice_number}" ให้ลูกค้า?` : actionTarget?.action === 'cancel' ? `ยกเลิก "${actionTarget?.inv.invoice_number}"?` : `ยืนยันว่า "${actionTarget?.inv.invoice_number}" ชำระเงินแล้ว?`}
+          onConfirm={handleAction} onCancel={() => setActionTarget(null)} />
+        {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
+      </div>
+    );
+  }
+
+  // ========== CREATE FORM ==========
   if (formOpen) {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-gray-800">สร้างใบแจ้งหนี้</h1>
-          <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">กลับรายการ</button>
+          <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">← กลับรายการ</button>
         </div>
         <form onSubmit={handleCreate}>
           <Section title="แหล่งที่มา">
@@ -251,7 +361,7 @@ export default function InvoicePage() {
                 <label className="block text-xs font-medium text-gray-500 mb-2">เลือก SO หลายใบ</label>
                 <div className="max-h-40 overflow-y-auto border rounded-lg p-2 space-y-1">
                   {orders.map((o) => (
-                    <label key={o.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                    <label key={o.id} className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm ${formMultiSOIds.includes(o.id) ? 'bg-indigo-50' : ''}`}>
                       <input type="checkbox" checked={formMultiSOIds.includes(o.id)}
                         onChange={() => toggleMultiSO(o.id)} className="rounded" />
                       {o.order_number} — {o.customer_name}
@@ -301,10 +411,10 @@ export default function InvoicePage() {
                 </table>
               </div>
               <div className="mt-4 bg-gray-50 rounded-lg p-4 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{subtotal.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">VAT 7%</span><span>{vatAmount.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>฿{subtotal.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">VAT 7%</span><span>฿{vatAmount.toLocaleString()}</span></div>
                 <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
-                  <span>Grand Total</span><span>{grandTotal.toLocaleString()}</span>
+                  <span>Grand Total</span><span>฿{grandTotal.toLocaleString()}</span>
                 </div>
               </div>
             </Section>
@@ -329,6 +439,7 @@ export default function InvoicePage() {
     );
   }
 
+  // ========== LIST VIEW ==========
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-800 mb-4">ใบแจ้งหนี้ (Invoice)</h1>
@@ -342,100 +453,18 @@ export default function InvoicePage() {
             <span className={isOverdue(iv) ? 'text-red-600 font-semibold' : ''}>{iv.due_date?.slice(0, 10) || '-'}</span>
           )},
           { key: 'status', label: 'สถานะ', render: (iv) => {
-            const s = isOverdue(iv) ? 'overdue' : iv.status;
-            return <StatusBadge status={s} />;
+            const s = effectiveStatus(iv);
+            const cfg2 = statusCfg[s] ?? statusCfg.draft;
+            return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg2.color}`}>{cfg2.label}</span>;
           }},
         ]}
         data={data}
         getId={(iv) => iv.id}
         searchPlaceholder="ค้นหาใบแจ้งหนี้..."
         onAdd={openAdd}
-        onRowClick={(iv) => setViewInv(iv)}
-        extraActions={(iv) => (
-          <div className="flex gap-1">
-            <button onClick={() => setViewInv(iv)}
-              className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">ดูเพิ่ม</button>
-            <button onClick={() => handlePrint(iv.id)}
-              className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">พิมพ์</button>
-            {iv.status === 'draft' && (
-              <button onClick={() => setSendTarget(iv)}
-                className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100">ส่ง</button>
-            )}
-            {iv.status === 'sent' && (
-              <button onClick={() => setPaidTarget(iv)}
-                className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100">ชำระแล้ว</button>
-            )}
-          </div>
-        )}
+        onRowClick={openDetail}
       />
-
-      {viewInv && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setViewInv(null)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-lg font-bold">{viewInv.invoice_number}</h2>
-                <StatusBadge status={isOverdue(viewInv) ? 'overdue' : viewInv.status} />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => handlePrint(viewInv.id)} className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">พิมพ์</button>
-                <button onClick={() => setViewInv(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลทั่วไป</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-gray-500">อ้างอิง SO:</span> {viewInv.so_order_number || '-'}</div>
-                  {viewInv.dn_number && <div><span className="text-gray-500">อ้างอิง DN:</span> {viewInv.dn_number}</div>}
-                  <div><span className="text-gray-500">ครบกำหนด:</span> <span className={isOverdue(viewInv) ? 'text-red-600 font-semibold' : ''}>{viewInv.due_date?.slice(0, 10) || '-'}</span></div>
-                  <div><span className="text-gray-500">สถานะ:</span> {statusCfg[isOverdue(viewInv) ? 'overdue' : viewInv.status]?.label}</div>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 mb-2">รายการ</h4>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-gray-500">
-                      <th className="pb-2 pr-2">#</th>
-                      <th className="pb-2 pr-2">สินค้า</th>
-                      <th className="pb-2 pr-2 text-right">จำนวน</th>
-                      <th className="pb-2 pr-2 text-right">ราคา</th>
-                      <th className="pb-2 pr-2 text-right">จำนวนเงิน</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {viewInv.items?.map((it, i) => (
-                      <tr key={i} className="border-b border-gray-50">
-                        <td className="py-1.5 pr-2 text-gray-400">{i + 1}</td>
-                        <td className="py-1.5 pr-2">{it.product_name || '-'}</td>
-                        <td className="py-1.5 pr-2 text-right">{it.quantity}</td>
-                        <td className="py-1.5 pr-2 text-right">{Number(it.unit_price).toLocaleString()}</td>
-                        <td className="py-1.5 pr-2 text-right">{Number(it.amount).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>฿{Number(viewInv.subtotal).toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">VAT {viewInv.vat_rate}%</span><span>฿{Number(viewInv.vat_amount).toLocaleString()}</span></div>
-                <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
-                  <span>Grand Total</span><span>฿{Number(viewInv.total_amount).toLocaleString()}</span>
-                </div>
-              </div>
-              {viewInv.notes && (
-                <div className="text-sm"><span className="text-gray-500">หมายเหตุ:</span> {viewInv.notes}</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ConfirmDialog open={!!sendTarget} message={`ส่งใบแจ้งหนี้ "${sendTarget?.invoice_number}" ให้ลูกค้า?`}
-        onConfirm={handleSend} onCancel={() => setSendTarget(null)} />
-      <ConfirmDialog open={!!paidTarget} message={`ยืนยันว่า "${paidTarget?.invoice_number}" ชำระเงินแล้ว?`}
-        onConfirm={handlePaid} onCancel={() => setPaidTarget(null)} />
+      {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
     </div>
   );
 }

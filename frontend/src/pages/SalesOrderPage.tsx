@@ -60,6 +60,23 @@ const InputField = ({ label, value, onChange, type = 'text', disabled = false, p
   </div>
 );
 
+const Section = ({ title, children, actions }: { title: string; children: React.ReactNode; actions?: React.ReactNode }) => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-4">
+    <div className="flex items-center justify-between mb-4 border-b pb-2">
+      <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+      {actions}
+    </div>
+    {children}
+  </div>
+);
+
+const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex items-start py-1.5">
+    <span className="text-xs text-gray-500 w-36 shrink-0">{label}</span>
+    <span className="text-sm text-gray-800">{value || '-'}</span>
+  </div>
+);
+
 export default function SalesOrderPage() {
   const [data, setData] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -67,7 +84,14 @@ export default function SalesOrderPage() {
   const [teamUsers, setTeamUsers] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<SalesOrder | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<SalesOrder | null>(null);
+  const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
+  const [attachments, setAttachments] = useState<SOAttachment[]>([]);
+  const [, setCompanyName] = useState('Frozen Food Plus Co., Ltd.');
+  const [creatingDn, setCreatingDn] = useState(false);
+  const [creatingInv, setCreatingInv] = useState(false);
+  const [toast, setToast] = useState('');
 
   // Form state
   const [formCustId, setFormCustId] = useState<number | ''>('');
@@ -91,12 +115,9 @@ export default function SalesOrderPage() {
   const [formPoNumber, setFormPoNumber] = useState('');
   const [formPoDate, setFormPoDate] = useState('');
   const [formPoNotes, setFormPoNotes] = useState('');
-  const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
-  const [attachments, setAttachments] = useState<SOAttachment[]>([]);
-  const [, setCompanyName] = useState('Frozen Food Plus Co., Ltd.');
-  const [creatingDn, setCreatingDn] = useState(false);
-  const [creatingInv, setCreatingInv] = useState(false);
-  const [toast, setToast] = useState('');
+  const [noAddressWarning, setNoAddressWarning] = useState(false);
+  const [formNickName, setFormNickName] = useState('');
+  const [formEmail, setFormEmail] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -114,7 +135,6 @@ export default function SalesOrderPage() {
   };
   useEffect(() => { load(); }, []);
 
-  // Searchable select options
   const customerOptions = useMemo(() =>
     customers.map((c) => ({ value: c.id, label: c.name, searchText: c.nickName || '' })),
     [customers]
@@ -124,10 +144,6 @@ export default function SalesOrderPage() {
     [products]
   );
 
-  // Auto-fill when customer changes
-  const [noAddressWarning, setNoAddressWarning] = useState(false);
-  const [formNickName, setFormNickName] = useState('');
-  const [formEmail, setFormEmail] = useState('');
   const onCustomerChange = (custId: number) => {
     setFormCustId(custId);
     const c = customers.find((x) => x.id === custId);
@@ -187,28 +203,71 @@ export default function SalesOrderPage() {
     setFormPaymentTerms(next);
   };
 
+  // Open detail view (full page)
   const openDetail = async (order: SalesOrder) => {
     const detail = await api.get<SalesOrder>(`/sales-orders/${order.id}`);
     setDetailOrder(detail);
     setAttachments(detail.attachments || []);
+    setFormOpen(false);
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!detailOrder || !e.target.files?.length) return;
+  // Open edit form (pre-fill from SO)
+  const openEdit = (so: SalesOrder) => {
+    setEditing(so);
+    setFormCustId(so.customerId);
+    setFormDate(so.date || new Date().toISOString().split('T')[0]);
+    setFormDeliveryStart(so.deliveryStartDate || '');
+    setFormDeliveryEnd(so.deliveryEndDate || '');
+    setFormCustAddress(so.customerAddress || '');
+    setFormShipName(so.shippingAddressName || '');
+    setFormShipAddress(so.shippingAddress || '');
+    setFormContactPerson(so.contactPerson || '');
+    setFormContact(so.contact || '');
+    setFormMobileNo(so.mobileNo || '');
+    setFormPaymentTemplate(so.paymentTermsTemplate || '');
+    setFormSalesPartner(so.salesPartner || '');
+    setFormCommRate(so.commissionRate || 0);
+    setFormNotes(so.notes || '');
+    setFormPoNumber(so.poNumber || '');
+    setFormPoDate(so.poDate || '');
+    setFormPoNotes(so.poNotes || '');
+    setFormItems(so.items && so.items.length > 0 ? so.items.map(it => ({
+      productId: it.productId, itemCode: it.itemCode || '', quantity: it.quantity,
+      unitPrice: it.unitPrice, rate: it.rate || 0, uom: it.uom, weight: it.weight,
+      productName: it.productName,
+    })) : [emptyItem()]);
+    setFormPaymentTerms(so.paymentTerms || []);
+    const c = customers.find(x => x.id === so.customerId);
+    setFormNickName(c?.nickName || so.customer?.nickName || '');
+    setFormEmail(c?.email || so.customer?.email || '');
+    setFormCreditLimit(c?.creditLimit || so.customer?.creditLimit || 0);
+    setFormTaxId(c?.taxId || so.customer?.taxId || '');
+    setNoAddressWarning(false);
+    setAttachments(so.attachments || []);
+    setDetailOrder(null);
+    setFormOpen(true);
+  };
+
+  const handleUpload = async (soId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
     const file = e.target.files[0];
     const formData = new FormData();
     formData.append('file', file);
     const token = localStorage.getItem('token');
-    await fetch(`/api/sales-orders/${detailOrder.id}/attachments`, {
+    await fetch(`/api/sales-orders/${soId}/attachments`, {
       method: 'POST', body: formData,
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    const updated = await api.get<SOAttachment[]>(`/sales-orders/${detailOrder.id}/attachments`);
+    const updated = await api.get<SOAttachment[]>(`/sales-orders/${soId}/attachments`);
     setAttachments(updated);
     e.target.value = '';
   };
 
-  // Toast auto-dismiss
+  const handleDeleteAttachment = async (soId: number, attId: number) => {
+    await api.del(`/sales-orders/${soId}/attachments/${attId}`);
+    setAttachments(prev => prev.filter(a => a.id !== attId));
+  };
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(''), 3000);
@@ -219,40 +278,37 @@ export default function SalesOrderPage() {
     window.open(`/api/sales-orders/${orderId}/print`, '_blank');
   };
 
-  const handleCreateDn = async () => {
-    if (!detailOrder) return;
+  const handleCreateDn = async (soId: number) => {
     setCreatingDn(true);
     try {
-      await api.post('/delivery-notes', { sales_order_id: detailOrder.id });
+      await api.post('/delivery-notes', { sales_order_id: soId });
       setToast('สร้างใบส่งของ (DN) สำเร็จ');
-      const updated = await api.get<SalesOrder>(`/sales-orders/${detailOrder.id}`);
+      const updated = await api.get<SalesOrder>(`/sales-orders/${soId}`);
       setDetailOrder(updated);
+      setAttachments(updated.attachments || []);
       load();
     } catch {
       setToast('ไม่สามารถสร้าง DN ได้');
-    } finally {
-      setCreatingDn(false);
-    }
+    } finally { setCreatingDn(false); }
   };
 
-  const handleCreateInvoice = async () => {
-    if (!detailOrder) return;
+  const handleCreateInvoice = async (soId: number) => {
     setCreatingInv(true);
     try {
-      await api.post('/invoices', { sales_order_id: detailOrder.id });
+      await api.post('/invoices', { sales_order_id: soId });
       setToast('สร้างใบแจ้งหนี้ (Invoice) สำเร็จ');
-      const updated = await api.get<SalesOrder>(`/sales-orders/${detailOrder.id}`);
+      const updated = await api.get<SalesOrder>(`/sales-orders/${soId}`);
       setDetailOrder(updated);
+      setAttachments(updated.attachments || []);
       load();
     } catch {
       setToast('ไม่สามารถสร้าง Invoice ได้');
-    } finally {
-      setCreatingInv(false);
-    }
+    } finally { setCreatingInv(false); }
   };
 
   const openAdd = () => {
     const today = new Date().toISOString().split('T')[0];
+    setEditing(null);
     setFormCustId(''); setFormDate(today);
     setFormDeliveryStart(today); setFormDeliveryEnd(today);
     setFormCustAddress(''); setFormShipName(''); setFormShipAddress('');
@@ -263,12 +319,13 @@ export default function SalesOrderPage() {
     setFormPoNumber(''); setFormPoDate(''); setFormPoNotes('');
     setFormNickName(''); setFormEmail(''); setNoAddressWarning(false);
     setDetailOrder(null);
+    setAttachments([]);
     setFormOpen(true);
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    await api.post('/sales-orders', {
+    const body = {
       customerId: Number(formCustId),
       date: formDate,
       deliveryStartDate: formDeliveryStart || null,
@@ -292,104 +349,242 @@ export default function SalesOrderPage() {
         uom: it.uom, weight: Number(it.weight),
       })),
       paymentTerms: formPaymentTerms.length ? formPaymentTerms : undefined,
-    });
-    setFormOpen(false); load();
+    };
+    if (editing) {
+      await api.put(`/sales-orders/${editing.id}`, body);
+      setToast('บันทึกการแก้ไขสำเร็จ');
+      // Go back to detail view after edit
+      const updated = await api.get<SalesOrder>(`/sales-orders/${editing.id}`);
+      setFormOpen(false);
+      setDetailOrder(updated);
+      setAttachments(updated.attachments || []);
+    } else {
+      await api.post('/sales-orders', body);
+      setFormOpen(false);
+    }
+    load();
   };
 
   const handleConfirm = async () => {
     if (!confirmTarget) return;
     await api.put(`/sales-orders/${confirmTarget.id}/confirm`, {});
-    setConfirmTarget(null); load();
+    setConfirmTarget(null);
+    // Refresh detail if open
+    if (detailOrder && detailOrder.id === confirmTarget.id) {
+      const updated = await api.get<SalesOrder>(`/sales-orders/${confirmTarget.id}`);
+      setDetailOrder(updated);
+    }
+    load();
   };
 
   if (loading) return <div className="text-center py-10 text-gray-400">Loading...</div>;
 
-  // === LIST VIEW ===
-  if (!formOpen) {
+  // ========================================
+  // === DETAIL VIEW (Full Page) ===
+  // ========================================
+  if (detailOrder && !formOpen) {
+    const so = detailOrder;
+    const cfg = statusCfg[so.status] ?? statusCfg.draft;
+    const soItems = so.items || [];
+    const soSubtotal = soItems.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+
     return (
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Sales Order</h1>
-        <DataTable
-          columns={[
-            { key: 'orderNumber', label: 'SO#' },
-            { key: 'customer', label: 'Customer', render: (o) => (o as SalesOrder).customer?.name || '-' },
-            { key: 'date', label: 'Date', render: (o) => (o as SalesOrder).date || '-' },
-            { key: 'totalAmount', label: 'Grand Total', render: (o) => `${Number((o as SalesOrder).totalAmount).toLocaleString()}` },
-            { key: 'status', label: 'Status', render: (o) => {
-              const cfg = statusCfg[(o as SalesOrder).status] ?? statusCfg.draft;
-              return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
-            }},
-          ]}
-          data={data}
-          getId={(o) => o.id}
-          searchPlaceholder="Search Sales Orders..."
-          onAdd={openAdd}
-          onEdit={(o) => { if (o.status === 'draft') setConfirmTarget(o); }}
-          onRowClick={(o) => openDetail(o)}
-          extraActions={(o) => (
-            <div className="flex gap-1">
-              <button onClick={() => openDetail(o)} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
-              <button onClick={() => handlePrint(o.id)} className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">Print</button>
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setDetailOrder(null)} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h1 className="text-2xl font-bold text-gray-800">{so.orderNumber}</h1>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+          </div>
+          <div className="flex gap-2">
+            {so.status === 'draft' && (
+              <>
+                <button onClick={() => openEdit(so)}
+                  className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                  ✏️ แก้ไข
+                </button>
+                <button onClick={() => setConfirmTarget(so)}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  ✓ Confirm
+                </button>
+              </>
+            )}
+            {so.status === 'confirmed' && (
+              <button onClick={() => handleCreateDn(so.id)} disabled={creatingDn}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {creatingDn ? 'กำลังสร้าง...' : '📦 สร้าง DN'}
+              </button>
+            )}
+            {so.status === 'delivered' && (
+              <button onClick={() => handleCreateInvoice(so.id)} disabled={creatingInv}
+                className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                {creatingInv ? 'กำลังสร้าง...' : '📄 สร้าง Invoice'}
+              </button>
+            )}
+            <button onClick={() => handlePrint(so.id)}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+              🖨️ Print
+            </button>
+          </div>
+        </div>
+
+        {/* Dashboard */}
+        <Section title="ข้อมูลทั่วไป">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="ลูกค้า" value={<span className="font-medium">{so.customer?.name || '-'}</span>} />
+            <InfoRow label="วันที่" value={so.date} />
+            <InfoRow label="Tax ID" value={so.customer?.taxId} />
+            <InfoRow label="Credit Limit" value={so.customer?.creditLimit?.toLocaleString()} />
+            <InfoRow label="ส่งของ" value={`${so.deliveryStartDate || '-'} ถึง ${so.deliveryEndDate || '-'}`} />
+            <InfoRow label="Email" value={so.customer?.email} />
+          </div>
+        </Section>
+
+        {/* Address & Contact */}
+        <Section title="ที่อยู่ & ผู้ติดต่อ">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="ที่อยู่ลูกค้า" value={so.customerAddress} />
+            <InfoRow label="ที่อยู่จัดส่ง" value={so.shippingAddress} />
+            <InfoRow label="ชื่อจัดส่ง" value={so.shippingAddressName} />
+            <InfoRow label="ผู้ติดต่อ" value={so.contactPerson} />
+            <InfoRow label="เบอร์ติดต่อ" value={so.contact} />
+            <InfoRow label="มือถือ" value={so.mobileNo} />
+          </div>
+        </Section>
+
+        {/* Items */}
+        <Section title={`รายการสินค้า (${soItems.length} รายการ)`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-gray-500">
+                  <th className="pb-2 pr-2 w-8">#</th>
+                  <th className="pb-2 pr-2">สินค้า</th>
+                  <th className="pb-2 pr-2 text-right">จำนวน</th>
+                  <th className="pb-2 pr-2">หน่วย</th>
+                  <th className="pb-2 pr-2 text-right">ราคา/หน่วย</th>
+                  <th className="pb-2 pr-2 text-right">น้ำหนัก</th>
+                  <th className="pb-2 text-right">รวม</th>
+                </tr>
+              </thead>
+              <tbody>
+                {soItems.map((item, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="py-2.5 pr-2 text-gray-400">{i + 1}</td>
+                    <td className="py-2.5 pr-2 font-medium">{item.productName || `Product #${item.productId}`}</td>
+                    <td className="py-2.5 pr-2 text-right">{item.quantity.toLocaleString()}</td>
+                    <td className="py-2.5 pr-2">{item.uom}</td>
+                    <td className="py-2.5 pr-2 text-right">{Number(item.unitPrice).toLocaleString()}</td>
+                    <td className="py-2.5 pr-2 text-right">{item.weight ? `${item.weight} kg` : '-'}</td>
+                    <td className="py-2.5 text-right font-medium">{(item.quantity * item.unitPrice).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 bg-gray-50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div><span className="text-gray-500">จำนวนรวม</span><div className="font-semibold">{Number(so.totalQuantity || soItems.reduce((s, it) => s + it.quantity, 0)).toLocaleString()}</div></div>
+            <div><span className="text-gray-500">ยอดก่อน VAT</span><div className="font-semibold">฿{soSubtotal.toLocaleString()}</div></div>
+            <div><span className="text-gray-500">VAT 7%</span><div className="font-semibold">฿{Number(so.vatAmount).toLocaleString()}</div></div>
+            <div><span className="text-gray-500">ยอดรวมทั้งสิ้น</span><div className="font-bold text-lg text-indigo-700">฿{Number(so.totalAmount).toLocaleString()}</div></div>
+          </div>
+        </Section>
+
+        {/* PO Info */}
+        {(so.poNumber || so.poDate || so.poNotes) && (
+          <Section title="PO ลูกค้า">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+              <InfoRow label="PO Number" value={so.poNumber} />
+              <InfoRow label="PO Date" value={so.poDate} />
+            </div>
+            {so.poNotes && <div className="mt-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">{so.poNotes}</div>}
+          </Section>
+        )}
+
+        {/* Payment & Commission */}
+        <Section title="เงื่อนไขการชำระ & Commission">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="เงื่อนไข" value={so.paymentTermsTemplate} />
+            <InfoRow label="Sales Partner" value={so.salesPartner} />
+            <InfoRow label="Commission Rate" value={so.commissionRate ? `${so.commissionRate}%` : '-'} />
+            <InfoRow label="Total Commission" value={so.totalCommission ? `฿${Number(so.totalCommission).toLocaleString()}` : '-'} />
+          </div>
+          {so.paymentTerms && so.paymentTerms.length > 0 && (
+            <div className="mt-3">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs text-gray-500">
+                    <th className="pb-2 pr-2">งวด</th>
+                    <th className="pb-2 pr-2">คำอธิบาย</th>
+                    <th className="pb-2 pr-2">กำหนด</th>
+                    <th className="pb-2 pr-2 text-right">สัดส่วน %</th>
+                    <th className="pb-2 text-right">จำนวนเงิน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {so.paymentTerms.map((pt, i) => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="py-2 pr-2">{pt.paymentTerm}</td>
+                      <td className="py-2 pr-2">{pt.description}</td>
+                      <td className="py-2 pr-2">{pt.dueDate}</td>
+                      <td className="py-2 pr-2 text-right">{pt.invoicePortion}%</td>
+                      <td className="py-2 text-right">{Number(pt.paymentAmount).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        />
-        {/* Detail Modal */}
-        {detailOrder && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setDetailOrder(null)}>
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold">{detailOrder.orderNumber}</h2>
-                <div className="flex gap-2">
-                  {detailOrder.status === 'confirmed' && (
-                    <button onClick={handleCreateDn} disabled={creatingDn}
-                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                      {creatingDn ? 'กำลังสร้าง...' : 'สร้าง DN'}
-                    </button>
-                  )}
-                  {detailOrder.status === 'delivered' && (
-                    <button onClick={handleCreateInvoice} disabled={creatingInv}
-                      className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
-                      {creatingInv ? 'กำลังสร้าง...' : 'สร้าง Invoice'}
-                    </button>
-                  )}
-                  <button onClick={() => handlePrint(detailOrder.id)} className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Print</button>
-                  <button onClick={() => setDetailOrder(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-                </div>
-              </div>
-              {/* PO Info */}
-              {(detailOrder.poNumber || detailOrder.poDate) && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                  <h4 className="text-xs font-semibold text-blue-700 mb-1">PO ลูกค้า</h4>
-                  <p className="text-sm">PO#: {detailOrder.poNumber || '-'} | Date: {detailOrder.poDate || '-'}</p>
-                  {detailOrder.poNotes && <p className="text-sm text-gray-600 mt-1">{detailOrder.poNotes}</p>}
-                </div>
-              )}
-              {/* Customer */}
-              <div className="mb-4">
-                <p className="text-sm"><strong>ลูกค้า:</strong> {detailOrder.customer?.name || '-'}</p>
-                <p className="text-sm"><strong>Grand Total:</strong> {Number(detailOrder.totalAmount).toLocaleString()}</p>
-              </div>
-              {/* Attachments */}
-              <div className="border rounded-lg p-4">
-                <h4 className="text-sm font-semibold mb-2">เอกสารแนบ / Attachments</h4>
-                <div className="mb-3">
-                  <label className="inline-flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-sm cursor-pointer hover:bg-indigo-100">
-                    <span>+ Attach File</span>
-                    <input type="file" className="hidden" onChange={handleUpload} />
-                  </label>
-                </div>
-                {attachments.length === 0 && <p className="text-sm text-gray-400">ยังไม่มีเอกสารแนบ</p>}
-                {attachments.map((att) => (
-                  <div key={att.id} className="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <a href={`/api/attachments/${att.filename}`} target="_blank" rel="noreferrer"
-                      className="text-sm text-indigo-600 hover:underline">{att.originalName}</a>
-                    <span className="text-xs text-gray-400">{att.size ? `${(att.size / 1024).toFixed(1)} KB` : ''}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        </Section>
+
+        {/* Notes */}
+        {so.notes && (
+          <Section title="หมายเหตุ">
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{so.notes}</p>
+          </Section>
         )}
+
+        {/* ===== ATTACHMENTS ===== */}
+        <Section title={`เอกสารแนบ (${attachments.length})`}
+          actions={
+            <label className="inline-flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs cursor-pointer hover:bg-indigo-100 font-medium">
+              <span>+ แนบไฟล์</span>
+              <input type="file" className="hidden" onChange={(e) => handleUpload(so.id, e)} />
+            </label>
+          }
+        >
+          {attachments.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <div className="text-3xl mb-2">📎</div>
+              <p className="text-sm">ยังไม่มีเอกสารแนบ</p>
+              <p className="text-xs mt-1">กดปุ่ม "+ แนบไฟล์" ด้านบนเพื่อเพิ่ม</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {attachments.map((att) => (
+                <div key={att.id} className="flex items-center justify-between py-2.5">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">📄</span>
+                    <div>
+                      <a href={`/api/attachments/${att.filename}`} target="_blank" rel="noreferrer"
+                        className="text-sm text-indigo-600 hover:underline font-medium">{att.originalName}</a>
+                      <div className="text-xs text-gray-400">
+                        {att.size ? `${(att.size / 1024).toFixed(1)} KB` : ''}
+                        {att.createdAt ? ` • ${new Date(att.createdAt).toLocaleDateString('th-TH')}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDeleteAttachment(so.id, att.id)}
+                    className="text-xs text-red-400 hover:text-red-600 px-2 py-1">ลบ</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
         <ConfirmDialog open={!!confirmTarget} message={`Confirm Sales Order "${confirmTarget?.orderNumber}"?`}
           onConfirm={handleConfirm} onCancel={() => setConfirmTarget(null)} />
         {toast && (
@@ -401,19 +596,63 @@ export default function SalesOrderPage() {
     );
   }
 
-  // === FORM VIEW (ERPNext style sections) ===
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4 border-b pb-2">{title}</h3>
-      {children}
-    </div>
-  );
+  // ========================================
+  // === LIST VIEW ===
+  // ========================================
+  if (!formOpen) {
+    return (
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">Sales Order</h1>
+        <DataTable
+          columns={[
+            { key: 'orderNumber', label: 'SO#' },
+            { key: 'customer', label: 'Customer', render: (o) => (o as SalesOrder).customer?.name || '-' },
+            { key: 'date', label: 'Date', render: (o) => (o as SalesOrder).date || '-' },
+            { key: 'totalAmount', label: 'Grand Total', render: (o) => `฿${Number((o as SalesOrder).totalAmount).toLocaleString()}` },
+            { key: 'status', label: 'Status', render: (o) => {
+              const cfg2 = statusCfg[(o as SalesOrder).status] ?? statusCfg.draft;
+              return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg2.color}`}>{cfg2.label}</span>;
+            }},
+          ]}
+          data={data}
+          getId={(o) => o.id}
+          searchPlaceholder="ค้นหา Sales Order..."
+          onAdd={openAdd}
+          onRowClick={(o) => openDetail(o)}
+          extraActions={(o) => (
+            <div className="flex gap-1">
+              <button onClick={(e) => { e.stopPropagation(); openDetail(o); }} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
+              <button onClick={(e) => { e.stopPropagation(); handlePrint(o.id); }} className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">Print</button>
+            </div>
+          )}
+        />
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">
+            {toast}
+          </div>
+        )}
+      </div>
+    );
+  }
 
+  // ========================================
+  // === FORM VIEW (Create / Edit) ===
+  // ========================================
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">New Sales Order</h1>
-        <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">Back to List</button>
+        <h1 className="text-2xl font-bold text-gray-800">
+          {editing ? `แก้ไข ${editing.orderNumber}` : 'สร้าง Sales Order ใหม่'}
+        </h1>
+        <button onClick={() => {
+          setFormOpen(false);
+          if (editing) {
+            // Go back to detail view
+            openDetail(editing);
+          }
+        }} className="text-gray-400 hover:text-gray-600 text-sm">
+          {editing ? '← กลับหน้ารายละเอียด' : '← กลับรายการ'}
+        </button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -534,7 +773,7 @@ export default function SalesOrderPage() {
           </div>
         </Section>
 
-        {/* Section 5: Payment Terms */}
+        {/* Section: Payment Terms */}
         <Section title="Payment Terms">
           <div className="mb-3">
             <label className="block text-xs font-medium text-gray-500 mb-1">เงื่อนไขการชำระ</label>
@@ -600,7 +839,7 @@ export default function SalesOrderPage() {
           <button type="button" onClick={addPT} className="text-xs text-indigo-600 hover:text-indigo-800">+ Add Payment Term</button>
         </Section>
 
-        {/* Section 6: Commission */}
+        {/* Section: Commission */}
         <Section title="Sales Team / Commission">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -621,7 +860,7 @@ export default function SalesOrderPage() {
           </div>
         </Section>
 
-        {/* Section: PO ลูกค้า */}
+        {/* Section: PO */}
         <Section title="PO ลูกค้า / Customer Purchase Order">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <InputField label="PO Number" value={formPoNumber} onChange={setFormPoNumber} placeholder="เลขที่ PO ลูกค้า" />
@@ -642,16 +881,63 @@ export default function SalesOrderPage() {
             placeholder="Additional notes..." />
         </Section>
 
+        {/* ===== ATTACHMENTS (in edit mode) ===== */}
+        {editing && (
+          <Section title={`เอกสารแนบ (${attachments.length})`}
+            actions={
+              <label className="inline-flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs cursor-pointer hover:bg-indigo-100 font-medium">
+                <span>+ แนบไฟล์</span>
+                <input type="file" className="hidden" onChange={(e) => handleUpload(editing.id, e)} />
+              </label>
+            }
+          >
+            {attachments.length === 0 ? (
+              <div className="text-center py-6 text-gray-400">
+                <div className="text-2xl mb-1">📎</div>
+                <p className="text-sm">ยังไม่มีเอกสารแนบ</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {attachments.map((att) => (
+                  <div key={att.id} className="flex items-center justify-between py-2.5">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">📄</span>
+                      <div>
+                        <a href={`/api/attachments/${att.filename}`} target="_blank" rel="noreferrer"
+                          className="text-sm text-indigo-600 hover:underline font-medium">{att.originalName}</a>
+                        <div className="text-xs text-gray-400">
+                          {att.size ? `${(att.size / 1024).toFixed(1)} KB` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => handleDeleteAttachment(editing.id, att.id)}
+                      className="text-xs text-red-400 hover:text-red-600 px-2 py-1">ลบ</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
+
         {/* Actions */}
         <div className="flex justify-end gap-3 mb-8">
-          <button type="button" onClick={() => setFormOpen(false)}
-            className="px-6 py-2.5 text-sm rounded-lg border hover:bg-gray-50">Cancel</button>
+          <button type="button" onClick={() => {
+            setFormOpen(false);
+            if (editing) openDetail(editing);
+          }}
+            className="px-6 py-2.5 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
           <button type="submit"
             className="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium">
-            Save Sales Order
+            {editing ? '💾 บันทึกการแก้ไข' : '💾 Save Sales Order'}
           </button>
         </div>
       </form>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

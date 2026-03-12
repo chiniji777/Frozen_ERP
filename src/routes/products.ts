@@ -55,6 +55,7 @@ productsRoute.post("/", async (c) => {
     rawMaterial: body.rawMaterial || null,
     rawMaterialYield: body.rawMaterialYield ?? null,
     description: body.description || null,
+    hasVat: body.hasVat ?? 1,
   }).run();
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
@@ -75,6 +76,7 @@ productsRoute.put("/:id", async (c) => {
     rawMaterial: body.rawMaterial ?? existing.rawMaterial,
     rawMaterialYield: body.rawMaterialYield ?? existing.rawMaterialYield,
     description: body.description ?? existing.description,
+    hasVat: body.hasVat ?? existing.hasVat,
     updatedAt: sql`datetime('now')`,
   }).where(eq(products.id, id)).run();
   return c.json({ ok: true });

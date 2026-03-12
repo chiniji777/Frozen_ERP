@@ -16,36 +16,27 @@ interface DNItem {
   quantity: number; uom: string; weight: number;
 }
 interface DeliveryNote {
-  id: number;
-  dn_number: string;
-  sales_order_id: number;
-  sales_order_ids?: string;
-  so_order_number?: string;
-  customer_name?: string;
-  status: string;
-  delivery_date?: string;
-  driver_name?: string;
-  driver_phone?: string;
-  vehicle_no?: string;
-  pickup_point?: string;
-  notes?: string;
-  items: DNItem[];
-  created_at?: string;
+  id: number; dn_number: string; sales_order_id: number; sales_order_ids?: string;
+  so_order_number?: string; customer_name?: string; status: string;
+  delivery_date?: string; driver_name?: string; driver_phone?: string;
+  vehicle_no?: string; pickup_point?: string; notes?: string;
+  items: DNItem[]; created_at?: string;
 }
 
-const statusCfg: Record<string, { label: string; color: string }> = {
-  draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700' },
-  shipped: { label: 'จัดส่งแล้ว', color: 'bg-yellow-100 text-yellow-700' },
+const statusCfg: Record<string, { label: string; color: string; next?: string; nextLabel?: string; nextColor?: string }> = {
+  draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700', next: 'ship', nextLabel: '📦 จัดส่ง', nextColor: 'bg-yellow-600 hover:bg-yellow-700' },
+  shipped: { label: 'จัดส่งแล้ว', color: 'bg-yellow-100 text-yellow-700', next: 'deliver', nextLabel: '✅ ส่งถึงแล้ว', nextColor: 'bg-green-600 hover:bg-green-700' },
   delivered: { label: 'ส่งถึงแล้ว', color: 'bg-green-100 text-green-700' },
+  cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' },
 };
 
-const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '' }: {
-  label: string; value: string | number; onChange: (v: string) => void; type?: string; disabled?: boolean; placeholder?: string;
+const InputField = ({ label, value, onChange, type = 'text', placeholder = '' }: {
+  label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string;
 }) => (
   <div>
     <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
-    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} placeholder={placeholder}
-      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-50" />
+    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
   </div>
 );
 
@@ -56,23 +47,21 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
   </div>
 );
 
-const StatusBadge = ({ status }: { status: string }) => {
-  const cfg = statusCfg[status] ?? statusCfg.draft;
-  return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
-};
-
-const MOCK_DNS: DeliveryNote[] = [
-  { id: 1, dn_number: 'DN-2026-0001', sales_order_id: 1, so_order_number: 'SO-2026-0010', customer_name: 'บริษัท ทดสอบ จำกัด', status: 'draft', delivery_date: '2026-03-15', items: [{ product_name: 'สินค้า A', quantity: 10, uom: 'Pcs.', weight: 5 }] },
-  { id: 2, dn_number: 'DN-2026-0002', sales_order_id: 2, so_order_number: 'SO-2026-0011', customer_name: 'ร้านค้าตัวอย่าง', status: 'shipped', delivery_date: '2026-03-12', driver_name: 'สมชาย', vehicle_no: 'กท-1234', items: [{ product_name: 'สินค้า B', quantity: 5, uom: 'Kg', weight: 5 }] },
-];
+const InfoRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex items-start py-1.5">
+    <span className="text-xs text-gray-500 w-32 shrink-0">{label}</span>
+    <span className="text-sm text-gray-800">{value || '-'}</span>
+  </div>
+);
 
 export default function DeliveryNotePage() {
   const [data, setData] = useState<DeliveryNote[]>([]);
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
-  const [viewDN, setViewDN] = useState<DeliveryNote | null>(null);
+  const [detailDN, setDetailDN] = useState<DeliveryNote | null>(null);
   const [actionTarget, setActionTarget] = useState<{ dn: DeliveryNote; action: string } | null>(null);
+  const [toast, setToast] = useState('');
 
   const [formSOIds, setFormSOIds] = useState<number[]>([]);
   const [formDeliveryDate, setFormDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -87,7 +76,7 @@ export default function DeliveryNotePage() {
     setLoading(true);
     try {
       const [dns, sos] = await Promise.all([
-        api.get<DeliveryNote[]>('/delivery-notes').catch(() => MOCK_DNS),
+        api.get<DeliveryNote[]>('/delivery-notes').catch(() => []),
         api.get<SalesOrder[]>('/sales-orders').catch(() => []),
       ]);
       setData(dns);
@@ -96,16 +85,11 @@ export default function DeliveryNotePage() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
 
   const toggleSO = async (soId: number) => {
-    let newIds: number[];
-    if (formSOIds.includes(soId)) {
-      newIds = formSOIds.filter((id) => id !== soId);
-    } else {
-      newIds = [...formSOIds, soId];
-    }
+    const newIds = formSOIds.includes(soId) ? formSOIds.filter((id) => id !== soId) : [...formSOIds, soId];
     setFormSOIds(newIds);
-    // Reload items from all selected SOs
     const allItems: DNItem[] = [];
     for (const id of newIds) {
       try {
@@ -132,24 +116,22 @@ export default function DeliveryNotePage() {
     setFormSOIds([]); setFormDeliveryDate(new Date().toISOString().split('T')[0]);
     setFormDriverName(''); setFormDriverPhone(''); setFormVehicleNo('');
     setFormPickupPoint(''); setFormNotes(''); setFormItems([]);
-    setFormOpen(true);
+    setDetailDN(null); setFormOpen(true);
+  };
+
+  const openDetail = async (dn: DeliveryNote) => {
+    try { const d = await api.get<DeliveryNote>(`/delivery-notes/${dn.id}`); setDetailDN(d); } catch { setDetailDN(dn); }
+    setFormOpen(false);
   };
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
     if (formSOIds.length === 0) return;
     await api.post('/delivery-notes', {
-      salesOrderIds: formSOIds,
-      delivery_date: formDeliveryDate || null,
-      driver_name: formDriverName || null,
-      driverPhone: formDriverPhone || null,
-      vehicle_no: formVehicleNo || null,
-      pickupPoint: formPickupPoint || null,
-      notes: formNotes || null,
-      items: formItems.map((it) => ({
-        product_id: it.product_id, item_code: it.item_code,
-        quantity: Number(it.quantity), uom: it.uom, weight: Number(it.weight),
-      })),
+      salesOrderIds: formSOIds, delivery_date: formDeliveryDate || null,
+      driver_name: formDriverName || null, driverPhone: formDriverPhone || null,
+      vehicle_no: formVehicleNo || null, pickupPoint: formPickupPoint || null, notes: formNotes || null,
+      items: formItems.map((it) => ({ product_id: it.product_id, item_code: it.item_code, quantity: Number(it.quantity), uom: it.uom, weight: Number(it.weight) })),
     });
     setFormOpen(false); load();
   };
@@ -158,119 +140,183 @@ export default function DeliveryNotePage() {
     if (!actionTarget) return;
     const { dn, action } = actionTarget;
     await api.put(`/delivery-notes/${dn.id}/${action}`, {});
-    setActionTarget(null); load();
+    setActionTarget(null);
+    setToast(action === 'ship' ? 'จัดส่งแล้ว' : action === 'deliver' ? 'ส่งถึงแล้ว' : 'ยกเลิกแล้ว');
+    if (detailDN?.id === dn.id) { try { setDetailDN(await api.get<DeliveryNote>(`/delivery-notes/${dn.id}`)); } catch { /* */ } }
+    load();
   };
 
-  const handlePrint = (dnId: number) => {
-    window.open(`/api/delivery-notes/${dnId}/print`, '_blank');
-  };
-
-  const totalWeight = (items: DNItem[]) => items.reduce((s, it) => s + (it.weight || 0), 0);
-  const totalQty = (items: DNItem[]) => items.reduce((s, it) => s + it.quantity, 0);
+  const handlePrint = (id: number) => { window.open(`/api/delivery-notes/${id}/print`, '_blank'); };
+  const tw = (items: DNItem[]) => items.reduce((s, it) => s + (it.weight || 0), 0);
+  const tq = (items: DNItem[]) => items.reduce((s, it) => s + it.quantity, 0);
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
+  // ========== DETAIL VIEW ==========
+  if (detailDN && !formOpen) {
+    const dn = detailDN;
+    const cfg = statusCfg[dn.status] ?? statusCfg.draft;
+    const items = dn.items || [];
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setDetailDN(null)} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h1 className="text-2xl font-bold text-gray-800">{dn.dn_number}</h1>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+          </div>
+          <div className="flex gap-2">
+            {cfg.next && (
+              <button onClick={() => setActionTarget({ dn, action: cfg.next! })}
+                className={`px-4 py-2 text-sm text-white rounded-lg ${cfg.nextColor}`}>{cfg.nextLabel}</button>
+            )}
+            {dn.status === 'draft' && (
+              <button onClick={() => setActionTarget({ dn, action: 'cancel' })}
+                className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
+            )}
+            <button onClick={() => handlePrint(dn.id)} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">🖨️ พิมพ์</button>
+          </div>
+        </div>
+
+        {/* Status Flow */}
+        <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
+          <div className="flex items-center justify-center gap-2 text-sm">
+            {['draft', 'shipped', 'delivered'].map((s, i) => {
+              const sc = statusCfg[s]!;
+              const isActive = s === dn.status;
+              const isPast = ['draft', 'shipped', 'delivered'].indexOf(dn.status) > i;
+              return (
+                <div key={s} className="flex items-center gap-2">
+                  {i > 0 && <div className={`w-8 h-0.5 ${isPast ? 'bg-green-400' : 'bg-gray-200'}`} />}
+                  <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${isActive ? sc.color + ' ring-2 ring-offset-1 ring-indigo-300' : isPast ? 'bg-green-100 text-green-700' : 'bg-gray-50 text-gray-400'}`}>
+                    {isPast && !isActive ? '✓ ' : ''}{sc.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <Section title="ข้อมูลทั่วไป">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="อ้างอิง SO" value={dn.so_order_number} />
+            <InfoRow label="ลูกค้า" value={<strong>{dn.customer_name}</strong>} />
+            <InfoRow label="วันจัดส่ง" value={dn.delivery_date?.slice(0, 10)} />
+            <InfoRow label="วันที่สร้าง" value={dn.created_at?.slice(0, 10)} />
+          </div>
+        </Section>
+
+        <Section title="ข้อมูลจัดส่ง">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="ชื่อคนขับ" value={dn.driver_name} />
+            <InfoRow label="เบอร์โทร" value={dn.driver_phone} />
+            <InfoRow label="ทะเบียนรถ" value={dn.vehicle_no} />
+            <InfoRow label="จุดรับสินค้า" value={dn.pickup_point} />
+          </div>
+        </Section>
+
+        <Section title={`รายการสินค้า (${items.length})`}>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b text-left text-xs text-gray-500">
+              <th className="pb-2 pr-2 w-8">#</th><th className="pb-2 pr-2">สินค้า</th>
+              <th className="pb-2 pr-2 text-right">จำนวน</th><th className="pb-2 pr-2">หน่วย</th><th className="pb-2 text-right">น้ำหนัก</th>
+            </tr></thead>
+            <tbody>
+              {items.map((it, i) => (
+                <tr key={i} className="border-b border-gray-50">
+                  <td className="py-2.5 pr-2 text-gray-400">{i + 1}</td>
+                  <td className="py-2.5 pr-2 font-medium">{it.product_name || '-'}</td>
+                  <td className="py-2.5 pr-2 text-right">{it.quantity.toLocaleString()}</td>
+                  <td className="py-2.5 pr-2">{it.uom}</td>
+                  <td className="py-2.5 text-right">{it.weight} kg</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="mt-3 bg-gray-50 rounded-lg p-3 flex gap-6 text-sm">
+            <div><span className="text-gray-500">รวม:</span> <strong>{tq(items).toLocaleString()}</strong></div>
+            <div><span className="text-gray-500">น้ำหนัก:</span> <strong>{tw(items).toLocaleString()} kg</strong></div>
+          </div>
+        </Section>
+
+        {dn.notes && <Section title="หมายเหตุ"><p className="text-sm text-gray-700 whitespace-pre-wrap">{dn.notes}</p></Section>}
+        <ConfirmDialog open={!!actionTarget}
+          message={actionTarget?.action === 'ship' ? `ยืนยันจัดส่ง "${actionTarget?.dn.dn_number}"?` : actionTarget?.action === 'cancel' ? `ยกเลิก "${actionTarget?.dn.dn_number}"?` : `ยืนยัน "${actionTarget?.dn.dn_number}" ส่งถึงแล้ว?`}
+          onConfirm={handleAction} onCancel={() => setActionTarget(null)} />
+        {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
+      </div>
+    );
+  }
+
+  // ========== CREATE FORM ==========
   if (formOpen) {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-gray-800">สร้างใบส่งของ</h1>
-          <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">กลับรายการ</button>
+          <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">← กลับรายการ</button>
         </div>
         <form onSubmit={handleCreate}>
-          <Section title="เลือกใบสั่งขาย (เลือกได้หลายรายการ)">
-            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
-              {orders.length === 0 ? (
-                <p className="text-sm text-gray-400 py-2 text-center">ไม่มี SO ที่ confirmed</p>
-              ) : orders.map((o) => (
-                <label key={o.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 ${formSOIds.includes(o.id) ? 'bg-indigo-50' : ''}`}>
-                  <input type="checkbox" checked={formSOIds.includes(o.id)} onChange={() => toggleSO(o.id)}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                  <span className="text-sm text-gray-700">{o.order_number} — {o.customer_name}</span>
-                </label>
-              ))}
+          <Section title="เลือกใบสั่งขาย">
+            <div className="max-h-48 overflow-y-auto border rounded-lg p-2">
+              {orders.length === 0 ? <p className="text-sm text-gray-400 py-2 text-center">ไม่มี SO ที่ confirmed</p> :
+                orders.map((o) => (
+                  <label key={o.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 ${formSOIds.includes(o.id) ? 'bg-indigo-50' : ''}`}>
+                    <input type="checkbox" checked={formSOIds.includes(o.id)} onChange={() => toggleSO(o.id)} className="rounded" />
+                    <span className="text-sm">{o.order_number} — {o.customer_name}</span>
+                  </label>
+                ))}
             </div>
-            {formSOIds.length > 0 && (
-              <p className="mt-2 text-xs text-indigo-600">เลือก {formSOIds.length} ใบสั่งขาย</p>
-            )}
           </Section>
-
           <Section title="ข้อมูลจัดส่ง">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InputField label="วันที่จัดส่ง" value={formDeliveryDate} onChange={setFormDeliveryDate} type="date" />
-              <InputField label="ชื่อคนขับ" value={formDriverName} onChange={setFormDriverName} placeholder="ชื่อคนขับรถ" />
-              <InputField label="เบอร์โทรคนขับ" value={formDriverPhone} onChange={setFormDriverPhone} placeholder="08x-xxx-xxxx" />
-              <InputField label="ทะเบียนรถ" value={formVehicleNo} onChange={setFormVehicleNo} placeholder="เช่น กท-1234" />
-              <InputField label="จุดรับสินค้า" value={formPickupPoint} onChange={setFormPickupPoint} placeholder="สถานที่ไปรับของ" />
+              <InputField label="ชื่อคนขับ" value={formDriverName} onChange={setFormDriverName} />
+              <InputField label="เบอร์โทรคนขับ" value={formDriverPhone} onChange={setFormDriverPhone} />
+              <InputField label="ทะเบียนรถ" value={formVehicleNo} onChange={setFormVehicleNo} />
+              <InputField label="จุดรับสินค้า" value={formPickupPoint} onChange={setFormPickupPoint} />
             </div>
           </Section>
-
           {formItems.length > 0 && (
             <Section title="รายการสินค้า">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-gray-500">
-                      <th className="pb-2 pr-2">#</th>
-                      <th className="pb-2 pr-2">สินค้า</th>
-                      <th className="pb-2 pr-2 text-right">จำนวน</th>
-                      <th className="pb-2 pr-2">หน่วย</th>
-                      <th className="pb-2 pr-2 text-right">น้ำหนัก (kg)</th>
+              <table className="w-full text-sm">
+                <thead><tr className="border-b text-left text-xs text-gray-500">
+                  <th className="pb-2 pr-2">#</th><th className="pb-2 pr-2">สินค้า</th>
+                  <th className="pb-2 pr-2 text-right">จำนวน</th><th className="pb-2 pr-2">หน่วย</th><th className="pb-2 text-right">น้ำหนัก</th>
+                </tr></thead>
+                <tbody>
+                  {formItems.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="py-2 pr-2 text-gray-400">{i + 1}</td>
+                      <td className="py-2 pr-2">{item.product_name || '-'}</td>
+                      <td className="py-2 pr-2"><input type="number" min="0" step="0.01" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))} className="w-20 px-2 py-1 border rounded text-sm text-right" /></td>
+                      <td className="py-2 pr-2"><input value={item.uom} onChange={(e) => updateItem(i, 'uom', e.target.value)} className="w-16 px-2 py-1 border rounded text-sm" /></td>
+                      <td className="py-2"><input type="number" step="0.01" value={item.weight} onChange={(e) => updateItem(i, 'weight', Number(e.target.value))} className="w-20 px-2 py-1 border rounded text-sm text-right" /></td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {formItems.map((item, i) => (
-                      <tr key={i} className="border-b border-gray-50">
-                        <td className="py-2 pr-2 text-gray-400">{i + 1}</td>
-                        <td className="py-2 pr-2 text-gray-700">{item.product_name || item.item_code || '-'}</td>
-                        <td className="py-2 pr-2">
-                          <input type="number" min="0" step="0.01" value={item.quantity}
-                            onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
-                            className="w-20 px-2 py-1 border rounded text-sm text-right" />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <input value={item.uom} onChange={(e) => updateItem(i, 'uom', e.target.value)}
-                            className="w-16 px-2 py-1 border rounded text-sm" />
-                        </td>
-                        <td className="py-2 pr-2">
-                          <input type="number" step="0.01" value={item.weight}
-                            onChange={(e) => updateItem(i, 'weight', Number(e.target.value))}
-                            className="w-20 px-2 py-1 border rounded text-sm text-right" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-3 bg-gray-50 rounded-lg p-3 flex gap-6 text-sm">
-                <div><span className="text-gray-500">รวมจำนวน:</span> <strong>{totalQty(formItems).toLocaleString()}</strong></div>
-                <div><span className="text-gray-500">รวมน้ำหนัก:</span> <strong>{totalWeight(formItems).toLocaleString()} kg</strong></div>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </Section>
           )}
-
           <Section title="หมายเหตุ">
             <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              placeholder="หมายเหตุเพิ่มเติม..." />
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
           </Section>
-
           <div className="flex justify-end gap-3 mb-8">
-            <button type="button" onClick={() => setFormOpen(false)}
-              className="px-6 py-2.5 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
-            <button type="submit" disabled={formSOIds.length === 0}
-              className="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-50">
-              สร้างใบส่งของ
-            </button>
+            <button type="button" onClick={() => setFormOpen(false)} className="px-6 py-2.5 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
+            <button type="submit" disabled={formSOIds.length === 0} className="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">สร้างใบส่งของ</button>
           </div>
         </form>
       </div>
     );
   }
 
+  // ========== LIST VIEW ==========
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">ใบส่งของ (Delivery Note)</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-4">📦 ใบส่งของ (Delivery Note)</h1>
       <DataTable
         columns={[
           { key: 'dn_number', label: 'เลขที่' },
@@ -278,100 +324,21 @@ export default function DeliveryNotePage() {
           { key: 'customer_name', label: 'ลูกค้า' },
           { key: 'delivery_date', label: 'วันจัดส่ง', render: (d) => d.delivery_date?.slice(0, 10) || '-' },
           { key: 'items', label: 'รายการ', render: (d) => `${d.items?.length ?? 0} รายการ` },
-          { key: 'status', label: 'สถานะ', render: (d) => <StatusBadge status={d.status} /> },
+          { key: 'status', label: 'สถานะ', render: (d) => {
+            const c = statusCfg[d.status] ?? statusCfg.draft;
+            return <span className={`px-2 py-0.5 rounded-full text-xs ${c.color}`}>{c.label}</span>;
+          }},
         ]}
-        data={data}
-        getId={(d) => d.id}
-        searchPlaceholder="ค้นหาใบส่งของ..."
-        onAdd={openAdd}
-        onRowClick={(d) => setViewDN(d)}
+        data={data} getId={(d) => d.id} searchPlaceholder="ค้นหาใบส่งของ..."
+        onAdd={openAdd} onRowClick={(d) => openDetail(d)}
         extraActions={(d) => (
           <div className="flex gap-1">
-            <button onClick={() => setViewDN(d)}
-              className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">ดูเพิ่ม</button>
-            <button onClick={() => handlePrint(d.id)}
-              className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">พิมพ์</button>
-            {d.status === 'draft' && (
-              <button onClick={() => setActionTarget({ dn: d, action: 'ship' })}
-                className="text-xs px-2 py-1 bg-yellow-50 text-yellow-700 rounded hover:bg-yellow-100">จัดส่ง</button>
-            )}
-            {d.status === 'shipped' && (
-              <button onClick={() => setActionTarget({ dn: d, action: 'deliver' })}
-                className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100">ส่งถึงแล้ว</button>
-            )}
+            <button onClick={(e) => { e.stopPropagation(); openDetail(d); }} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
+            <button onClick={(e) => { e.stopPropagation(); handlePrint(d.id); }} className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">พิมพ์</button>
           </div>
         )}
       />
-
-      {viewDN && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setViewDN(null)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-lg font-bold">{viewDN.dn_number}</h2>
-                <StatusBadge status={viewDN.status} />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => handlePrint(viewDN.id)} className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">พิมพ์</button>
-                <button onClick={() => setViewDN(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลทั่วไป</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-gray-500">อ้างอิง SO:</span> {viewDN.so_order_number || '-'}</div>
-                  <div><span className="text-gray-500">ลูกค้า:</span> {viewDN.customer_name || '-'}</div>
-                  <div><span className="text-gray-500">วันจัดส่ง:</span> {viewDN.delivery_date?.slice(0, 10) || '-'}</div>
-                  <div><span className="text-gray-500">สถานะ:</span> {statusCfg[viewDN.status]?.label || viewDN.status}</div>
-                </div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลจัดส่ง</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-gray-500">คนขับ:</span> {viewDN.driver_name || '-'}</div>
-                  <div><span className="text-gray-500">เบอร์โทรคนขับ:</span> {viewDN.driver_phone || '-'}</div>
-                  <div><span className="text-gray-500">ทะเบียนรถ:</span> {viewDN.vehicle_no || '-'}</div>
-                  <div><span className="text-gray-500">จุดรับสินค้า:</span> {viewDN.pickup_point || '-'}</div>
-                  {viewDN.notes && <div className="col-span-2"><span className="text-gray-500">หมายเหตุ:</span> {viewDN.notes}</div>}
-                </div>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 mb-2">รายการสินค้า</h4>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-xs text-gray-500">
-                      <th className="pb-2 pr-2">#</th>
-                      <th className="pb-2 pr-2">สินค้า</th>
-                      <th className="pb-2 pr-2 text-right">จำนวน</th>
-                      <th className="pb-2 pr-2">หน่วย</th>
-                      <th className="pb-2 pr-2 text-right">น้ำหนัก</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {viewDN.items?.map((it, i) => (
-                      <tr key={i} className="border-b border-gray-50">
-                        <td className="py-1.5 pr-2 text-gray-400">{i + 1}</td>
-                        <td className="py-1.5 pr-2">{it.product_name || '-'}</td>
-                        <td className="py-1.5 pr-2 text-right">{it.quantity}</td>
-                        <td className="py-1.5 pr-2">{it.uom}</td>
-                        <td className="py-1.5 pr-2 text-right">{it.weight} kg</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="mt-2 text-sm text-gray-500">
-                  รวม: {totalQty(viewDN.items || [])} ชิ้น / {totalWeight(viewDN.items || [])} kg
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ConfirmDialog open={!!actionTarget}
-        message={actionTarget?.action === 'ship' ? `ยืนยันจัดส่ง "${actionTarget?.dn.dn_number}"?` : `ยืนยันว่า "${actionTarget?.dn.dn_number}" ส่งถึงแล้ว?`}
-        onConfirm={handleAction} onCancel={() => setActionTarget(null)} />
+      {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
     </div>
   );
 }

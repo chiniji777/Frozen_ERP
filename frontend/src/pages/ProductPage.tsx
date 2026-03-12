@@ -16,11 +16,12 @@ interface Product {
   rawMaterial: string;
   rawMaterialYield: number | null;
   description: string;
+  hasVat: number;
 }
 
 const emptyForm = {
   name: '', category: '', salePrice: '', unit: 'ชิ้น',
-  imageUrl: '', description: '',
+  imageUrl: '', description: '', hasVat: '1',
 };
 
 export default function ProductPage() {
@@ -67,6 +68,7 @@ export default function ProductPage() {
       unit: p.unit || 'ชิ้น',
       imageUrl: p.imageUrl || '',
       description: p.description || '',
+      hasVat: String(p.hasVat ?? 1),
     });
     setImagePreview(p.imageUrl || '');
     setModalOpen(true);
@@ -116,6 +118,7 @@ export default function ProductPage() {
       rawMaterial: null,
       rawMaterialYield: null,
       description: form.description || null,
+      hasVat: Number(form.hasVat),
     };
     if (editing) {
       await api.put(`/products/${editing.id}`, body);
@@ -229,6 +232,23 @@ export default function ProductPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
               <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ภาษีมูลค่าเพิ่ม (VAT)</label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="hasVat" value="1" checked={form.hasVat === '1'}
+                  onChange={() => setForm({ ...form, hasVat: '1' })}
+                  className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm text-gray-700">มี VAT 7%</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="hasVat" value="0" checked={form.hasVat === '0'}
+                  onChange={() => setForm({ ...form, hasVat: '0' })}
+                  className="w-4 h-4 text-indigo-600" />
+                <span className="text-sm text-gray-700">ไม่มี VAT</span>
+              </label>
             </div>
           </div>
           <div>
