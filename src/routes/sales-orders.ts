@@ -1,12 +1,11 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { salesOrders, soItems, soPaymentTerms, soAttachments, products, customers } from "../schema.js";
-import { eq, like, sql } from "drizzle-orm";
+import { salesOrders, soItems, soPaymentTerms, soAttachments, products, customers, deliveryNotes, invoices } from "../schema.js";
+import { eq, like, sql, and, ne } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
 import { join, basename } from "path";
 import { mkdir, unlink } from "fs/promises";
 import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
-import { deliveryNotes } from "../schema.js";
 import { getOrCreateToken } from "./delivery-tracking.js";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -321,6 +320,35 @@ salesOrdersRoute.delete("/:soId/attachments/:attId", async (c) => {
   try { await unlink(join(ATTACHMENTS_DIR, att.filename)); } catch {}
   await db.delete(soAttachments).where(eq(soAttachments.id, attId)).run();
   return c.json({ ok: true });
+});
+
+
+// === Cancel SO ===
+salesOrdersRoute.patch("/:id/cancel", async (c) => {
+  const id = Number(c.req.param("id"));
+  const user = c.get("user") as { userId: number } | undefined;
+  const so = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  if (!so) return c.json({ error: "Sales order not found" }, 404);
+  if (so.status === "cancelled") return c.json({ error: "Already cancelled" }, 400);
+
+  const activeDns = await db.select({ id: deliveryNotes.id }).from(deliveryNotes)
+    .where(and(eq(deliveryNotes.salesOrderId, id), ne(deliveryNotes.status, "cancelled")))
+    .all();
+  if (activeDns.length > 0) return c.json({ error: "Cannot cancel — has active delivery notes" }, 400);
+
+  const activeInvoices = await db.select({ id: invoices.id }).from(invoices)
+    .where(and(eq(invoices.salesOrderId, id), ne(invoices.status, "cancelled")))
+    .all();
+  if (activeInvoices.length > 0) return c.json({ error: "Cannot cancel — has active invoices" }, 400);
+
+  await db.update(salesOrders).set({
+    status: "cancelled",
+    cancelledAt: sql`datetime('now')`,
+    cancelledBy: user?.userId ?? null,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(salesOrders.id, id)).run();
+
+  return c.json({ ok: true, status: "cancelled" });
 });
 
 // === Print ===

@@ -96,13 +96,22 @@ expensesRoute.put("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-// DELETE /:id
-expensesRoute.delete("/:id", async (c) => {
+// PATCH /:id/cancel — cancel expense (no delete)
+expensesRoute.patch("/:id/cancel", async (c) => {
   const id = Number(c.req.param("id"));
+  const user = c.get("user");
   const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
   if (!existing) return c.json({ error: "Expense not found" }, 404);
-  await db.delete(expenses).where(eq(expenses.id, id)).run();
-  return c.json({ ok: true });
+  if (existing.status === "cancelled") return c.json({ error: "Already cancelled" }, 400);
+
+  await db.update(expenses).set({
+    status: "cancelled",
+    cancelledAt: sql`datetime('now')`,
+    cancelledBy: user?.userId ?? null,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(expenses.id, id)).run();
+
+  return c.json({ ok: true, status: "cancelled" });
 });
 
 // POST /upload-slip — upload expense slip image

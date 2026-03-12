@@ -303,6 +303,7 @@ export async function initDB() {
   await migrateRawMaterials();
   await migrateDeliveryNotes();
   await migrateInvoices();
+  await migrateCancelSupport();
   await seedAdminUser();
 }
 
@@ -634,6 +635,34 @@ async function migrateProducts() {
       await client.execute(`ALTER TABLE products ADD COLUMN ${col} ${type}`);
     } catch {
       // column already exists — skip
+    }
+  }
+}
+
+async function migrateCancelSupport() {
+  const client = getClient();
+  const cancelCols = {
+    sales_orders: [
+      ["cancelled_at", "TEXT"],
+      ["cancelled_by", "INTEGER"],
+    ],
+    expenses: [
+      ["status", "TEXT DEFAULT 'active'"],
+      ["cancelled_at", "TEXT"],
+      ["cancelled_by", "INTEGER"],
+    ],
+    purchase_orders: [
+      ["cancelled_at", "TEXT"],
+      ["cancelled_by", "INTEGER"],
+    ],
+  };
+  for (const [table, cols] of Object.entries(cancelCols)) {
+    for (const [col, type] of cols) {
+      try {
+        await client.execute(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+      } catch {
+        // column already exists
+      }
     }
   }
 }

@@ -146,6 +146,8 @@ export const salesOrders = sqliteTable("sales_orders", {
   notes: text("notes"),
   confirmedBy: integer("confirmed_by"),
   confirmedAt: text("confirmed_at"),
+  cancelledAt: text("cancelled_at"),
+  cancelledBy: integer("cancelled_by"),
   ...timestamps,
 });
 
@@ -288,6 +290,9 @@ export const expenses = sqliteTable("expenses", {
   amount: real("amount").notNull(),
   date: text("date").notNull(),
   notes: text("notes"),
+  status: text("status").default("active"),
+  cancelledAt: text("cancelled_at"),
+  cancelledBy: integer("cancelled_by"),
   ...timestamps,
 });
 
@@ -299,6 +304,8 @@ export const purchaseOrders = sqliteTable("purchase_orders", {
   supplier: text("supplier"),
   totalAmount: real("total_amount").notNull().default(0),
   notes: text("notes"),
+  cancelledAt: text("cancelled_at"),
+  cancelledBy: integer("cancelled_by"),
   ...timestamps,
 });
 
