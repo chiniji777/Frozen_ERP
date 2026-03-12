@@ -24,7 +24,22 @@ rawMaterialsRoute.get("/:id", async (c) => {
 rawMaterialsRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.name) return c.json({ error: "name required" }, 400);
+
+  // Auto-generate code: RM-0001, RM-0002, ...
+  let code = body.code || null;
+  if (!code) {
+    const last = await db.select({ code: rawMaterials.code })
+      .from(rawMaterials)
+      .where(like(rawMaterials.code, "RM-%"))
+      .orderBy(sql`CAST(SUBSTR(code, 4) AS INTEGER) DESC`)
+      .limit(1)
+      .get();
+    const nextNum = last?.code ? parseInt(last.code.replace("RM-", ""), 10) + 1 : 1;
+    code = `RM-${String(nextNum).padStart(4, "0")}`;
+  }
+
   const result = await db.insert(rawMaterials).values({
+    code,
     name: body.name,
     pricePerUnit: body.pricePerUnit ?? 0,
     unit: body.unit || "kg",
@@ -32,7 +47,7 @@ rawMaterialsRoute.post("/", async (c) => {
     supplier: body.supplier || null,
     notes: body.notes || null,
   }).run();
-  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
+  return c.json({ ok: true, id: Number(result.lastInsertRowid), code }, 201);
 });
 
 rawMaterialsRoute.put("/:id", async (c) => {

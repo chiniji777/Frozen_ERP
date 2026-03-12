@@ -6,14 +6,17 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 interface RawMaterial {
   id: number;
+  code?: string;
   name: string;
   unit: string;
   stock: number;
   min_stock: number;
-  price_per_unit: number;
+  pricePerUnit: number;
+  supplier?: string;
+  notes?: string;
 }
 
-const emptyForm = { name: '', unit: 'กก.', stock: '', price_per_unit: '' };
+const emptyForm = { name: '', unit: 'กก.', stock: '', pricePerUnit: '', supplier: '', notes: '' };
 
 export default function RawMaterialPage() {
   const [data, setData] = useState<RawMaterial[]>([]);
@@ -40,7 +43,9 @@ export default function RawMaterialPage() {
       name: m.name,
       unit: m.unit,
       stock: String(m.stock ?? 0),
-      price_per_unit: String(m.price_per_unit ?? 0),
+      pricePerUnit: String(m.pricePerUnit ?? 0),
+      supplier: m.supplier || '',
+      notes: m.notes || '',
     });
     setModalOpen(true);
   };
@@ -50,7 +55,7 @@ export default function RawMaterialPage() {
     const body = {
       ...form,
       stock: Number(form.stock) || 0,
-      price_per_unit: Number(form.price_per_unit) || 0,
+      pricePerUnit: Number(form.pricePerUnit) || 0,
     };
     if (editing) {
       await api.put(`/raw-materials/${editing.id}`, body);
@@ -82,11 +87,12 @@ export default function RawMaterialPage() {
 
       <DataTable
         columns={[
-          { key: 'id', label: 'รหัส' },
+          { key: 'code', label: 'รหัส', render: (m: RawMaterial) => <span className="font-mono text-indigo-600">{m.code || '-'}</span> },
           { key: 'name', label: 'ชื่อวัตถุดิบ' },
           { key: 'unit', label: 'หน่วย' },
           { key: 'stock', label: 'คงเหลือ', render: (m) => stockBadge(m) },
-          { key: 'price_per_unit', label: 'ราคา/หน่วย', render: (m) => `฿${(Number(m.price_per_unit) || 0).toLocaleString()}` },
+          { key: 'pricePerUnit', label: 'ราคา/หน่วย', render: (m: RawMaterial) => `฿${(Number(m.pricePerUnit) || 0).toLocaleString()}` },
+          { key: 'supplier', label: 'ผู้จำหน่าย' },
         ]}
         data={data}
         getId={(m) => m.id}
@@ -103,15 +109,28 @@ export default function RawMaterialPage() {
         title={editing ? 'แก้ไขวัตถุดิบ' : 'เพิ่มวัตถุดิบใหม่'}
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {editing?.code && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">รหัส (Code)</label>
+              <input disabled value={editing.code} className="w-full px-3 py-2 border rounded-lg bg-gray-50 text-gray-500 text-sm font-mono" />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อวัตถุดิบ</label>
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
-            <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
+              <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ราคาต่อหน่วย (บาท)</label>
+              <input type="number" step="0.01" required value={form.pricePerUnit} onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนคงเหลือ</label>
@@ -119,8 +138,13 @@ export default function RawMaterialPage() {
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ราคาต่อหน่วย (บาท)</label>
-            <input type="number" step="0.01" required value={form.price_per_unit} onChange={(e) => setForm({ ...form, price_per_unit: e.target.value })}
+            <label className="block text-sm font-medium text-gray-700 mb-1">ผู้จำหน่าย</label>
+            <input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="ชื่อผู้จำหน่าย" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+            <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
