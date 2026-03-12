@@ -14,6 +14,7 @@ const menu = [
   { to: '/payments', label: 'จ่ายเงิน', icon: '💰' },
   { to: '/receipts', label: 'ใบเสร็จ', icon: '🧾' },
   { to: '/expenses', label: 'ค่าใช้จ่าย', icon: '💸' },
+  { to: '/settings', label: 'ตั้งค่าบริษัท', icon: '⚙️' },
 ];
 
 interface Props {

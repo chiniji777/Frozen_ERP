@@ -215,6 +215,21 @@ export const receipts = sqliteTable("receipts", {
   createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
 
+export const companySettings = sqliteTable("company_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  companyName: text("company_name"),
+  companyNameEn: text("company_name_en"),
+  address: text("address"),
+  addressEn: text("address_en"),
+  taxId: text("tax_id"),
+  phone: text("phone"),
+  email: text("email"),
+  website: text("website"),
+  branch: text("branch"),
+  logoUrl: text("logo_url"),
+  ...timestamps,
+});
+
 export const expenses = sqliteTable("expenses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   category: text("category", { enum: ["material", "labor", "rent", "utilities", "other"] }).notNull(),
