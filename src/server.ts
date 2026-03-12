@@ -25,7 +25,9 @@ export const app = new Hono();
 
 // Global middleware
 app.use("*", cors({
-  origin: ["https://frozen.mhorkub.com"],
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",")
+    : ["https://frozen.mhorkub.com", "http://localhost:4001"],
   allowMethods: ["GET", "POST", "PUT", "DELETE"],
   allowHeaders: ["Content-Type", "Authorization"],
 }));
@@ -111,7 +113,17 @@ app.get("/api/attachments/:filename", async (c) => {
   } catch { return c.json({ error: "File not found" }, 404); }
 });
 
-const port = 4000;
+// Serve frontend static files (after all API routes)
+import { serveStatic } from "hono/bun";
+app.use("/*", serveStatic({ root: "./frontend/dist" }));
+
+// SPA fallback — serve index.html for non-API routes
+app.get("*", async (c) => {
+  const html = await readFile(join(process.cwd(), "frontend", "dist", "index.html"), "utf-8");
+  return c.html(html);
+});
+
+const port = Number(process.env.PORT) || 4001;
 console.log(`[erp] Server starting on port ${port}`);
 
 export default {
