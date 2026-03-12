@@ -52,6 +52,7 @@ customersRoute.post("/", async (c) => {
     salesPartner: body.salesPartner || null,
     commissionRate: body.commissionRate ?? 0,
     notes: body.notes || null,
+    locations: body.locations ? (typeof body.locations === "string" ? body.locations : JSON.stringify(body.locations)) : null,
   }).run();
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
@@ -77,6 +78,7 @@ customersRoute.put("/:id", async (c) => {
     salesPartner: body.salesPartner ?? existing.salesPartner,
     commissionRate: body.commissionRate ?? existing.commissionRate,
     notes: body.notes ?? existing.notes,
+    locations: body.locations !== undefined ? (typeof body.locations === "string" ? body.locations : JSON.stringify(body.locations)) : existing.locations,
     updatedAt: sql`datetime('now')`,
   }).where(eq(customers.id, id)).run();
   return c.json({ ok: true });
@@ -128,6 +130,7 @@ customersRoute.post("/import", async (c) => {
         salesPartner: row.salesPartner || null,
         commissionRate: row.commissionRate ?? 0,
         notes: row.notes || null,
+        locations: row.locations ? (typeof row.locations === "string" ? row.locations : JSON.stringify(row.locations)) : null,
       }).run();
       imported++;
     } catch {

@@ -47,6 +47,7 @@ async function migrateCustomers() {
     ["payment_terms", "TEXT"],
     ["sales_partner", "TEXT"],
     ["commission_rate", "REAL DEFAULT 0"],
+    ["locations", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
@@ -241,6 +242,28 @@ export async function initDB() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS suppliers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE,
+      name TEXT NOT NULL,
+      full_name TEXT,
+      nick_name TEXT,
+      supplier_type TEXT DEFAULT 'Company',
+      phone TEXT,
+      email TEXT,
+      address TEXT,
+      tax_id TEXT,
+      payment_terms TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Supplier Indexes
+    CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name);
+    CREATE INDEX IF NOT EXISTS idx_suppliers_code ON suppliers(code);
+    CREATE INDEX IF NOT EXISTS idx_suppliers_tax_id ON suppliers(tax_id);
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
     CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
@@ -350,6 +373,7 @@ async function migrateSalesOrders() {
     ["payment_terms_template", "TEXT"],
     ["sales_partner", "TEXT"],
     ["commission_rate", "REAL DEFAULT 0"],
+    ["locations", "TEXT"],
     ["total_commission", "REAL DEFAULT 0"],
     ["po_number", "TEXT"],
     ["po_date", "TEXT"],

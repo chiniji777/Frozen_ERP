@@ -26,8 +26,14 @@ interface Customer {
   salesPartner: string;
   commissionRate: number;
   notes: string;
+  locations: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface LocationItem {
+  name: string;
+  address: string;
 }
 
 interface CustomerForm {
@@ -48,12 +54,14 @@ interface CustomerForm {
   salesPartner: string;
   commissionRate: number;
   notes: string;
+  locations: LocationItem[];
 }
 
 const emptyForm: CustomerForm = {
   code: '', name: '', nickName: '', customerType: 'Company',
   phone: '', email: '', address: '', district: '', amphoe: '', province: '', zipcode: '',
   taxId: '', creditLimit: 0, paymentTerms: '', salesPartner: '', commissionRate: 0, notes: '',
+  locations: [],
 };
 
 const PAYMENT_TERMS = [
@@ -83,6 +91,11 @@ const mapPaymentTerms = (val: string): string => {
   if (PAYMENT_TERMS.includes(val)) return val;
   return PAYMENT_TERMS_MAP[val] || val;
 };
+
+function parseLocations(raw: string | null): LocationItem[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
 
 // --- Reusable InputField ---
 const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '', required = false }: {
@@ -162,6 +175,24 @@ function ViewDetail({ customer, open, onClose }: { customer: Customer | null; op
           <InfoRow label="พนักงานขาย" value={customer.salesPartner} />
           <InfoRow label="ค่าคอมมิชชั่น" value={customer.commissionRate ? `${customer.commissionRate}%` : '-'} />
         </Section>
+
+        {(() => {
+          const locs = parseLocations(customer.locations);
+          if (locs.length === 0) return null;
+          return (
+            <Section title="สถานที่จัดส่ง">
+              {locs.map((loc, i) => (
+                <div key={i} className="flex items-start gap-2 py-1.5">
+                  <span className="text-xs font-medium text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded shrink-0">{i + 1}</span>
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">{loc.name}</span>
+                    {loc.address && <p className="text-xs text-gray-500 mt-0.5">{loc.address}</p>}
+                  </div>
+                </div>
+              ))}
+            </Section>
+          );
+        })()}
 
         {customer.notes && (
           <Section title="หมายเหตุ">
@@ -245,6 +276,7 @@ export default function CustomerPage() {
       taxId: c.taxId || '', creditLimit: c.creditLimit || 0,
       paymentTerms: mapPaymentTerms(c.paymentTerms || ''), salesPartner: c.salesPartner || '',
       commissionRate: c.commissionRate || 0, notes: c.notes || '',
+      locations: parseLocations(c.locations),
     });
     setModalOpen(true);
   };
@@ -299,7 +331,8 @@ export default function CustomerPage() {
     // Compose full address from parts
     const fullAddress = [form.address, form.district, form.amphoe, form.province, form.zipcode]
       .filter(Boolean).join(' ');
-    const payload = { ...form, fullName: form.name, address: fullAddress, territory: form.province };
+    const locs = form.locations.filter((l) => l.name.trim() || l.address.trim());
+    const payload = { ...form, fullName: form.name, address: fullAddress, territory: form.province, locations: locs.length > 0 ? JSON.stringify(locs) : null };
     if (editing) {
       await api.put(`/customers/${editing.id}`, payload);
     } else {
@@ -380,6 +413,22 @@ export default function CustomerPage() {
     setSelectedIds(new Set());
     load();
     setToast(`อัปเดต DBD สำเร็จ ${successCount} ราย${failCount > 0 ? ` ไม่พบ ${failCount} ราย` : ''}`);
+  };
+
+  const updateLocation = (index: number, field: 'name' | 'address', value: string) => {
+    setForm((f) => {
+      const locs = [...f.locations];
+      locs[index] = { ...locs[index], [field]: value };
+      return { ...f, locations: locs };
+    });
+  };
+
+  const removeLocation = (index: number) => {
+    setForm((f) => ({ ...f, locations: f.locations.filter((_, i) => i !== index) }));
+  };
+
+  const addLocation = () => {
+    setForm((f) => ({ ...f, locations: [...f.locations, { name: '', address: '' }] }));
   };
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
@@ -566,6 +615,21 @@ export default function CustomerPage() {
               </div>
               <InputField label="ค่าคอมมิชชั่น (%)" value={form.commissionRate} onChange={(v) => setField('commissionRate', Number(v))} type="number" />
             </div>
+          </Section>
+
+          <Section title="สถานที่จัดส่ง">
+            {form.locations.map((loc, i) => (
+              <div key={i} className="flex gap-2 mb-2 items-start">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input type="text" value={loc.name} onChange={(e) => updateLocation(i, 'name', e.target.value)} placeholder="ชื่อจุดส่ง เช่น สาขาบางนา" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                  <input type="text" value={loc.address} onChange={(e) => updateLocation(i, 'address', e.target.value)} placeholder="ที่อยู่จัดส่ง" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                </div>
+                <button type="button" onClick={() => removeLocation(i)} className="mt-1 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="ลบจุดส่ง">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={addLocation} className="px-3 py-1.5 text-xs font-medium rounded-lg border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors">+ เพิ่มจุดส่ง</button>
           </Section>
 
           <Section title="หมายเหตุ">

@@ -34,6 +34,7 @@ export const customers = sqliteTable("customers", {
   paymentTerms: text("payment_terms"),
   salesPartner: text("sales_partner"),
   commissionRate: real("commission_rate").default(0),
+  locations: text("locations"),
   notes: text("notes"),
   ...timestamps,
 });
@@ -120,6 +121,7 @@ export const salesOrders = sqliteTable("sales_orders", {
   paymentTermsTemplate: text("payment_terms_template"),
   salesPartner: text("sales_partner"),
   commissionRate: real("commission_rate").default(0),
+  locations: text("locations"),
   totalCommission: real("total_commission").default(0),
   poNumber: text("po_number"),
   poDate: text("po_date"),
@@ -271,6 +273,23 @@ export const purchaseOrders = sqliteTable("purchase_orders", {
   status: text("status", { enum: ["draft", "confirmed", "received", "cancelled"] }).notNull().default("draft"),
   supplier: text("supplier"),
   totalAmount: real("total_amount").notNull().default(0),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+
+export const suppliers = sqliteTable("suppliers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").unique(),
+  name: text("name").notNull(),
+  fullName: text("full_name"),
+  nickName: text("nick_name"),
+  supplierType: text("supplier_type", { enum: ["Company", "Individual"] }).default("Company"),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  taxId: text("tax_id"),
+  paymentTerms: text("payment_terms"),
   notes: text("notes"),
   ...timestamps,
 });
