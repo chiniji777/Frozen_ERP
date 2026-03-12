@@ -94,7 +94,7 @@ const mapPaymentTerms = (val: string): string => {
 
 function parseLocations(raw: string | null): LocationItem[] {
   if (!raw) return [];
-  try { return JSON.parse(raw); } catch { return []; }
+  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
 }
 
 // --- Reusable InputField ---
