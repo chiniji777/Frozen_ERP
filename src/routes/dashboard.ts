@@ -114,6 +114,20 @@ dashboardRoute.get("/", async (c) => {
     .map(([month, v]) => ({ month, revenue: v.revenue, cost: v.cost, profit: v.revenue - v.cost }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
+  // Commission by sales partner
+  const commMap = new Map<string, { totalSales: number; totalCommission: number; orders: number }>();
+  for (const so of allSO) {
+    if (!so.salesPartner) continue;
+    const existing = commMap.get(so.salesPartner) || { totalSales: 0, totalCommission: 0, orders: 0 };
+    existing.totalSales += so.totalAmount;
+    existing.totalCommission += so.totalCommission || 0;
+    existing.orders++;
+    commMap.set(so.salesPartner, existing);
+  }
+  const commissionSummary = [...commMap.entries()]
+    .map(([partner, v]) => ({ partner, ...v }))
+    .sort((a, b) => b.totalCommission - a.totalCommission);
+
   const allExpenses = await db.select().from(expenses).all();
   const expCatMap = new Map<string, number>();
   for (const e of allExpenses) {
@@ -125,7 +139,7 @@ dashboardRoute.get("/", async (c) => {
 
   return c.json({
     salesSummary, profitSummary, topCustomers, topProducts,
-    statusSummary, stockAlerts, revenueByMonth, expenseByCategory,
+    statusSummary, commissionSummary, revenueByMonth, expenseByCategory,
   });
 });
 

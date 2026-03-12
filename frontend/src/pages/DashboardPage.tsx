@@ -15,7 +15,7 @@ interface DashboardData {
     invoice: Record<string, number>;
     payment: Record<string, number>;
   };
-  stockAlerts: { type: string; id: number; name: string; stock: number; threshold: number }[];
+  commissionSummary: { partner: string; totalSales: number; totalCommission: number; orders: number }[];
   revenueByMonth: { month: string; revenue: number; cost: number; profit: number }[];
   expenseByCategory: { category: string; total: number }[];
 }
@@ -36,7 +36,7 @@ export default function DashboardPage() {
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
   if (!data) return <div className="text-center py-10 text-gray-400">ไม่สามารถโหลดข้อมูลได้</div>;
 
-  const { salesSummary, profitSummary, statusSummary, topCustomers, topProducts, stockAlerts, revenueByMonth, expenseByCategory } = data;
+  const { salesSummary, profitSummary, statusSummary, topCustomers, topProducts, commissionSummary, revenueByMonth, expenseByCategory } = data;
 
   const marginColor = profitSummary.margin >= 30 ? 'text-green-600' : profitSummary.margin >= 10 ? 'text-yellow-600' : 'text-red-600';
   const pendingSO = (statusSummary.so.draft ?? 0) + (statusSummary.so.confirmed ?? 0);
@@ -139,25 +139,28 @@ export default function DashboardPage() {
           </table>
         </div>
 
-        {/* Stock Alerts */}
+        {/* Commission Summary */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">🔴 Stock Alerts</h2>
-          {stockAlerts.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {stockAlerts.map((a) => (
-                <div key={`${a.type}-${a.id}`} className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
-                  <div>
-                    <span className="text-sm font-medium text-red-700">{a.name}</span>
-                    <span className="text-xs text-red-500 ml-2">{a.type === 'raw_material' ? 'วัตถุดิบ' : 'สินค้า'}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-bold text-red-700">{a.stock}</span>
-                    <span className="text-xs text-red-400">/{a.threshold}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <p className="text-green-600 text-center py-4 text-sm">ไม่มีสินค้า/วัตถุดิบใกล้หมด</p>}
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">💼 คอมมิชชั่น</h2>
+          {commissionSummary.length > 0 ? (
+            <table className="w-full text-sm">
+              <thead><tr className="border-b"><th className="text-left py-2 text-gray-500">เซลส์</th><th className="text-right py-2 text-gray-500">ออเดอร์</th><th className="text-right py-2 text-gray-500">คอมมิชชั่น</th></tr></thead>
+              <tbody>
+                {commissionSummary.map((c) => (
+                  <tr key={c.partner} className="border-b border-gray-50">
+                    <td className="py-2 text-gray-700">{c.partner}</td>
+                    <td className="py-2 text-right text-gray-600">{c.orders}</td>
+                    <td className="py-2 text-right font-medium text-indigo-600">฿{c.totalCommission.toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-gray-200 font-semibold">
+                  <td className="py-2 text-gray-800">รวม</td>
+                  <td className="py-2 text-right text-gray-600">{commissionSummary.reduce((s, c) => s + c.orders, 0)}</td>
+                  <td className="py-2 text-right text-indigo-700">฿{commissionSummary.reduce((s, c) => s + c.totalCommission, 0).toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          ) : <p className="text-gray-400 text-center py-4 text-sm">ยังไม่มีข้อมูลคอมมิชชั่น</p>}
         </div>
       </div>
     </div>
