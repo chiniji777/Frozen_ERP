@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const menu = [
@@ -23,11 +23,21 @@ interface Props {
 
 export default function Sidebar({ open, onClose }: Props) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const isAdmin = user?.role === 'admin';
 
   const allMenu = isAdmin
     ? [...menu, { to: '/users', label: 'จัดการผู้ใช้', icon: '👤' }]
     : menu;
+
+  const handleClick = (e: React.MouseEvent, to: string) => {
+    if (location.pathname === to) {
+      e.preventDefault();
+      navigate(to, { replace: true, state: { reset: Date.now() } });
+    }
+    onClose();
+  };
 
   return (
     <>
@@ -50,7 +60,7 @@ export default function Sidebar({ open, onClose }: Props) {
             <NavLink
               key={m.to}
               to={m.to}
-              onClick={onClose}
+              onClick={(e) => handleClick(e, m.to)}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
                   isActive

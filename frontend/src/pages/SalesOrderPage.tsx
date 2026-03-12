@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -93,6 +94,13 @@ export default function SalesOrderPage() {
   const [creatingDn, setCreatingDn] = useState(false);
   const [creatingInv, setCreatingInv] = useState(false);
   const [toast, setToast] = useState('');
+  const location = useLocation();
+
+  // Reset to list view when sidebar re-navigates to this page
+  useEffect(() => {
+    setDetailOrder(null);
+    setFormOpen(false);
+  }, [location.key]);
 
   // Form state
   const [formCustId, setFormCustId] = useState<number | ''>('');

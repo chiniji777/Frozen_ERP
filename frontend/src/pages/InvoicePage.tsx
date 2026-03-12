@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -85,6 +86,13 @@ export default function InvoicePage() {
   const [detailInv, setDetailInv] = useState<Invoice | null>(null);
   const [actionTarget, setActionTarget] = useState<{ inv: Invoice; action: string } | null>(null);
   const [toast, setToast] = useState('');
+  const location = useLocation();
+
+  // Reset to list view when sidebar re-navigates to this page
+  useEffect(() => {
+    setDetailInv(null);
+    setFormOpen(false);
+  }, [location.key]);
 
   const [formSource, setFormSource] = useState<InvoiceSource>('so');
   const [formSOId, setFormSOId] = useState<number | ''>('');
