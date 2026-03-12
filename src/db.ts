@@ -296,6 +296,7 @@ export async function initDB() {
   await migrateUsers();
   await migratePayments();
   await migrateReceipts();
+  await migratePurchaseOrders();
   await seedAdminUser();
 }
 
@@ -465,6 +466,35 @@ async function migrateReceipts() {
       // column already exists — skip
     }
   }
+}
+
+async function migratePurchaseOrders() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS purchase_orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      po_number TEXT NOT NULL UNIQUE,
+      production_order_id INTEGER,
+      status TEXT NOT NULL DEFAULT 'draft',
+      supplier TEXT,
+      total_amount REAL NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS po_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      purchase_order_id INTEGER NOT NULL,
+      raw_material_id INTEGER NOT NULL,
+      quantity REAL NOT NULL,
+      unit TEXT NOT NULL DEFAULT 'กก.',
+      unit_price REAL NOT NULL DEFAULT 0,
+      amount REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_po_items_po ON po_items(purchase_order_id);
+    CREATE INDEX IF NOT EXISTS idx_purchase_orders_production ON purchase_orders(production_order_id);
+  `);
 }
 
 async function migrateProducts() {

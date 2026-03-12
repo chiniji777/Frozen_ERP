@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { productionOrders, bom, bomItems, rawMaterials, products } from "../schema.js";
+import { productionOrders, bom, bomItems, rawMaterials, products, purchaseOrders, poItems } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 
 const productionRoute = new Hono();
@@ -44,18 +44,30 @@ productionRoute.get("/:id", async (c) => {
 
 productionRoute.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.bomId || !body.quantity) return c.json({ error: "bomId and quantity required" }, 400);
+  if (!body.quantity) return c.json({ error: "quantity required" }, 400);
+  if (!body.bomId && !body.productId) return c.json({ error: "bomId or productId required" }, 400);
   if (body.quantity <= 0) return c.json({ error: "quantity must be > 0" }, 400);
   if (body.laborCost != null && body.laborCost < 0) return c.json({ error: "laborCost must be >= 0" }, 400);
   if (body.overheadCost != null && body.overheadCost < 0) return c.json({ error: "overheadCost must be >= 0" }, 400);
-  const b = await db.select().from(bom).where(eq(bom.id, body.bomId)).get();
+
+  let bomId = body.bomId;
+  // If productId provided, auto-find the first BOM for that product
+  if (!bomId && body.productId) {
+    const product = await db.select().from(products).where(eq(products.id, body.productId)).get();
+    if (!product) return c.json({ error: "Product not found" }, 404);
+    const firstBom = await db.select().from(bom).where(eq(bom.productId, body.productId)).get();
+    if (!firstBom) return c.json({ error: `No BOM found for product ID ${body.productId}` }, 404);
+    bomId = firstBom.id;
+  }
+
+  const b = await db.select().from(bom).where(eq(bom.id, bomId)).get();
   if (!b) return c.json({ error: "BOM not found" }, 404);
   const items = await db.select({
     quantity: bomItems.quantity,
     pricePerUnit: rawMaterials.pricePerUnit,
   }).from(bomItems)
     .leftJoin(rawMaterials, eq(bomItems.rawMaterialId, rawMaterials.id))
-    .where(eq(bomItems.bomId, body.bomId))
+    .where(eq(bomItems.bomId, bomId))
     .all();
   const totalMaterialCost = items.reduce((sum, item) => {
     return sum + (item.quantity || 0) * (item.pricePerUnit || 0) * body.quantity;
@@ -65,7 +77,7 @@ productionRoute.post("/", async (c) => {
   const totalCost = totalMaterialCost + laborCost + overheadCost;
   const costPerUnit = body.quantity > 0 ? totalCost / body.quantity : 0;
   const result = await db.insert(productionOrders).values({
-    bomId: body.bomId, productId: b.productId, quantity: body.quantity,
+    bomId, productId: b.productId, quantity: body.quantity,
     status: "draft", laborCost, overheadCost, totalMaterialCost, totalCost, costPerUnit,
     notes: body.notes || null,
   }).run();
@@ -136,6 +148,79 @@ productionRoute.post("/:id/complete", async (c) => {
     updatedAt: sql`datetime('now')`,
   }).where(eq(productionOrders.id, id)).run();
   return c.json({ ok: true, message: "Production completed — stock updated" });
+});
+
+// POST /:id/purchase-orders — create PO from material shortfall
+productionRoute.post("/:id/purchase-orders", async (c) => {
+  const id = Number(c.req.param("id"));
+  const order = await db.select().from(productionOrders).where(eq(productionOrders.id, id)).get();
+  if (!order) return c.json({ error: "Production order not found" }, 404);
+  if (order.status === "completed" || order.status === "cancelled") {
+    return c.json({ error: `Cannot create PO for ${order.status} order` }, 400);
+  }
+
+  const body = await c.req.json();
+
+  // Get BOM items with material info
+  const items = await db.select({
+    rawMaterialId: bomItems.rawMaterialId,
+    quantity: bomItems.quantity,
+    unit: bomItems.unit,
+    materialName: rawMaterials.name,
+    pricePerUnit: rawMaterials.pricePerUnit,
+    stock: rawMaterials.stock,
+  }).from(bomItems)
+    .leftJoin(rawMaterials, eq(bomItems.rawMaterialId, rawMaterials.id))
+    .where(eq(bomItems.bomId, order.bomId))
+    .all();
+
+  // Calculate shortfall per material
+  const shortfallItems: { rawMaterialId: number; quantity: number; unit: string; unitPrice: number; amount: number }[] = [];
+  for (const item of items) {
+    const needed = item.quantity * order.quantity;
+    const currentStock = item.stock ?? 0;
+    const shortfall = needed - currentStock;
+    if (shortfall > 0) {
+      const unitPrice = item.pricePerUnit ?? 0;
+      shortfallItems.push({
+        rawMaterialId: item.rawMaterialId,
+        quantity: Math.ceil(shortfall * 100) / 100,
+        unit: item.unit,
+        unitPrice,
+        amount: Math.ceil(shortfall * unitPrice * 100) / 100,
+      });
+    }
+  }
+
+  if (shortfallItems.length === 0) {
+    return c.json({ ok: true, message: "No shortfall — all materials in stock", poId: null });
+  }
+
+  const totalAmount = shortfallItems.reduce((sum, i) => sum + i.amount, 0);
+  const poNumber = `PO-${Date.now()}`;
+
+  const poResult = await db.insert(purchaseOrders).values({
+    poNumber,
+    productionOrderId: id,
+    status: "draft",
+    supplier: body.supplier || null,
+    totalAmount: Math.ceil(totalAmount * 100) / 100,
+    notes: body.notes || `Auto-generated from Production Order #${id}`,
+  }).run();
+  const poId = Number(poResult.lastInsertRowid);
+
+  for (const item of shortfallItems) {
+    await db.insert(poItems).values({
+      purchaseOrderId: poId,
+      rawMaterialId: item.rawMaterialId,
+      quantity: item.quantity,
+      unit: item.unit,
+      unitPrice: item.unitPrice,
+      amount: item.amount,
+    }).run();
+  }
+
+  return c.json({ ok: true, poId, poNumber, totalAmount, items: shortfallItems }, 201);
 });
 
 export { productionRoute };
