@@ -253,6 +253,7 @@ export const companySettings = sqliteTable("company_settings", {
   website: text("website"),
   branch: text("branch"),
   logoUrl: text("logo_url"),
+  isDefault: integer("is_default").notNull().default(0),
   ...timestamps,
 });
 
