@@ -10,6 +10,33 @@ const client = createClient({
 export const db = drizzle(client, { schema });
 
 // Initialize tables
+async function migrateCustomers() {
+  const newCols = [
+    ["code", "TEXT"],
+    ["full_name", "TEXT"],
+    ["nick_name", "TEXT"],
+    ["territory", "TEXT"],
+    ["customer_type", "TEXT DEFAULT 'Company'"],
+    ["credit_limit", "REAL DEFAULT 0"],
+    ["payment_terms", "TEXT"],
+    ["sales_partner", "TEXT"],
+    ["commission_rate", "REAL DEFAULT 0"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE customers ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
+  // new indexes
+  await client.executeMultiple(`
+    CREATE INDEX IF NOT EXISTS idx_customers_code ON customers(code);
+    CREATE INDEX IF NOT EXISTS idx_customers_territory ON customers(territory);
+    CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(customer_type);
+  `);
+}
+
 export async function initDB() {
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
@@ -207,4 +234,5 @@ export async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
     CREATE INDEX IF NOT EXISTS idx_receipts_payment ON receipts(payment_id);
   `);
+  await migrateCustomers();
 }
