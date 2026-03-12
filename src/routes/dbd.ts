@@ -35,6 +35,30 @@ interface LookupResult {
   status?: string;
   type?: string;
   source?: string;
+  warning?: string;
+}
+
+// In-memory cache — TTL 1 hour
+const CACHE_TTL = 60 * 60 * 1000;
+const lookupCache = new Map<string, { result: LookupResult; expiry: number }>();
+
+function getCached(taxId: string): LookupResult | null {
+  const entry = lookupCache.get(taxId);
+  if (!entry) return null;
+  if (Date.now() > entry.expiry) {
+    lookupCache.delete(taxId);
+    return null;
+  }
+  return entry.result;
+}
+
+function setCache(taxId: string, result: LookupResult): void {
+  // Cap cache size at 5000 entries
+  if (lookupCache.size >= 5000) {
+    const oldest = lookupCache.keys().next().value;
+    if (oldest) lookupCache.delete(oldest);
+  }
+  lookupCache.set(taxId, { result, expiry: Date.now() + CACHE_TTL });
 }
 
 // Cache for customers-import.json (loaded once)
@@ -53,6 +77,12 @@ async function loadImportData(): Promise<CustomerImport[]> {
 
 // Shared lookup function — used by both GET and bulk-update
 async function lookupTaxId(taxId: string): Promise<LookupResult> {
+  // Check in-memory cache first
+  const cached = getCached(taxId);
+  if (cached) return { ...cached, source: `cache(${cached.source})` };
+
+  let externalFailed = false;
+
   // Try MOC DataAPI first (timeout 5s)
   try {
     const controller = new AbortController();
@@ -65,7 +95,7 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
       const data = await res.json() as DbdJuristic | DbdJuristic[];
       const item = Array.isArray(data) ? data[0] : data;
       if (item?.juristic_id) {
-        return {
+        const result: LookupResult = {
           found: true,
           taxId: item.juristic_id,
           companyName: item.juristic_name_th || "",
@@ -76,10 +106,14 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
           type: item.juristic_type || "Company",
           source: "moc",
         };
+        setCache(taxId, result);
+        return result;
       }
+    } else {
+      externalFailed = true;
     }
   } catch {
-    // MOC API failed or timed out
+    externalFailed = true;
   }
 
   // Fallback 1: Creden API (timeout 5s)
@@ -93,7 +127,7 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
     if (res.ok) {
       const data = await res.json() as Record<string, unknown>;
       if (data && typeof data === "object" && data.company_name) {
-        return {
+        const result: LookupResult = {
           found: true,
           taxId,
           companyName: String(data.company_name || ""),
@@ -104,18 +138,24 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
           type: "Company",
           source: "creden",
         };
+        setCache(taxId, result);
+        return result;
       }
+    } else {
+      externalFailed = true;
     }
   } catch {
-    // Creden API failed or timed out
+    externalFailed = true;
   }
+
+  const warning = externalFailed ? "API ภายนอกไม่สามารถเชื่อมต่อได้ ใช้ข้อมูลในระบบแทน" : undefined;
 
   // Fallback 2: Local customers-import.json
   try {
     const importData = await loadImportData();
     const match = importData.find((c) => c["Tax ID"] === taxId);
     if (match) {
-      return {
+      const result: LookupResult = {
         found: true,
         taxId,
         companyName: match["Full Name"] || "",
@@ -125,13 +165,39 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
         status: "",
         type: match["Type"] || "Company",
         source: "local",
+        warning,
       };
+      setCache(taxId, result);
+      return result;
     }
   } catch {
     // Local fallback failed
   }
 
-  return { found: false };
+  // Fallback 3: DB lookup — search customers table directly
+  try {
+    const row = await db.select().from(customers).where(eq(customers.taxId, taxId)).get();
+    if (row) {
+      const result: LookupResult = {
+        found: true,
+        taxId,
+        companyName: row.fullName || row.name,
+        companyNameEn: "",
+        address: row.address || "",
+        registeredDate: "",
+        status: "",
+        type: row.customerType || "Company",
+        source: "db",
+        warning,
+      };
+      setCache(taxId, result);
+      return result;
+    }
+  } catch {
+    // DB lookup failed
+  }
+
+  return { found: false, warning };
 }
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
