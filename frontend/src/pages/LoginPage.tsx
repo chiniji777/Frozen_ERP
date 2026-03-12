@@ -1,76 +1,29 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: Record<string, unknown>) => void;
-          renderButton: (element: HTMLElement, config: Record<string, unknown>) => void;
-        };
-      };
-    };
-  }
-}
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'PLACEHOLDER_CLIENT_ID';
-
 export default function LoginPage() {
-  const { user, loginWithGoogle, loading } = useAuth();
+  const { user, login, loading } = useAuth();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const buttonRef = useRef<HTMLDivElement>(null);
 
-  const handleCredentialResponse = useCallback(async (response: { credential: string }) => {
+  if (loading) return null;
+  if (user) return <Navigate to="/" replace />;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError('');
     setSubmitting(true);
     try {
-      await loginWithGoogle(response.credential);
+      await login(username, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เข้าสู่ระบบไม่สำเร็จ');
     } finally {
       setSubmitting(false);
     }
-  }, [loginWithGoogle]);
-
-  useEffect(() => {
-    if (user || loading) return;
-
-    const initGSI = () => {
-      if (!window.google || !buttonRef.current) return;
-
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredentialResponse,
-      });
-
-      window.google.accounts.id.renderButton(buttonRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: 320,
-        text: 'signin_with',
-        shape: 'rectangular',
-        logo_alignment: 'left',
-      });
-    };
-
-    if (window.google) {
-      initGSI();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google) {
-          clearInterval(interval);
-          initGSI();
-        }
-      }, 100);
-      return () => clearInterval(interval);
-    }
-  }, [user, loading, handleCredentialResponse]);
-
-  if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-blue-600 p-4">
@@ -78,26 +31,55 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold text-center text-indigo-900 mb-2">
           🏢 Nut Office ERP
         </h1>
-        <p className="text-center text-gray-500 mb-8 text-sm">เข้าสู่ระบบด้วย Google</p>
+        <p className="text-center text-gray-500 mb-6 text-sm">เข้าสู่ระบบ</p>
 
-        <div className="flex flex-col items-center gap-4">
-          {/* Google Sign-In Button */}
-          <div ref={buttonRef} className="flex justify-center" />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+              ชื่อผู้ใช้
+            </label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="username"
+              autoComplete="username"
+              required
+            />
+          </div>
 
-          {submitting && (
-            <p className="text-indigo-600 text-sm">กำลังเข้าสู่ระบบ...</p>
-          )}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              รหัสผ่าน
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="password"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {submitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
+          </button>
 
           {error && (
-            <p className="text-red-600 text-sm bg-red-50 px-4 py-2 rounded-lg w-full text-center">
+            <p className="text-red-600 text-sm bg-red-50 px-4 py-2 rounded-lg text-center">
               {error}
             </p>
           )}
-        </div>
-
-        <p className="text-center text-gray-400 text-xs mt-8">
-          เฉพาะอีเมลที่ได้รับอนุญาตเท่านั้น
-        </p>
+        </form>
       </div>
     </div>
   );

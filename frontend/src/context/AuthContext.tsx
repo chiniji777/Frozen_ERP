@@ -12,7 +12,6 @@ interface AuthCtx {
   user: User | null;
   token: string | null;
   login: (username: string, password: string) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -42,22 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    if (!res.ok) throw new Error('Login failed');
-    const data = await res.json();
-    localStorage.setItem('token', data.token);
-    setToken(data.token);
-    setUser(data.user);
-  };
-
-  const loginWithGoogle = async (idToken: string) => {
-    const res = await fetch('/api/auth/google', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_token: idToken }),
-    });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'อีเมลนี้ไม่ได้รับอนุญาตให้เข้าใช้งาน');
+      throw new Error(data.error || 'เข้าสู่ระบบไม่สำเร็จ');
     }
     const data = await res.json();
     localStorage.setItem('token', data.token);
@@ -72,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, loginWithGoogle, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
