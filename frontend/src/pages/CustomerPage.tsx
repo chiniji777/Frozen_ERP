@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
@@ -223,7 +223,14 @@ export default function CustomerPage() {
   const [addrSuggestions, setAddrSuggestions] = useState<ThaiAddress[]>([]);
   const [showAddrDropdown, setShowAddrDropdown] = useState(false);
   const [salesPartners, setSalesPartners] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ taxId: string; name: string; province?: string; status?: string }[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [searchDetectedType, setSearchDetectedType] = useState('');
+  const [searchHighlight, setSearchHighlight] = useState(-1);
   const addrRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -241,10 +248,11 @@ export default function CustomerPage() {
     setSalesPartners(partners);
   }, [data]);
 
-  // Close address dropdown on outside click
+  // Close address dropdown + search dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (addrRef.current && !addrRef.current.contains(e.target as Node)) setShowAddrDropdown(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearchDropdown(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -257,7 +265,74 @@ export default function CustomerPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const openAdd = () => { setEditing(null); setForm(emptyForm); setModalOpen(true); };
+  // Debounce smart search
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults([]); setShowSearchDropdown(false); setSearchDetectedType('');
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await api.get<{ results: { taxId: string; name: string; province?: string; status?: string }[]; detectedType?: string }>(`/dbd/search?q=${encodeURIComponent(searchQuery)}`);
+        setSearchResults((res.results || []).slice(0, 10));
+        setSearchDetectedType(res.detectedType || 'อัตโนมัติ');
+        setShowSearchDropdown(true);
+        setSearchHighlight(-1);
+      } catch {
+        setSearchResults([]); setShowSearchDropdown(false);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Select search result → auto-fill via DBD lookup
+  const handleSearchSelect = useCallback(async (taxId: string) => {
+    setShowSearchDropdown(false);
+    setSearchQuery('');
+    setDbdLoading(true);
+    try {
+      const res = await api.get<{ found: boolean; companyName?: string; address?: string; type?: string; province?: string; registeredDate?: string; capital?: number }>(`/dbd/lookup/${taxId}`);
+      if (res.found) {
+        setForm((f) => ({
+          ...f,
+          taxId,
+          name: res.companyName || f.name,
+          address: res.address || f.address,
+          province: res.province || f.province,
+          customerType: (res.type === 'Individual' ? 'Individual' : 'Company') as 'Company' | 'Individual',
+        }));
+        setToast('ดึงข้อมูลจาก DBD สำเร็จ');
+      } else {
+        setToast('ไม่พบข้อมูลบริษัทจาก DBD');
+      }
+    } catch {
+      setToast('ไม่สามารถเชื่อมต่อ DBD ได้');
+    } finally {
+      setDbdLoading(false);
+    }
+  }, []);
+
+  // Search keyboard handler
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showSearchDropdown || searchResults.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSearchHighlight((h) => (h + 1) % searchResults.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSearchHighlight((h) => (h <= 0 ? searchResults.length - 1 : h - 1));
+    } else if (e.key === 'Enter' && searchHighlight >= 0) {
+      e.preventDefault();
+      handleSearchSelect(searchResults[searchHighlight].taxId);
+    } else if (e.key === 'Escape') {
+      setShowSearchDropdown(false);
+    }
+  }, [showSearchDropdown, searchResults, searchHighlight, handleSearchSelect]);
+
+  const openAdd = () => { setEditing(null); setForm(emptyForm); setSearchQuery(''); setModalOpen(true); };
   const openEdit = (c: Customer) => {
     setEditing(c);
     // Parse address to extract district/amphoe/province/zipcode if stored in address field
@@ -483,6 +558,64 @@ export default function CustomerPage() {
         title={editing ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้าใหม่'}
       >
         <form onSubmit={handleSubmit} className="space-y-1">
+          {/* Smart Search Box */}
+          <div className="mb-4 relative" ref={searchRef}>
+            <label className="block text-xs font-semibold text-indigo-600 mb-1">ค้นหาอัจฉริยะ (DBD)</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => searchResults.length > 0 && setShowSearchDropdown(true)}
+                placeholder="ค้นหา Tax ID, ชื่อบริษัท, ชื่อกรรมการ, ที่อยู่..."
+                className="flex-1 px-3 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm bg-indigo-50/30"
+              />
+              <button
+                type="button"
+                onClick={() => { if (searchQuery.length >= 2) setSearchQuery((q) => q + ' '); }}
+                disabled={searchLoading || searchQuery.length < 2}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 whitespace-nowrap transition-colors"
+              >
+                {searchLoading ? (
+                  <span className="flex items-center gap-1">
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    ค้นหา
+                  </span>
+                ) : 'ค้นหา'}
+              </button>
+            </div>
+            {searchDetectedType && searchQuery.length >= 2 && (
+              <p className="text-xs text-gray-400 mt-1">ค้นด้วย: {searchDetectedType}</p>
+            )}
+            {showSearchDropdown && (
+              <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                {searchResults.length === 0 && !searchLoading && (
+                  <div className="px-4 py-3 text-sm text-gray-400 text-center">ไม่พบผลลัพธ์</div>
+                )}
+                {searchResults.map((r, i) => (
+                  <button
+                    key={r.taxId + i}
+                    type="button"
+                    onClick={() => handleSearchSelect(r.taxId)}
+                    className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-50 transition-colors ${
+                      i === searchHighlight ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="font-medium text-gray-800">{r.name}</div>
+                    <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
+                      <span>Tax: {r.taxId}</span>
+                      {r.province && <span>{r.province}</span>}
+                      {r.status && (
+                        <span className={r.status === 'ยังดำเนินกิจการอยู่' ? 'text-green-500' : 'text-red-400'}>{r.status}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <Section title="ข้อมูลทั่วไป">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {editing && (
