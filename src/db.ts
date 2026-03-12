@@ -235,4 +235,20 @@ export async function initDB() {
     CREATE INDEX IF NOT EXISTS idx_receipts_payment ON receipts(payment_id);
   `);
   await migrateCustomers();
+  await migrateProducts();
+}
+
+async function migrateProducts() {
+  const newCols: [string, string][] = [
+    ["raw_material", "TEXT"],
+    ["raw_material_yield", "REAL"],
+    ["description", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE products ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
 }

@@ -11,7 +11,12 @@ productsRoute.get("/", async (c) => {
   let conditions: any[] = [];
   if (q) {
     const pattern = `%${q}%`;
-    conditions.push(or(like(products.name, pattern), like(products.sku, pattern)));
+    conditions.push(or(
+      like(products.name, pattern),
+      like(products.sku, pattern),
+      like(products.rawMaterial, pattern),
+      like(products.description, pattern),
+    ));
   }
   if (category) {
     conditions.push(eq(products.category, category));
@@ -40,6 +45,9 @@ productsRoute.post("/", async (c) => {
     unit: body.unit || "piece",
     stock: body.stock ?? 0,
     imageUrl: body.imageUrl || null,
+    rawMaterial: body.rawMaterial || null,
+    rawMaterialYield: body.rawMaterialYield ?? null,
+    description: body.description || null,
   }).run();
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
@@ -57,6 +65,9 @@ productsRoute.put("/:id", async (c) => {
     unit: body.unit ?? existing.unit,
     stock: body.stock ?? existing.stock,
     imageUrl: body.imageUrl ?? existing.imageUrl,
+    rawMaterial: body.rawMaterial ?? existing.rawMaterial,
+    rawMaterialYield: body.rawMaterialYield ?? existing.rawMaterialYield,
+    description: body.description ?? existing.description,
     updatedAt: sql`datetime('now')`,
   }).where(eq(products.id, id)).run();
   return c.json({ ok: true });

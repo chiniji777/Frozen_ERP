@@ -7,13 +7,21 @@ import ConfirmDialog from '../components/ConfirmDialog';
 interface Product {
   id: number;
   name: string;
+  sku: string;
   category: string;
-  price: number;
+  salePrice: number;
   stock: number;
   unit: string;
+  imageUrl: string;
+  rawMaterial: string;
+  rawMaterialYield: number | null;
+  description: string;
 }
 
-const emptyForm = { name: '', category: '', price: '', stock: '', unit: 'ชิ้น' };
+const emptyForm = {
+  name: '', sku: '', category: '', salePrice: '', stock: '', unit: 'ชิ้น',
+  imageUrl: '', rawMaterial: '', rawMaterialYield: '', description: '',
+};
 
 export default function ProductPage() {
   const [data, setData] = useState<Product[]>([]);
@@ -44,18 +52,34 @@ export default function ProductPage() {
   const openEdit = (p: Product) => {
     setEditing(p);
     setForm({
-      name: p.name,
-      category: p.category,
-      price: String(p.price),
-      stock: String(p.stock),
-      unit: p.unit,
+      name: p.name || '',
+      sku: p.sku || '',
+      category: p.category || '',
+      salePrice: String(p.salePrice ?? 0),
+      stock: String(p.stock ?? 0),
+      unit: p.unit || 'ชิ้น',
+      imageUrl: p.imageUrl || '',
+      rawMaterial: p.rawMaterial || '',
+      rawMaterialYield: p.rawMaterialYield != null ? String(p.rawMaterialYield) : '',
+      description: p.description || '',
     });
     setModalOpen(true);
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const body = { ...form, price: Number(form.price), stock: Number(form.stock) };
+    const body = {
+      name: form.name,
+      sku: form.sku || null,
+      category: form.category || null,
+      salePrice: Number(form.salePrice),
+      stock: Number(form.stock),
+      unit: form.unit,
+      imageUrl: form.imageUrl || null,
+      rawMaterial: form.rawMaterial || null,
+      rawMaterialYield: form.rawMaterialYield ? Number(form.rawMaterialYield) : null,
+      description: form.description || null,
+    };
     if (editing) {
       await api.put(`/products/${editing.id}`, body);
     } else {
@@ -106,12 +130,14 @@ export default function ProductPage() {
 
       <DataTable
         columns={[
-          { key: 'id', label: 'รหัส' },
+          { key: 'sku', label: 'รหัสสินค้า' },
           { key: 'name', label: 'ชื่อสินค้า' },
           { key: 'category', label: 'หมวดหมู่' },
-          { key: 'price', label: 'ราคา', render: (p) => `฿${Number(p.price).toLocaleString()}` },
-          { key: 'stock', label: 'คงเหลือ', render: (p) => stockBadge(p.stock) },
+          { key: 'salePrice', label: 'ราคา', render: (p) => `฿${Number(p.salePrice).toLocaleString()}` },
+          { key: 'rawMaterial', label: 'วัตถุดิบ' },
+          { key: 'rawMaterialYield', label: 'Yield %', render: (p) => p.rawMaterialYield != null ? `${p.rawMaterialYield}%` : '-' },
           { key: 'unit', label: 'หน่วย' },
+          { key: 'stock', label: 'คงเหลือ', render: (p) => stockBadge(p.stock) },
         ]}
         data={filtered}
         getId={(p) => p.id}
@@ -127,20 +153,46 @@ export default function ProductPage() {
         title={editing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
-            <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">รหัสสินค้า (SKU)</label>
+              <input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
+              <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ราคา (บาท)</label>
-              <input type="number" step="0.01" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
+              <label className="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
+              <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ราคาขาย (บาท)</label>
+              <input type="number" step="0.01" required value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">วัตถุดิบ</label>
+              <input value={form.rawMaterial} onChange={(e) => setForm({ ...form, rawMaterial: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ผลผลิตวัตถุดิบ (Yield %)</label>
+              <input type="number" step="0.01" value={form.rawMaterialYield} onChange={(e) => setForm({ ...form, rawMaterialYield: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
+              <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
             <div>
@@ -148,10 +200,15 @@ export default function ProductPage() {
               <input type="number" required value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">รูปสินค้า (URL)</label>
+              <input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
-            <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            <label className="block text-sm font-medium text-gray-700 mb-1">คำอธิบายสินค้า</label>
+            <textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
