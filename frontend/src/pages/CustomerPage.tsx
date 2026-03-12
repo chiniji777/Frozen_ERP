@@ -216,7 +216,7 @@ export default function CustomerPage() {
   const [form, setForm] = useState<CustomerForm>(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [viewTarget, setViewTarget] = useState<Customer | null>(null);
-  const [dbdLoading, setDbdLoading] = useState(false);
+  const [, setDbdLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number | string>>(new Set());
   const [bulkDbdLoading, setBulkDbdLoading] = useState(false);
@@ -431,33 +431,6 @@ export default function CustomerPage() {
     await api.del(`/customers/${deleteTarget.id}`);
     setDeleteTarget(null);
     load();
-  };
-
-  // --- DBD Lookup ---
-  const handleDbdLookup = async () => {
-    const taxId = form.taxId.replace(/\D/g, '');
-    if (taxId.length !== 13) return;
-    setDbdLoading(true);
-    try {
-      const res = await api.get<{ found: boolean; companyName?: string; address?: string; type?: string }>(
-        `/dbd/lookup/${taxId}`
-      );
-      if (res.found) {
-        setForm((f) => ({
-          ...f,
-          name: res.companyName || f.name,
-          address: res.address || f.address,
-          customerType: (res.type === 'Individual' ? 'Individual' : 'Company') as 'Company' | 'Individual',
-        }));
-        setToast('ดึงข้อมูลจาก DBD สำเร็จ');
-      } else {
-        setToast('ไม่พบข้อมูลบริษัทจาก DBD');
-      }
-    } catch {
-      setToast('ไม่สามารถเชื่อมต่อ DBD ได้');
-    } finally {
-      setDbdLoading(false);
-    }
   };
 
   // --- Bulk DBD Update ---
