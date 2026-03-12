@@ -46,6 +46,9 @@ export const products = sqliteTable("products", {
   unit: text("unit").notNull().default("ชิ้น"),
   stock: real("stock").notNull().default(0),
   imageUrl: text("image_url"),
+  rawMaterial: text("raw_material"),
+  rawMaterialYield: real("raw_material_yield"),
+  description: text("description"),
   ...timestamps,
 });
 
