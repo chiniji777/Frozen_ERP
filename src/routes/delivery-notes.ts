@@ -128,13 +128,7 @@ deliveryNotesRoute.post("/:id/deliver", async (c) => {
   if (!dn) return c.json({ error: "Delivery note not found" }, 404);
   if (dn.status === "delivered") return c.json({ error: "Already delivered" }, 400);
   const items = await db.select().from(dnItems).where(eq(dnItems.deliveryNoteId, id)).all();
-  for (const item of items) {
-    const product = await db.select().from(products).where(eq(products.id, item.productId)).get();
-    if (!product) return c.json({ error: `Product ID ${item.productId} not found` }, 400);
-    if (product.stock < item.quantity) {
-      return c.json({ error: `Insufficient stock for ${product.name}: need ${item.quantity}, have ${product.stock}` }, 400);
-    }
-  }
+  // Deduct stock (allow negative — อนุญาตให้ติดลบได้)
   for (const item of items) {
     await db.update(products).set({ stock: sql`stock - ${item.quantity}`, updatedAt: sql`datetime('now')` }).where(eq(products.id, item.productId)).run();
   }

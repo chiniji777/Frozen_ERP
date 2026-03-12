@@ -124,14 +124,7 @@ productionRoute.post("/:id/complete", async (c) => {
     rawMaterialId: bomItems.rawMaterialId,
     quantity: bomItems.quantity,
   }).from(bomItems).where(eq(bomItems.bomId, order.bomId)).all();
-  for (const item of items) {
-    const mat = await db.select().from(rawMaterials).where(eq(rawMaterials.id, item.rawMaterialId)).get();
-    if (!mat) return c.json({ error: `Raw material ID ${item.rawMaterialId} not found` }, 400);
-    const needed = item.quantity * order.quantity;
-    if (mat.stock < needed) {
-      return c.json({ error: `Insufficient stock for ${mat.name}: need ${needed} ${mat.unit}, have ${mat.stock}` }, 400);
-    }
-  }
+  // Deduct raw material stock (allow negative — อนุญาตให้ติดลบได้)
   for (const item of items) {
     const needed = item.quantity * order.quantity;
     await db.update(rawMaterials).set({

@@ -74,7 +74,8 @@ export default function RawMaterialPage() {
   };
 
   const stockBadge = (m: RawMaterial) => {
-    if (m.stock <= 0) return <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">หมด</span>;
+    if (m.stock < 0) return <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">ติดลบ ({m.stock})</span>;
+    if (m.stock === 0) return <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">หมด</span>;
     if (m.stock <= m.min_stock) return <span className="px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-700">ต่ำกว่าขั้นต่ำ ({m.stock})</span>;
     return <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">{m.stock}</span>;
   };
