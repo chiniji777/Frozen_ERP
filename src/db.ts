@@ -1,17 +1,9 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
-import { join } from "path";
-import { mkdirSync } from "fs";
 import * as schema from "./schema.js";
 
-// Ensure data dir exists for local dev
-const dataDir = join(import.meta.dir, "../data");
-mkdirSync(dataDir, { recursive: true });
-
-const localDbPath = `file:${join(dataDir, "erp.db")}`;
-
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || localDbPath,
+  url: process.env.TURSO_DATABASE_URL || "file:data/erp.db",
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
