@@ -152,6 +152,8 @@ export default function CustomerPage() {
   const [viewTarget, setViewTarget] = useState<Customer | null>(null);
   const [dbdLoading, setDbdLoading] = useState(false);
   const [toast, setToast] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<number | string>>(new Set());
+  const [bulkDbdLoading, setBulkDbdLoading] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -234,6 +236,44 @@ export default function CustomerPage() {
     }
   };
 
+  // --- Bulk DBD Update ---
+  const handleBulkDbdUpdate = async () => {
+    const selected = data.filter((c) => selectedIds.has(c.id) && c.taxId?.replace(/\D/g, '').length === 13);
+    if (selected.length === 0) {
+      setToast('ไม่มีลูกค้าที่มี Tax ID 13 หลักให้อัปเดต');
+      return;
+    }
+    setBulkDbdLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+    for (const customer of selected) {
+      try {
+        const taxId = customer.taxId.replace(/\D/g, '');
+        const res = await api.get<{ found: boolean; companyName?: string; address?: string; type?: string }>(
+          `/dbd/lookup/${taxId}`
+        );
+        if (res.found) {
+          await api.put(`/customers/${customer.id}`, {
+            ...customer,
+            fullName: res.companyName || customer.fullName || customer.name,
+            name: res.companyName || customer.name,
+            address: res.address || customer.address,
+            customerType: (res.type === 'Individual' ? 'Individual' : 'Company') as 'Company' | 'Individual',
+          });
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+    setBulkDbdLoading(false);
+    setSelectedIds(new Set());
+    load();
+    setToast(`อัปเดต DBD สำเร็จ ${successCount} ราย${failCount > 0 ? ` ไม่พบ ${failCount} ราย` : ''}`);
+  };
+
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
   return (
@@ -260,6 +300,20 @@ export default function CustomerPage() {
             ดูเพิ่ม
           </button>
         )}
+        selectable
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        toolbarExtra={
+          selectedIds.size > 0 ? (
+            <button
+              onClick={handleBulkDbdUpdate}
+              disabled={bulkDbdLoading}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium transition-colors whitespace-nowrap disabled:opacity-50"
+            >
+              {bulkDbdLoading ? 'กำลังอัปเดต...' : `ค้น DBD (${selectedIds.size} ราย)`}
+            </button>
+          ) : undefined
+        }
       />
 
       {/* View Detail Modal */}
@@ -312,29 +366,27 @@ export default function CustomerPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">เลขผู้เสียภาษี (Tax ID)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={form.taxId}
-                    onChange={(e) => setField('taxId', e.target.value.replace(/\D/g, '').slice(0, 13))}
-                    placeholder="1234567890123"
-                    maxLength={13}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleDbdLookup}
-                    disabled={form.taxId.replace(/\D/g, '').length !== 13 || dbdLoading}
-                    className="px-3 py-2 text-xs font-medium rounded-lg border border-indigo-300 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
-                  >
-                    {dbdLoading ? (
-                      <span className="flex items-center gap-1">
-                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                        กำลังค้น...
-                      </span>
-                    ) : 'ค้น DBD'}
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={form.taxId}
+                  onChange={(e) => setField('taxId', e.target.value.replace(/\D/g, '').slice(0, 13))}
+                  placeholder="1234567890123"
+                  maxLength={13}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleDbdLookup}
+                  disabled={form.taxId.replace(/\D/g, '').length !== 13 || dbdLoading}
+                  className="mt-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-300 text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
+                >
+                  {dbdLoading ? (
+                    <span className="flex items-center gap-1">
+                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      กำลังค้น...
+                    </span>
+                  ) : 'ค้น DBD'}
+                </button>
               </div>
               <InputField label="วงเงินเครดิต (บาท)" value={form.creditLimit} onChange={(v) => setField('creditLimit', Number(v))} type="number" />
               <div>
