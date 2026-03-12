@@ -64,6 +64,8 @@ export const products = sqliteTable("products", {
   rawMaterial: text("raw_material"),
   rawMaterialYield: real("raw_material_yield"),
   hasVat: integer("has_vat").default(1),
+  packingWeight: real("packing_weight"),
+  packingUnit: text("packing_unit").default("kg"),
   description: text("description"),
   ...timestamps,
 });

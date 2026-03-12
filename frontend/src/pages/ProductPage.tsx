@@ -17,11 +17,14 @@ interface Product {
   rawMaterialYield: number | null;
   description: string;
   hasVat: number;
+  packingWeight: number | null;
+  packingUnit: string;
 }
 
 const emptyForm = {
   name: '', category: '', salePrice: '', unit: 'ชิ้น',
   imageUrl: '', description: '', hasVat: '1',
+  packingWeight: '', packingUnit: 'kg',
 };
 
 export default function ProductPage() {
@@ -69,6 +72,8 @@ export default function ProductPage() {
       imageUrl: p.imageUrl || '',
       description: p.description || '',
       hasVat: String(p.hasVat ?? 1),
+      packingWeight: p.packingWeight != null ? String(p.packingWeight) : '',
+      packingUnit: p.packingUnit || 'kg',
     });
     setImagePreview(p.imageUrl || '');
     setModalOpen(true);
@@ -119,6 +124,8 @@ export default function ProductPage() {
       rawMaterialYield: null,
       description: form.description || null,
       hasVat: Number(form.hasVat),
+      packingWeight: form.packingWeight ? Number(form.packingWeight) : null,
+      packingUnit: form.packingUnit || 'kg',
     };
     if (editing) {
       await api.put(`/products/${editing.id}`, body);
@@ -286,6 +293,23 @@ export default function ProductPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">น้ำหนักต่อแพ็ค</label>
+              <input type="number" step="0.01" value={form.packingWeight} onChange={(e) => setForm({ ...form, packingWeight: e.target.value })}
+                placeholder="เช่น 0.5, 1, 2"
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">หน่วยน้ำหนัก</label>
+              <select value={form.packingUnit} onChange={(e) => setForm({ ...form, packingUnit: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                <option value="kg">kg (กิโลกรัม)</option>
+                <option value="g">g (กรัม)</option>
+                <option value="lb">lb (ปอนด์)</option>
+              </select>
             </div>
           </div>
           <div>

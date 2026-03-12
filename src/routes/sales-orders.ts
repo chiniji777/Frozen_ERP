@@ -545,6 +545,8 @@ salesOrdersRoute.get("/:id/sticker", async (c) => {
     productId: soItems.productId, quantity: soItems.quantity,
     productName: products.name, sku: products.sku, weight: soItems.weight,
     packingDetail: soItems.packingDetail,
+    packingWeight: products.packingWeight,
+    packingUnit: products.packingUnit,
   }).from(soItems)
     .leftJoin(products, eq(soItems.productId, products.id))
     .where(eq(soItems.salesOrderId, id)).all();
@@ -568,7 +570,7 @@ salesOrdersRoute.get("/:id/sticker", async (c) => {
   const stickersHtml = targetItems.map((item, idx) => {
     const lot = `${lotBase}${String(idx + 1).padStart(3, "0")}`;
     const stockUrl = `${baseUrl}/products?search=${encodeURIComponent(item.sku || item.productName || "")}`;
-    const qrImg = `<img src="https://chart.googleapis.com/chart?cht=qr&chs=80x80&chl=${encodeURIComponent(stockUrl)}&choe=UTF-8" width="60" height="60" style="image-rendering:pixelated">`;
+    const qrImg = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(stockUrl)}&format=png" width="120" height="120" style="image-rendering:pixelated">`;
     return `
     <div class="sticker">
       <div class="sticker-header">${escapeHtml(company.companyNameEn)}</div>
@@ -579,7 +581,7 @@ salesOrdersRoute.get("/:id/sticker", async (c) => {
           <div class="sticker-grid">
             <div><span class="label">MFG:</span> ${escapeHtml(mfgDate)}</div>
             <div><span class="label">EXP:</span> ${escapeHtml(expDate)}</div>
-            <div><span class="label">Weight:</span> ${item.packingDetail ? escapeHtml(item.packingDetail) : `${item.weight || 0} kg`}</div>
+            <div><span class="label">Weight:</span> ${item.packingWeight ? `${item.packingWeight} ${item.packingUnit || 'kg'}` : (item.packingDetail ? escapeHtml(item.packingDetail) : `${item.weight || 0} kg`)}</div>
             <div><span class="label">Lot:</span> ${escapeHtml(lot)}</div>
           </div>
         </div>
@@ -594,23 +596,23 @@ salesOrdersRoute.get("/:id/sticker", async (c) => {
 <title>Sticker - ${o.orderNumber}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-  @page { size: 100mm 70mm; margin: 0; }
+  @page { size: A4; margin: 10mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Sarabun', 'Noto Sans Thai', sans-serif; }
   .sticker {
-    width: 100mm; height: 70mm; padding: 4mm 5mm;
-    border: 0.5px dashed #ccc;
+    width: 190mm; min-height: 260mm; padding: 12mm 15mm;
+    border: 1px dashed #ccc;
     display: flex; flex-direction: column; justify-content: center;
     page-break-after: always;
   }
   .sticker:last-child { page-break-after: auto; }
-  .sticker-header { font-size: 8px; color: #64748b; text-align: center; margin-bottom: 2mm; letter-spacing: 1px; text-transform: uppercase; }
-  .sticker-body { display: flex; align-items: center; gap: 3mm; }
+  .sticker-header { font-size: 14px; color: #64748b; text-align: center; margin-bottom: 8mm; letter-spacing: 2px; text-transform: uppercase; }
+  .sticker-body { display: flex; align-items: center; gap: 8mm; }
   .sticker-info { flex: 1; }
   .sticker-qr { flex-shrink: 0; text-align: center; }
-  .sticker-code { font-size: 14px; font-weight: 800; color: #0f172a; letter-spacing: 1px; margin-bottom: 1mm; }
-  .sticker-name { font-size: 11px; font-weight: 600; color: #334155; margin-bottom: 3mm; }
-  .sticker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm 4mm; font-size: 10px; color: #1e293b; padding: 2mm 3mm; background: #f8fafc; border-radius: 3mm; border: 0.5px solid #e2e8f0; }
+  .sticker-code { font-size: 32px; font-weight: 800; color: #0f172a; letter-spacing: 2px; margin-bottom: 4mm; }
+  .sticker-name { font-size: 22px; font-weight: 600; color: #334155; margin-bottom: 8mm; }
+  .sticker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm 12mm; font-size: 18px; color: #1e293b; padding: 8mm 10mm; background: #f8fafc; border-radius: 6mm; border: 1px solid #e2e8f0; }
   .label { font-weight: 700; color: #475569; }
   @media print { body { padding: 0; } .sticker { border: none; } }
   @media screen {

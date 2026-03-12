@@ -96,6 +96,8 @@ productsRoute.post("/", async (c) => {
     rawMaterialYield: body.rawMaterialYield ?? null,
     description: body.description || null,
     hasVat: body.hasVat ?? 1,
+    packingWeight: body.packingWeight ?? null,
+    packingUnit: body.packingUnit || "kg",
   }).run();
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
@@ -117,6 +119,8 @@ productsRoute.put("/:id", async (c) => {
     rawMaterialYield: body.rawMaterialYield ?? existing.rawMaterialYield,
     description: body.description ?? existing.description,
     hasVat: body.hasVat ?? existing.hasVat,
+    packingWeight: body.packingWeight ?? existing.packingWeight,
+    packingUnit: body.packingUnit ?? existing.packingUnit,
     updatedAt: sql`datetime('now')`,
   }).where(eq(products.id, id)).run();
   return c.json({ ok: true });

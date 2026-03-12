@@ -629,6 +629,8 @@ async function migrateProducts() {
     ["raw_material_yield", "REAL"],
     ["description", "TEXT"],
     ["has_vat", "INTEGER DEFAULT 1"],
+    ["packing_weight", "REAL"],
+    ["packing_unit", "TEXT DEFAULT 'kg'"],
   ];
   for (const [col, type] of newCols) {
     try {
