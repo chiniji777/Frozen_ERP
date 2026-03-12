@@ -100,6 +100,10 @@ async function loadImportData(): Promise<CustomerImport[]> {
   }
 }
 
+// DBD Proxy config
+const DBD_PROXY_URL = "http://localhost:3457";
+const DBD_PROXY_TOKEN = "dbd-proxy-secret";
+
 // Shared lookup function — used by both GET and bulk-update
 async function lookupTaxId(taxId: string): Promise<LookupResult> {
   // Check in-memory cache first
@@ -108,7 +112,42 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
 
   let externalFailed = false;
 
-  // Try DBD OpenAPI first (timeout 5s)
+  // Primary: DBD Proxy (localhost:3457)
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${DBD_PROXY_URL}/api/company/${taxId}`, {
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${DBD_PROXY_TOKEN}` },
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const proxyResponse = await res.json() as { found: boolean; data: Record<string, string>; source: string };
+      if (proxyResponse.found && proxyResponse.data) {
+        const data = proxyResponse.data;
+        const result: LookupResult = {
+          found: true,
+          taxId: data.tax_id || taxId,
+          companyName: data.company_name || "",
+          companyNameEn: data.company_name_en || "",
+          address: data.address || "",
+          registeredDate: data.registered_date || "",
+          status: data.status || "",
+          type: data.jp_type_code === "5" ? "Company" : "Individual",
+          typeLabel: data.jp_type_desc || JURISTIC_TYPE_LABELS[data.jp_type_code || ""] || "",
+          source: proxyResponse.source || "proxy",
+        };
+        setCache(taxId, result);
+        return result;
+      }
+    } else {
+      externalFailed = true;
+    }
+  } catch {
+    externalFailed = true;
+  }
+
+  // Fallback 1: DBD OpenAPI direct (timeout 5s)
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -147,7 +186,7 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
     externalFailed = true;
   }
 
-  // Fallback 1: Creden API (timeout 5s)
+  // Fallback 2: Creden API (timeout 5s)
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -390,6 +429,29 @@ dbdRoute.post("/save-to-customer", async (c) => {
   }).run();
 
   return c.json({ ok: true, action: "created", customerId: Number(result.lastInsertRowid), code, lookup }, 201);
+});
+
+// GET /api/dbd/search?q={query} — proxy search to DBD Proxy
+dbdRoute.get("/search", async (c) => {
+  const q = c.req.query("q")?.trim();
+  if (!q) return c.json({ error: "Query parameter 'q' required" }, 400);
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(`${DBD_PROXY_URL}/api/search?q=${encodeURIComponent(q)}`, {
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${DBD_PROXY_TOKEN}` },
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      return c.json(data);
+    }
+    return c.json({ error: "DBD Proxy search failed", status: res.status }, 502);
+  } catch {
+    return c.json({ error: "Cannot connect to DBD Proxy" }, 503);
+  }
 });
 
 export { dbdRoute };
