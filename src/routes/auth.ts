@@ -60,7 +60,9 @@ auth.get("/me", authMiddleware, async (c) => {
       displayName: user.displayName,
       role: user.role,
       email: user.email,
+      phone: user.phone,
       avatarUrl: user.avatarUrl,
+      signatureUrl: user.signatureUrl,
     },
   });
 });
@@ -139,6 +141,32 @@ auth.put("/users/:id", authMiddleware, async (c) => {
 
   await db.update(users).set(updates).where(eq(users.id, id));
   return c.json({ ok: true });
+});
+
+// POST /api/auth/users/:id/signature — upload signature image
+auth.post("/users/:id/signature", authMiddleware, async (c) => {
+  const id = Number(c.req.param("id"));
+  const existing = await db.select().from(users).where(eq(users.id, id)).get();
+  if (!existing) return c.json({ error: "User not found" }, 404);
+
+  const formData = await c.req.formData();
+  const file = formData.get("signature") as File | null;
+  if (!file) return c.json({ error: "No signature file provided" }, 400);
+
+  const { mkdir, writeFile } = await import("fs/promises");
+  const { join } = await import("path");
+  const dir = join(process.cwd(), "data", "signatures");
+  await mkdir(dir, { recursive: true });
+
+  const ext = file.name?.split(".").pop() || "png";
+  const filename = `sig_${id}_${Date.now()}.${ext}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(join(dir, filename), buffer);
+
+  const signatureUrl = `/api/signatures/${filename}`;
+  await db.update(users).set({ signatureUrl }).where(eq(users.id, id));
+
+  return c.json({ ok: true, signatureUrl });
 });
 
 // DELETE /api/auth/users/:id — delete user

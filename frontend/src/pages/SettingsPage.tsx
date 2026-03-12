@@ -339,9 +339,84 @@ function UomTab() {
   );
 }
 
+// ============ Profile / Signature Tab ============
+function ProfileTab() {
+  const [user, setUser] = useState<{ id: number; displayName: string; email: string; phone?: string; signatureUrl?: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [toast, setToast] = useState('');
+
+  useEffect(() => {
+    api.get<{ user: typeof user }>('/auth/me').then((res) => setUser(res.user)).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
+
+  const handleUpload = async (file: File) => {
+    if (!user) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('signature', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/auth/users/${user.id}/signature`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.signatureUrl) {
+        setUser((u) => u ? { ...u, signatureUrl: data.signatureUrl } : u);
+        setToast('อัปโหลดลายเซ็นสำเร็จ');
+      } else {
+        setToast('อัปโหลดไม่สำเร็จ');
+      }
+    } catch {
+      setToast('เกิดข้อผิดพลาด');
+    }
+    setUploading(false);
+  };
+
+  if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
+  if (!user) return <div className="text-center py-10 text-gray-400">ไม่พบข้อมูลผู้ใช้</div>;
+
+  return (
+    <div>
+      <div className="bg-white rounded-xl border p-6 max-w-xl">
+        <h3 className="text-lg font-semibold text-gray-800 mb-1">{user.displayName}</h3>
+        <p className="text-sm text-gray-500 mb-6">{user.email}{user.phone ? ` | ${user.phone}` : ''}</p>
+
+        <div className="border-t pt-5">
+          <h4 className="text-sm font-semibold text-gray-700 mb-3">🖊️ ลายเซ็นสำหรับเอกสาร</h4>
+          <p className="text-xs text-gray-400 mb-4">ลายเซ็นจะแสดงในเอกสาร SO, DN, Invoice, Receipt เมื่อคุณเป็นผู้อนุมัติ</p>
+
+          <div className="flex items-start gap-6">
+            <div className="w-48 h-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center overflow-hidden bg-gray-50">
+              {user.signatureUrl ? (
+                <img src={user.signatureUrl} alt="ลายเซ็น" className="max-w-full max-h-full object-contain" />
+              ) : (
+                <span className="text-gray-400 text-xs text-center px-2">ยังไม่มีลายเซ็น<br/>กรุณาอัปโหลด</span>
+              )}
+            </div>
+            <div>
+              <label className="inline-block px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer font-medium">
+                {uploading ? '⏳ กำลังอัปโหลด...' : '📤 อัปโหลดลายเซ็น'}
+                <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
+              </label>
+              <p className="text-xs text-gray-400 mt-2">รองรับ PNG, JPG — แนะนำพื้นหลังโปร่งใส</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
+    </div>
+  );
+}
+
 // ============ Main Settings Page with Tabs ============
 export default function SettingsPage() {
-  const [tab, setTab] = useState<'company' | 'uom'>('company');
+  const [tab, setTab] = useState<'company' | 'uom' | 'profile'>('company');
 
   return (
     <div className="max-w-5xl">
@@ -350,10 +425,12 @@ export default function SettingsPage() {
       <div className="flex gap-1 border-b border-gray-200 mb-6">
         <TabButton active={tab === 'company'} onClick={() => setTab('company')} icon="🏢" label="ข้อมูลบริษัท" />
         <TabButton active={tab === 'uom'} onClick={() => setTab('uom')} icon="📏" label="หน่วยนับ" />
+        <TabButton active={tab === 'profile'} onClick={() => setTab('profile')} icon="🖊️" label="โปรไฟล์ / ลายเซ็น" />
       </div>
 
       {tab === 'company' && <CompanyTab />}
       {tab === 'uom' && <UomTab />}
+      {tab === 'profile' && <ProfileTab />}
     </div>
   );
 }
