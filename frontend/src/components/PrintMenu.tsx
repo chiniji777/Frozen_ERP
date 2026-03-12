@@ -28,7 +28,7 @@ export default function PrintMenu({ options, className = '' }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    api.get<CompanyProfile[]>('/company-settings').then(data => {
+    api.get<CompanyProfile[]>('/settings/profiles').then(data => {
       setCompanies(data);
       const def = data.find(c => c.isDefault === 1) || data[0];
       if (def) setSelectedCompany(def.id);
