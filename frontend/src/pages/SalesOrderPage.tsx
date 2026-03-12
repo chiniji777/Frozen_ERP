@@ -10,7 +10,7 @@ interface Customer {
   creditLimit?: number; paymentTerms?: string; salesPartner?: string;
   commissionRate?: number;
 }
-interface Product { id: number; name: string; sku?: string; price: number; salePrice?: number; unit?: string; }
+interface Product { id: number; name: string; sku?: string; price: number; salePrice?: number; unit?: string; hasVat?: number; }
 interface UserInfo { id: number; username: string; displayName: string; role: string; }
 interface SOItem {
   productId: number; itemCode?: string; quantity: number; unitPrice: number;
@@ -149,11 +149,16 @@ export default function SalesOrderPage() {
     }
   };
 
-  // Calculations
+  // Calculations — VAT only for products with hasVat
   const subtotal = formItems.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+  const vatableSubtotal = formItems.reduce((s, it) => {
+    const prod = products.find((p) => p.id === it.productId);
+    if (prod && prod.hasVat !== 0) return s + it.quantity * it.unitPrice;
+    return s;
+  }, 0);
   const totalQty = formItems.reduce((s, it) => s + it.quantity, 0);
   const totalWeight = formItems.reduce((s, it) => s + (it.weight || 0), 0);
-  const vat = Math.round(subtotal * 7) / 100;
+  const vat = Math.round(vatableSubtotal * 7) / 100;
   const totalAmount = subtotal + vat;
   const totalCommission = Math.round(subtotal * formCommRate) / 100;
 
@@ -458,77 +463,94 @@ export default function SalesOrderPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-gray-500">
-                  <th className="pb-2 pr-2">#</th>
-                  <th className="pb-2 pr-2">Item Code</th>
-                  <th className="pb-2 pr-2">Item Name</th>
-                  <th className="pb-2 pr-2 text-right">Qty</th>
-                  <th className="pb-2 pr-2 text-right">Rate</th>
-                  <th className="pb-2 pr-2">UOM</th>
-                  <th className="pb-2 pr-2 text-right">Weight (kg)</th>
-                  <th className="pb-2 pr-2 text-right">Amount</th>
-                  <th className="pb-2"></th>
+                  <th className="pb-2 pr-2 w-8">#</th>
+                  <th className="pb-2 pr-2">สินค้า</th>
+                  <th className="pb-2 pr-2 text-right w-20">จำนวน</th>
+                  <th className="pb-2 pr-2 w-16">หน่วย</th>
+                  <th className="pb-2 pr-2 text-right w-24">ราคา/หน่วย</th>
+                  <th className="pb-2 pr-2 text-right w-20">น้ำหนัก</th>
+                  <th className="pb-2 pr-2 text-right w-24">รวม</th>
+                  <th className="pb-2 pr-2 text-center w-10">VAT</th>
+                  <th className="pb-2 w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {formItems.map((item, i) => (
-                  <tr key={i} className="border-b border-gray-50">
-                    <td className="py-2 pr-2 text-gray-400">{i + 1}</td>
-                    <td className="py-2 pr-2">
-                      <input value={item.itemCode || ''} onChange={(e) => updateItem(i, 'itemCode', e.target.value)}
-                        className="w-24 px-2 py-1 border rounded text-sm" placeholder="Code" />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <SearchableSelect
-                        options={productOptions}
-                        value={item.productId}
-                        onChange={(v) => updateItem(i, 'productId', Number(v))}
-                        placeholder="ค้นสินค้า..."
-                        className="w-48"
-                      />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input type="number" min="0" step="0.01" value={item.quantity}
-                        onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
-                        className="w-20 px-2 py-1 border rounded text-sm text-right" />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input type="number" step="0.01" value={item.unitPrice}
-                        onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))}
-                        className="w-24 px-2 py-1 border rounded text-sm text-right" />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input value={item.uom} onChange={(e) => updateItem(i, 'uom', e.target.value)}
-                        className="w-16 px-2 py-1 border rounded text-sm" />
-                    </td>
-                    <td className="py-2 pr-2">
-                      <input type="number" step="0.01" value={item.weight}
-                        onChange={(e) => updateItem(i, 'weight', Number(e.target.value))}
-                        className="w-20 px-2 py-1 border rounded text-sm text-right" />
-                    </td>
-                    <td className="py-2 pr-2 text-right text-gray-600">{(item.quantity * item.unitPrice).toLocaleString()}</td>
-                    <td className="py-2">
-                      {formItems.length > 1 && (
-                        <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600">x</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {formItems.map((item, i) => {
+                  const prod = products.find((p) => p.id === item.productId);
+                  const hasVat = prod ? prod.hasVat !== 0 : true;
+                  return (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td className="py-2 pr-2 text-gray-400">{i + 1}</td>
+                      <td className="py-2 pr-2">
+                        <SearchableSelect
+                          options={productOptions}
+                          value={item.productId}
+                          onChange={(v) => updateItem(i, 'productId', Number(v))}
+                          placeholder="ค้นสินค้า..."
+                          className="w-48"
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input type="number" min="0" step="0.01" value={item.quantity}
+                          onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
+                          className="w-20 px-2 py-1 border rounded text-sm text-right" />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input value={item.uom} onChange={(e) => updateItem(i, 'uom', e.target.value)}
+                          className="w-16 px-2 py-1 border rounded text-sm" />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input type="number" step="0.01" value={item.unitPrice}
+                          onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))}
+                          className="w-24 px-2 py-1 border rounded text-sm text-right" />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input type="number" step="0.01" value={item.weight}
+                          onChange={(e) => updateItem(i, 'weight', Number(e.target.value))}
+                          className="w-20 px-2 py-1 border rounded text-sm text-right" />
+                      </td>
+                      <td className="py-2 pr-2 text-right font-medium">{(item.quantity * item.unitPrice).toLocaleString()}</td>
+                      <td className="py-2 pr-2 text-center">
+                        {hasVat ? <span className="text-xs text-green-600">✓</span> : <span className="text-xs text-gray-400">-</span>}
+                      </td>
+                      <td className="py-2">
+                        {formItems.length > 1 && (
+                          <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600">x</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <button type="button" onClick={addItem} className="mt-2 text-xs text-indigo-600 hover:text-indigo-800">+ Add Row</button>
-          <div className="mt-4 bg-gray-50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div><span className="text-gray-500">Total Qty</span><div className="font-semibold">{totalQty.toLocaleString()}</div></div>
-            <div><span className="text-gray-500">Total Net Weight</span><div className="font-semibold">{totalWeight.toLocaleString()} kg</div></div>
-            <div><span className="text-gray-500">Subtotal</span><div className="font-semibold">{subtotal.toLocaleString()}</div></div>
-            <div><span className="text-gray-500">Grand Total</span><div className="font-bold text-lg">{totalAmount.toLocaleString()}</div></div>
+          <div className="mt-4 bg-gray-50 rounded-lg p-4 grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+            <div><span className="text-gray-500">จำนวนรวม</span><div className="font-semibold">{totalQty.toLocaleString()}</div></div>
+            <div><span className="text-gray-500">น้ำหนักรวม</span><div className="font-semibold">{totalWeight.toLocaleString()} kg</div></div>
+            <div><span className="text-gray-500">ยอดก่อน VAT</span><div className="font-semibold">{subtotal.toLocaleString()}</div></div>
+            <div><span className="text-gray-500">VAT 7% <span className="text-xs">(เฉพาะสินค้ามี VAT)</span></span><div className="font-semibold">{vat.toLocaleString()}</div></div>
+            <div><span className="text-gray-500">ยอดรวมทั้งสิ้น</span><div className="font-bold text-lg text-indigo-700">{totalAmount.toLocaleString()}</div></div>
           </div>
         </Section>
 
         {/* Section 5: Payment Terms */}
         <Section title="Payment Terms">
           <div className="mb-3">
-            <InputField label="Payment Terms Template" value={formPaymentTemplate} onChange={setFormPaymentTemplate} placeholder="e.g. Net 30" />
+            <label className="block text-xs font-medium text-gray-500 mb-1">เงื่อนไขการชำระ</label>
+            <select value={formPaymentTemplate} onChange={(e) => setFormPaymentTemplate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option value="">-- เลือกเงื่อนไข --</option>
+              <option value="COD">COD (เงินสด)</option>
+              <option value="Net 7">Net 7 วัน</option>
+              <option value="Net 15">Net 15 วัน</option>
+              <option value="Net 30">Net 30 วัน</option>
+              <option value="Net 45">Net 45 วัน</option>
+              <option value="Net 60">Net 60 วัน</option>
+              <option value="Net 90">Net 90 วัน</option>
+              <option value="50/50">มัดจำ 50% / ส่งมอบ 50%</option>
+              <option value="Custom">กำหนดเอง</option>
+            </select>
           </div>
           {formPaymentTerms.length > 0 && (
             <table className="w-full text-sm mb-2">
