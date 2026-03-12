@@ -134,6 +134,8 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
   return { found: false };
 }
 
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // GET /api/dbd/lookup/:taxId
 dbdRoute.get("/lookup/:taxId", async (c) => {
   const taxId = c.req.param("taxId").trim();
@@ -165,11 +167,16 @@ dbdRoute.post("/bulk-update", async (c) => {
 
   const results: { id: number; name: string; taxId: string | null; status: string; companyName?: string }[] = [];
 
-  for (const row of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+
     if (!row.taxId || !/^\d{13}$/.test(row.taxId)) {
       results.push({ id: row.id, name: row.name, taxId: row.taxId, status: "skipped_no_valid_taxid" });
       continue;
     }
+
+    // Rate limit: 200ms between external API calls (5 req/sec)
+    if (i > 0) await delay(200);
 
     const lookup = await lookupTaxId(row.taxId);
 
