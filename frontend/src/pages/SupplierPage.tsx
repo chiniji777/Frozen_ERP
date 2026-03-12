@@ -119,6 +119,7 @@ export default function SupplierPage() {
   const [viewTarget, setViewTarget] = useState<Supplier | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
   const [toast, setToast] = useState('');
+  const [dbdLoading, setDbdLoading] = useState(false);
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none';
 
@@ -131,6 +132,44 @@ export default function SupplierPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3000);
+  };
+
+  const lookupDBD = async () => {
+    const taxId = form.taxId.trim();
+    if (!/^\d{13}$/.test(taxId)) {
+      showToast('กรุณากรอกเลขผู้เสียภาษี 13 หลัก');
+      return;
+    }
+    setDbdLoading(true);
+    try {
+      const res = await api.get<{
+        found: boolean;
+        companyName?: string;
+        companyNameEn?: string;
+        address?: string;
+        type?: 'Company' | 'Individual';
+        phone?: string;
+        source?: string;
+        warning?: string;
+      }>(`/dbd/lookup/${taxId}`);
+      if (res.found) {
+        setForm((f) => ({
+          ...f,
+          name: res.companyName || f.name,
+          fullName: res.companyName || f.fullName,
+          address: res.address || f.address,
+          supplierType: res.type || f.supplierType,
+          phone: res.phone || f.phone,
+        }));
+        showToast(`พบข้อมูล: ${res.companyName} (${res.source})`);
+      } else {
+        showToast(res.warning || 'ไม่พบข้อมูลจาก DBD');
+      }
+    } catch {
+      showToast('เชื่อมต่อ DBD ไม่สำเร็จ');
+    } finally {
+      setDbdLoading(false);
+    }
   };
 
   const openAdd = () => {
@@ -241,7 +280,15 @@ export default function SupplierPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">เลขผู้เสียภาษี</label>
-              <input value={form.taxId} onChange={(e) => setForm({ ...form, taxId: e.target.value })} className={inputCls} />
+              <div className="flex gap-2">
+                <input value={form.taxId} onChange={(e) => setForm({ ...form, taxId: e.target.value })}
+                  placeholder="กรอก 13 หลัก แล้วกดค้น DBD"
+                  className={inputCls} />
+                <button type="button" onClick={lookupDBD} disabled={dbdLoading}
+                  className="px-3 py-2 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 whitespace-nowrap font-medium">
+                  {dbdLoading ? '⏳ กำลังค้น...' : '🔍 ค้น DBD'}
+                </button>
+              </div>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">ที่อยู่</label>
