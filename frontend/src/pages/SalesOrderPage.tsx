@@ -18,6 +18,10 @@ interface PaymentTermRow {
   paymentTerm: string; description: string; dueDate: string;
   invoicePortion: number; paymentAmount: number;
 }
+interface SOAttachment {
+  id: number; salesOrderId: number; filename: string; originalName: string;
+  mimeType?: string; size?: number; createdAt?: string;
+}
 interface SalesOrder {
   id: number; orderNumber: string; customerId: number; status: string;
   date?: string; deliveryStartDate?: string; deliveryEndDate?: string;
@@ -26,8 +30,10 @@ interface SalesOrder {
   warehouse?: string; subtotal: number; vatRate: number; vatAmount: number;
   totalAmount: number; totalQuantity?: number; totalNetWeight?: number;
   paymentTermsTemplate?: string; salesPartner?: string; commissionRate?: number;
-  totalCommission?: number; notes?: string;
+  totalCommission?: number; poNumber?: string; poDate?: string; poNotes?: string;
+  notes?: string;
   customer?: Customer; items?: SOItem[]; paymentTerms?: PaymentTermRow[];
+  attachments?: SOAttachment[];
   createdAt?: string;
 }
 
@@ -79,6 +85,11 @@ export default function SalesOrderPage() {
   const [formNotes, setFormNotes] = useState('');
   const [formCreditLimit, setFormCreditLimit] = useState(0);
   const [formTaxId, setFormTaxId] = useState('');
+  const [formPoNumber, setFormPoNumber] = useState('');
+  const [formPoDate, setFormPoDate] = useState('');
+  const [formPoNotes, setFormPoNotes] = useState('');
+  const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
+  const [attachments, setAttachments] = useState<SOAttachment[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -142,6 +153,31 @@ export default function SalesOrderPage() {
     setFormPaymentTerms(next);
   };
 
+  const openDetail = async (order: SalesOrder) => {
+    const detail = await api.get<SalesOrder>(`/sales-orders/${order.id}`);
+    setDetailOrder(detail);
+    setAttachments(detail.attachments || []);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!detailOrder || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('token');
+    await fetch(`/api/sales-orders/${detailOrder.id}/attachments`, {
+      method: 'POST', body: formData,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    const updated = await api.get<SOAttachment[]>(`/sales-orders/${detailOrder.id}/attachments`);
+    setAttachments(updated);
+    e.target.value = '';
+  };
+
+  const handlePrint = (orderId: number) => {
+    window.open(`/api/sales-orders/${orderId}/print`, '_blank');
+  };
+
   const openAdd = () => {
     setFormCustId(''); setFormDate(new Date().toISOString().split('T')[0]);
     setFormDeliveryStart(''); setFormDeliveryEnd('');
@@ -150,6 +186,8 @@ export default function SalesOrderPage() {
     setFormItems([emptyItem()]); setFormPaymentTemplate('');
     setFormPaymentTerms([]); setFormSalesPartner(''); setFormCommRate(0);
     setFormNotes(''); setFormCreditLimit(0); setFormTaxId('');
+    setFormPoNumber(''); setFormPoDate(''); setFormPoNotes('');
+    setDetailOrder(null);
     setFormOpen(true);
   };
 
@@ -169,6 +207,9 @@ export default function SalesOrderPage() {
       paymentTermsTemplate: formPaymentTemplate || null,
       salesPartner: formSalesPartner || null,
       commissionRate: formCommRate,
+      poNumber: formPoNumber || null,
+      poDate: formPoDate || null,
+      poNotes: formPoNotes || null,
       notes: formNotes || null,
       items: formItems.filter((it) => it.productId > 0).map((it) => ({
         productId: it.productId, itemCode: it.itemCode, quantity: Number(it.quantity),
@@ -209,7 +250,58 @@ export default function SalesOrderPage() {
           searchPlaceholder="Search Sales Orders..."
           onAdd={openAdd}
           onEdit={(o) => { if (o.status === 'draft') setConfirmTarget(o); }}
+          extraActions={(o) => (
+            <div className="flex gap-1">
+              <button onClick={() => openDetail(o)} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
+              <button onClick={() => handlePrint(o.id)} className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">Print</button>
+            </div>
+          )}
         />
+        {/* Detail Modal */}
+        {detailOrder && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setDetailOrder(null)}>
+            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold">{detailOrder.orderNumber}</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => handlePrint(detailOrder.id)} className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Print</button>
+                  <button onClick={() => setDetailOrder(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+                </div>
+              </div>
+              {/* PO Info */}
+              {(detailOrder.poNumber || detailOrder.poDate) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <h4 className="text-xs font-semibold text-blue-700 mb-1">PO ลูกค้า</h4>
+                  <p className="text-sm">PO#: {detailOrder.poNumber || '-'} | Date: {detailOrder.poDate || '-'}</p>
+                  {detailOrder.poNotes && <p className="text-sm text-gray-600 mt-1">{detailOrder.poNotes}</p>}
+                </div>
+              )}
+              {/* Customer */}
+              <div className="mb-4">
+                <p className="text-sm"><strong>ลูกค้า:</strong> {detailOrder.customer?.name || '-'}</p>
+                <p className="text-sm"><strong>Grand Total:</strong> {Number(detailOrder.totalAmount).toLocaleString()}</p>
+              </div>
+              {/* Attachments */}
+              <div className="border rounded-lg p-4">
+                <h4 className="text-sm font-semibold mb-2">เอกสารแนบ / Attachments</h4>
+                <div className="mb-3">
+                  <label className="inline-flex items-center px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-sm cursor-pointer hover:bg-indigo-100">
+                    <span>+ Attach File</span>
+                    <input type="file" className="hidden" onChange={handleUpload} />
+                  </label>
+                </div>
+                {attachments.length === 0 && <p className="text-sm text-gray-400">ยังไม่มีเอกสารแนบ</p>}
+                {attachments.map((att) => (
+                  <div key={att.id} className="flex items-center justify-between py-1.5 border-b border-gray-100">
+                    <a href={`/api/attachments/${att.filename}`} target="_blank" rel="noreferrer"
+                      className="text-sm text-indigo-600 hover:underline">{att.originalName}</a>
+                    <span className="text-xs text-gray-400">{att.size ? `${(att.size / 1024).toFixed(1)} KB` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         <ConfirmDialog open={!!confirmTarget} message={`Confirm Sales Order "${confirmTarget?.orderNumber}"?`}
           onConfirm={handleConfirm} onCancel={() => setConfirmTarget(null)} />
       </div>
@@ -403,6 +495,20 @@ export default function SalesOrderPage() {
               <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold">
                 {totalCommission.toLocaleString()}
               </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* Section: PO ลูกค้า */}
+        <Section title="PO ลูกค้า / Customer Purchase Order">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <InputField label="PO Number" value={formPoNumber} onChange={setFormPoNumber} placeholder="เลขที่ PO ลูกค้า" />
+            <InputField label="PO Date" value={formPoDate} onChange={setFormPoDate} type="date" />
+            <div className="md:col-span-3">
+              <label className="block text-xs font-medium text-gray-500 mb-1">PO Notes</label>
+              <textarea value={formPoNotes} onChange={(e) => setFormPoNotes(e.target.value)} rows={2}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                placeholder="หมายเหตุจาก PO ลูกค้า..." />
             </div>
           </div>
         </Section>

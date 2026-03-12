@@ -120,8 +120,21 @@ export const salesOrders = sqliteTable("sales_orders", {
   salesPartner: text("sales_partner"),
   commissionRate: real("commission_rate").default(0),
   totalCommission: real("total_commission").default(0),
+  poNumber: text("po_number"),
+  poDate: text("po_date"),
+  poNotes: text("po_notes"),
   notes: text("notes"),
   ...timestamps,
+});
+
+export const soAttachments = sqliteTable("so_attachments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  salesOrderId: integer("sales_order_id").notNull(),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type"),
+  size: integer("size").default(0),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
 
 export const soItems = sqliteTable("so_items", {
