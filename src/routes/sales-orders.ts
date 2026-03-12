@@ -349,7 +349,7 @@ salesOrdersRoute.get("/:id/print", async (c) => {
     ${o.poNumber ? `<span>PO#: ${escapeHtml(o.poNumber)}</span>` : ""}
     ${o.poDate ? `<span>PO Date: ${escapeHtml(o.poDate)}</span>` : ""}`;
 
-  const body = `
+  let body = `
   ${companyHeader(company, "so", o.orderNumber, meta)}
   <div class="info-grid">
     <div class="info-card">

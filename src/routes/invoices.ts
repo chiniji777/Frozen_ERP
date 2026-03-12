@@ -270,7 +270,7 @@ invoicesRoute.get("/:id/print", async (c) => {
     <span>สถานะ: ${escapeHtml(iv.status)}</span>
     ${so ? `<span>อ้างอิง SO: ${escapeHtml(so.orderNumber)}</span>` : ""}`;
 
-  const body = `
+  let body = `
   ${companyHeader(company, "inv", iv.invoiceNumber, meta)}
   <div class="info-grid">
     <div class="info-card">

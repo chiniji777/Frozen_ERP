@@ -186,7 +186,7 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
     <span>สถานะ: ${escapeHtml(dn.status)}</span>
     <span>อ้างอิง SO: ${escapeHtml(soOrderNumber)}</span>`;
 
-  const body = `
+  let body = `
   ${companyHeader(company, "dn", dn.dnNumber, meta)}
   <div class="info-grid">
     <div class="info-card">
