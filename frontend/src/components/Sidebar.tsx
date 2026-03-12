@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const menu = [
   { to: '/', label: 'แดชบอร์ด', icon: '📊' },
@@ -23,6 +24,13 @@ interface Props {
 }
 
 export default function Sidebar({ open, onClose }: Props) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
+  const allMenu = isAdmin
+    ? [...menu, { to: '/users', label: 'จัดการผู้ใช้', icon: '👤' }]
+    : menu;
+
   return (
     <>
       {open && (
@@ -40,7 +48,7 @@ export default function Sidebar({ open, onClose }: Props) {
           🏢 Nut Office ERP
         </div>
         <nav className="mt-2 flex flex-col gap-0.5 px-2">
-          {menu.map((m) => (
+          {allMenu.map((m) => (
             <NavLink
               key={m.to}
               to={m.to}
