@@ -64,12 +64,6 @@ export default function BomPage() {
 
   useEffect(() => { load(); }, []);
 
-  const calcTotal = (items: BomItem[]) =>
-    items.reduce((sum, it) => {
-      const mat = materials.find((m) => m.id === it.raw_material_id);
-      return sum + (mat ? mat.price_per_unit * it.quantity : 0);
-    }, 0);
-
   const openAdd = () => {
     setEditing(null);
     setFormName('');
@@ -136,7 +130,6 @@ export default function BomPage() {
           { key: 'name', label: 'ชื่อ BOM' },
           { key: 'product_name', label: 'สินค้า', render: (b) => b.product_name || products.find((p) => p.id === b.product_id)?.name || '-' },
           { key: 'items', label: 'วัตถุดิบ', render: (b) => `${b.items?.length ?? 0} รายการ` },
-          { key: 'total_cost', label: 'ต้นทุนรวม', render: (b) => `฿${(b.total_cost ?? calcTotal(b.items ?? [])).toLocaleString()}` },
         ]}
         data={data}
         getId={(b) => b.id}
@@ -174,7 +167,6 @@ export default function BomPage() {
             <div className="flex flex-col gap-2">
               {formItems.map((item, i) => {
                 const mat = materials.find((m) => m.id === item.raw_material_id);
-                const lineCost = mat ? mat.price_per_unit * item.quantity : 0;
                 return (
                   <div key={i} className="flex gap-2 items-center">
                     <select value={item.raw_material_id} onChange={(e) => updateItem(i, 'raw_material_id', Number(e.target.value))}
@@ -185,16 +177,12 @@ export default function BomPage() {
                     <input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
                       className="w-20 px-2 py-1.5 border rounded-lg text-sm text-right" />
                     <span className="text-xs text-gray-500 w-10">{item.unit || mat?.unit || ''}</span>
-                    <span className="text-xs text-gray-400 w-20 text-right">฿{lineCost.toLocaleString()}</span>
                     {formItems.length > 1 && (
                       <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
                     )}
                   </div>
                 );
               })}
-            </div>
-            <div className="mt-2 text-right text-sm font-semibold text-indigo-700">
-              ต้นทุนรวม: ฿{calcTotal(formItems).toLocaleString()}
             </div>
           </div>
 
