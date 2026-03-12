@@ -10,9 +10,10 @@
  */
 
 import { createClient } from "@libsql/client";
+import { DB_PATH } from "./db.js";
 
 const client = createClient({
-  url: "file:data/erp.db",
+  url: DB_PATH,
 });
 
 async function migrate() {

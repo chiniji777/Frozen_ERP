@@ -4,7 +4,7 @@ import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import * as schema from "./schema.js";
 
 // Simple local SQLite — no Turso, no Vercel workarounds
-const DB_PATH = "file:data/erp.db";
+export const DB_PATH = "file:data/erp.db";
 
 let _client: Client | null = null;
 let _db: LibSQLDatabase<typeof schema> | null = null;
