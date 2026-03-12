@@ -34,6 +34,20 @@ productsRoute.get("/", async (c) => {
   return c.json(await db.select().from(products).all());
 });
 
+// --- Auto-generate SKU (MUST be before /:id to avoid route conflict) ---
+productsRoute.get("/next-sku", async (c) => {
+  const category = c.req.query("category")?.trim() || "PRD";
+  const prefix = category.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, "X");
+  const rows = await db.select({ sku: products.sku }).from(products).all();
+  const nums = rows
+    .map((r) => r.sku)
+    .filter((s): s is string => !!s && s.startsWith(prefix))
+    .map((s) => parseInt(s.replace(prefix, ""), 10))
+    .filter((n) => !isNaN(n));
+  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+  return c.json({ sku: `${prefix}${String(next).padStart(4, "0")}` });
+});
+
 productsRoute.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
   const row = await db.select().from(products).where(eq(products.id, id)).get();
@@ -88,20 +102,6 @@ productsRoute.delete("/:id", async (c) => {
   if (!existing) return c.json({ error: "Product not found" }, 404);
   await db.delete(products).where(eq(products.id, id)).run();
   return c.json({ ok: true });
-});
-
-// --- Auto-generate SKU ---
-productsRoute.get("/next-sku", async (c) => {
-  const category = c.req.query("category")?.trim() || "PRD";
-  const prefix = category.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, "X");
-  const rows = await db.select({ sku: products.sku }).from(products).all();
-  const nums = rows
-    .map((r) => r.sku)
-    .filter((s): s is string => !!s && s.startsWith(prefix))
-    .map((s) => parseInt(s.replace(prefix, ""), 10))
-    .filter((n) => !isNaN(n));
-  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
-  return c.json({ sku: `${prefix}${String(next).padStart(4, "0")}` });
 });
 
 // --- Upload product image ---
