@@ -274,6 +274,23 @@ export const purchaseOrders = sqliteTable("purchase_orders", {
   ...timestamps,
 });
 
+
+export const suppliers = sqliteTable("suppliers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").unique(),
+  name: text("name").notNull(),
+  fullName: text("full_name"),
+  nickName: text("nick_name"),
+  supplierType: text("supplier_type", { enum: ["Company", "Individual"] }).default("Company"),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  taxId: text("tax_id"),
+  paymentTerms: text("payment_terms"),
+  notes: text("notes"),
+  ...timestamps,
+});
+
 export const poItems = sqliteTable("po_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   purchaseOrderId: integer("purchase_order_id").notNull(),
