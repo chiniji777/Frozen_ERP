@@ -301,6 +301,8 @@ export async function initDB() {
   await migratePurchaseOrders();
   await migrateUoms();
   await migrateRawMaterials();
+  await migrateDeliveryNotes();
+  await migrateInvoices();
   await seedAdminUser();
 }
 
@@ -310,6 +312,7 @@ async function migrateUsers() {
     ["password", "TEXT"],
     ["phone", "TEXT"],
     ["google_id", "TEXT"],
+    ["signature_url", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
@@ -430,6 +433,8 @@ async function migrateSalesOrders() {
     ["po_number", "TEXT"],
     ["po_date", "TEXT"],
     ["po_notes", "TEXT"],
+    ["confirmed_by", "INTEGER"],
+    ["confirmed_at", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
@@ -459,6 +464,7 @@ async function migrateSoItems() {
     ["rate", "REAL"],
     ["uom", "TEXT DEFAULT 'Pcs.'"],
     ["weight", "REAL DEFAULT 0"],
+    ["packing_detail", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
@@ -583,6 +589,36 @@ async function migratePurchaseOrders() {
     CREATE INDEX IF NOT EXISTS idx_delivery_photos_dn ON delivery_photos(delivery_note_id);
     CREATE INDEX IF NOT EXISTS idx_delivery_confirmations_dn ON delivery_confirmations(delivery_note_id);
   `);
+}
+
+async function migrateDeliveryNotes() {
+  const client = getClient();
+  const newCols: [string, string][] = [
+    ["confirmed_by", "INTEGER"],
+    ["confirmed_at", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE delivery_notes ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
+}
+
+async function migrateInvoices() {
+  const client = getClient();
+  const newCols: [string, string][] = [
+    ["confirmed_by", "INTEGER"],
+    ["confirmed_at", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE invoices ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
 }
 
 async function migrateProducts() {
