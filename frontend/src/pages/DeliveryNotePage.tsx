@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -63,6 +64,13 @@ export default function DeliveryNotePage() {
   const [detailDN, setDetailDN] = useState<DeliveryNote | null>(null);
   const [actionTarget, setActionTarget] = useState<{ dn: DeliveryNote; action: string } | null>(null);
   const [toast, setToast] = useState('');
+  const location = useLocation();
+
+  // Reset to list view when sidebar re-navigates to this page
+  useEffect(() => {
+    setDetailDN(null);
+    setFormOpen(false);
+  }, [location.key]);
 
   const [formSOIds, setFormSOIds] = useState<number[]>([]);
   const [formDeliveryDate, setFormDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
