@@ -5,7 +5,7 @@ import { eq, like, sql, and, ne } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
 import { join, basename } from "path";
 import { mkdir, unlink } from "fs/promises";
-import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
+import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection, qrCodeImg } from "../print-utils.js";
 import { getOrCreateToken } from "./delivery-tracking.js";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -438,7 +438,7 @@ salesOrdersRoute.get("/:id/print", async (c) => {
   if (dn) {
     const token = await getOrCreateToken(dn.id, id);
     const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
-    body += qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
+    body += await qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
   }
 
   return c.html(wrapHtml(`Sales Order ${o.orderNumber}`, "so", body, o.status === "draft" ? "DRAFT" : undefined));
@@ -567,10 +567,15 @@ salesOrdersRoute.get("/:id/sticker", async (c) => {
 
   const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
 
+  // Pre-generate QR codes for all items
+  const qrSvgs = await Promise.all(targetItems.map((item) => {
+    const stockUrl = `${baseUrl}/products?search=${encodeURIComponent(item.sku || item.productName || "")}`;
+    return qrCodeImg(stockUrl, 120);
+  }));
+
   const stickersHtml = targetItems.map((item, idx) => {
     const lot = `${lotBase}${String(idx + 1).padStart(3, "0")}`;
-    const stockUrl = `${baseUrl}/products?search=${encodeURIComponent(item.sku || item.productName || "")}`;
-    const qrImg = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(stockUrl)}&format=png" width="120" height="120" style="image-rendering:pixelated">`;
+    const qrImg = qrSvgs[idx];
     return `
     <div class="sticker">
       <div class="sticker-header">${escapeHtml(company.companyNameEn)}</div>

@@ -220,7 +220,7 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
   // Add QR code for delivery tracking
   const token = await getOrCreateToken(dn.id, dn.salesOrderId);
   const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
-  body += qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
+  body += await qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
 
   return c.html(wrapHtml(`Delivery Note ${dn.dnNumber}`, "dn", body, dn.status === "pending" ? "PENDING" : undefined));
 });

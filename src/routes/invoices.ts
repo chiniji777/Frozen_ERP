@@ -312,7 +312,7 @@ invoicesRoute.get("/:id/print", async (c) => {
   if (dn) {
     const token = await getOrCreateToken(dn.id, iv.salesOrderId);
     const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
-    body += qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
+    body += await qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
   }
 
   return c.html(wrapHtml(`Invoice ${iv.invoiceNumber}`, "inv", body, iv.status === "draft" ? "DRAFT" : undefined));

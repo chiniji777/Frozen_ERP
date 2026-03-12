@@ -2,6 +2,7 @@
 import { db } from "./db.js";
 import { companySettings, users } from "./schema.js";
 import { eq } from "drizzle-orm";
+import QRCode from "qrcode";
 
 export function escapeHtml(s: string | null | undefined): string {
   if (!s) return "";
@@ -191,17 +192,22 @@ export function signatureSection(
   </div>`;
 }
 
-/** Generate QR code img tag using Google Charts API (no dependency needed) */
-export function qrCodeImg(url: string, size = 120) {
-  const encoded = encodeURIComponent(url);
-  return `<img src="https://chart.googleapis.com/chart?cht=qr&chs=${size}x${size}&chl=${encoded}&choe=UTF-8" width="${size}" height="${size}" alt="QR Code" style="image-rendering:pixelated">`;
+/** Generate QR code as inline SVG (no external API needed) */
+export async function qrCodeImg(url: string, size = 120): Promise<string> {
+  try {
+    const svg = await QRCode.toString(url, { type: "svg", width: size, margin: 1 });
+    return `<div style="width:${size}px;height:${size}px;display:inline-block">${svg}</div>`;
+  } catch {
+    return `<div style="width:${size}px;height:${size}px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #ccc;font-size:9px;color:#999">QR Error</div>`;
+  }
 }
 
 /** QR code section for document prints */
-export function qrSection(trackingUrl: string, label = "สแกนเพื่อติดตามการส่ง") {
+export async function qrSection(trackingUrl: string, label = "สแกนเพื่อติดตามการส่ง"): Promise<string> {
+  const qr = await qrCodeImg(trackingUrl, 100);
   return `
   <div style="text-align:center;margin-top:16px;padding:12px;border:1px dashed #cbd5e1;border-radius:8px;background:#f8fafc">
-    ${qrCodeImg(trackingUrl, 100)}
+    ${qr}
     <div style="font-size:9px;color:#64748b;margin-top:4px">${escapeHtml(label)}</div>
   </div>`;
 }
