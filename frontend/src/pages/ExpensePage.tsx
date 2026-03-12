@@ -115,6 +115,7 @@ export default function ExpensePage() {
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={(e) => setDeleteTarget(e)}
+        onRowClick={openEdit}
       />
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าใช้จ่ายใหม่'}>

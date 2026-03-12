@@ -320,6 +320,7 @@ export default function SalesOrderPage() {
           searchPlaceholder="Search Sales Orders..."
           onAdd={openAdd}
           onEdit={(o) => { if (o.status === 'draft') setConfirmTarget(o); }}
+          onRowClick={(o) => openDetail(o)}
           extraActions={(o) => (
             <div className="flex gap-1">
               <button onClick={() => openDetail(o)} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>

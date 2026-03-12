@@ -94,9 +94,6 @@ export default function InvoicePage() {
   const [formDueDate, setFormDueDate] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formItems, setFormItems] = useState<InvoiceItem[]>([]);
-  const [formBillingCompany, setFormBillingCompany] = useState('');
-  const [formBillingAddress, setFormBillingAddress] = useState('');
-  const [formBillingTaxId, setFormBillingTaxId] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -135,7 +132,6 @@ export default function InvoicePage() {
     setFormSOId(soId);
     const so = orders.find((o) => o.id === soId);
     if (so) {
-      setFormBillingCompany(so.customer_name || '');
       const items = await loadSOItems(soId);
       setFormItems(items);
     }
@@ -145,7 +141,6 @@ export default function InvoicePage() {
     setFormDNId(dnId);
     const dn = dns.find((d) => d.id === dnId);
     if (dn) {
-      setFormBillingCompany(dn.customer_name || '');
       setFormItems([]);
     }
   };
@@ -163,7 +158,6 @@ export default function InvoicePage() {
     setFormItems(allItems);
     if (next.length > 0) {
       const first = orders.find((o) => o.id === next[0]);
-      if (first) setFormBillingCompany(first.customer_name || '');
     }
   };
 
@@ -174,8 +168,7 @@ export default function InvoicePage() {
   const openAdd = () => {
     setFormSource('so'); setFormSOId(''); setFormDNId('');
     setFormMultiSOIds([]); setFormDueDate(''); setFormNotes('');
-    setFormItems([]); setFormBillingCompany(''); setFormBillingAddress('');
-    setFormBillingTaxId('');
+    setFormItems([]);
     setFormOpen(true);
   };
 
@@ -184,9 +177,6 @@ export default function InvoicePage() {
     const payload: Record<string, unknown> = {
       due_date: formDueDate || null,
       notes: formNotes || null,
-      billing_company: formBillingCompany || null,
-      billing_address: formBillingAddress || null,
-      billing_tax_id: formBillingTaxId || null,
       items: formItems.map((it) => ({
         product_id: it.product_id, item_code: it.item_code,
         quantity: Number(it.quantity), unit_price: Number(it.unit_price),
@@ -278,19 +268,6 @@ export default function InvoicePage() {
             )}
           </Section>
 
-          <Section title="ข้อมูลหัวบิล (แก้ไขได้)">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField label="ชื่อบริษัท / ชื่อผู้ซื้อ" value={formBillingCompany} onChange={setFormBillingCompany} placeholder="ชื่อบนหัวบิล" />
-              <InputField label="เลขประจำตัวผู้เสียภาษี" value={formBillingTaxId} onChange={setFormBillingTaxId} placeholder="13 หลัก" />
-              <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">ที่อยู่สำหรับออกบิล</label>
-                <textarea value={formBillingAddress} onChange={(e) => setFormBillingAddress(e.target.value)} rows={2}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                  placeholder="ที่อยู่ในใบแจ้งหนี้..." />
-              </div>
-            </div>
-          </Section>
-
           <Section title="กำหนดชำระ">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputField label="วันครบกำหนด" value={formDueDate} onChange={setFormDueDate} type="date" />
@@ -360,7 +337,7 @@ export default function InvoicePage() {
       <DataTable
         columns={[
           { key: 'invoice_number', label: 'เลขที่' },
-          { key: 'customer_name', label: 'ลูกค้า', render: (iv) => iv.billing_company || iv.customer_name || '-' },
+          { key: 'customer_name', label: 'ลูกค้า', render: (iv) => iv.customer_name || '-' },
           { key: 'so_order_number', label: 'อ้างอิง', render: (iv) => iv.so_order_number || iv.dn_number || '-' },
           { key: 'total_amount', label: 'ยอดรวม', render: (iv) => `฿${Number(iv.total_amount).toLocaleString()}` },
           { key: 'due_date', label: 'ครบกำหนด', render: (iv) => (
@@ -375,6 +352,7 @@ export default function InvoicePage() {
         getId={(iv) => iv.id}
         searchPlaceholder="ค้นหาใบแจ้งหนี้..."
         onAdd={openAdd}
+        onRowClick={(iv) => setViewInv(iv)}
         extraActions={(iv) => (
           <div className="flex gap-1">
             <button onClick={() => setViewInv(iv)}
@@ -407,14 +385,6 @@ export default function InvoicePage() {
               </div>
             </div>
             <div className="space-y-4">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h4 className="text-xs font-semibold text-blue-700 mb-2">ข้อมูลหัวบิล</h4>
-                <div className="text-sm space-y-1">
-                  <div><span className="text-gray-500">บริษัท:</span> {viewInv.billing_company || viewInv.customer_name || '-'}</div>
-                  {viewInv.billing_address && <div><span className="text-gray-500">ที่อยู่:</span> {viewInv.billing_address}</div>}
-                  {viewInv.billing_tax_id && <div><span className="text-gray-500">Tax ID:</span> {viewInv.billing_tax_id}</div>}
-                </div>
-              </div>
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลทั่วไป</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
