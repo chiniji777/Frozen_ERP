@@ -2,6 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
+
 interface SalesOrder {
   id: number; order_number: string; customer_name?: string; customer_id?: number;
   status: string; items?: SOItem[];
@@ -20,7 +21,6 @@ interface DeliveryNote {
   sales_order_id: number;
   so_order_number?: string;
   customer_name?: string;
-  customer_id?: number;
   status: string;
   delivery_date?: string;
   driver_name?: string;
@@ -58,7 +58,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
 };
 
-// Mock data for when backend isn't ready
 const MOCK_DNS: DeliveryNote[] = [
   { id: 1, dn_number: 'DN-2026-0001', sales_order_id: 1, so_order_number: 'SO-2026-0010', customer_name: 'บริษัท ทดสอบ จำกัด', status: 'draft', delivery_date: '2026-03-15', items: [{ product_name: 'สินค้า A', quantity: 10, uom: 'Pcs.', weight: 5 }] },
   { id: 2, dn_number: 'DN-2026-0002', sales_order_id: 2, so_order_number: 'SO-2026-0011', customer_name: 'ร้านค้าตัวอย่าง', status: 'shipped', delivery_date: '2026-03-12', driver_name: 'สมชาย', vehicle_no: 'กท-1234', items: [{ product_name: 'สินค้า B', quantity: 5, uom: 'Kg', weight: 5 }] },
@@ -72,7 +71,6 @@ export default function DeliveryNotePage() {
   const [viewDN, setViewDN] = useState<DeliveryNote | null>(null);
   const [actionTarget, setActionTarget] = useState<{ dn: DeliveryNote; action: string } | null>(null);
 
-  // Form state
   const [formSOId, setFormSOId] = useState<number | ''>('');
   const [formDeliveryDate, setFormDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
   const [formDriverName, setFormDriverName] = useState('');
@@ -100,7 +98,6 @@ export default function DeliveryNotePage() {
     const so = orders.find((o) => o.id === soId);
     if (!so) { setFormItems([]); setSelectedSOLabel(''); return; }
     setSelectedSOLabel(`${so.order_number} — ${so.customer_name || ''}`);
-    // Try to get full SO with items
     try {
       const detail = await api.get<SalesOrder>(`/sales-orders/${soId}`);
       if (detail.items) {
@@ -111,7 +108,6 @@ export default function DeliveryNotePage() {
         })));
       }
     } catch {
-      // Fallback: use basic info
       setFormItems([{ product_name: 'สินค้า', quantity: 1, uom: 'Pcs.', weight: 0 }]);
     }
   };
@@ -162,7 +158,6 @@ export default function DeliveryNotePage() {
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
-  // === FORM VIEW ===
   if (formOpen) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -260,7 +255,6 @@ export default function DeliveryNotePage() {
     );
   }
 
-  // === LIST VIEW ===
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-800 mb-4">ใบส่งของ (Delivery Note)</h1>
@@ -295,7 +289,6 @@ export default function DeliveryNotePage() {
         )}
       />
 
-      {/* View Detail Modal */}
       {viewDN && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setViewDN(null)}>
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
@@ -309,9 +302,7 @@ export default function DeliveryNotePage() {
                 <button onClick={() => setViewDN(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
               </div>
             </div>
-
             <div className="space-y-4">
-              {/* Info */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลทั่วไป</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -321,8 +312,6 @@ export default function DeliveryNotePage() {
                   <div><span className="text-gray-500">สถานะ:</span> {statusCfg[viewDN.status]?.label || viewDN.status}</div>
                 </div>
               </div>
-
-              {/* Delivery Info */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลจัดส่ง</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -331,8 +320,6 @@ export default function DeliveryNotePage() {
                   {viewDN.notes && <div className="col-span-2"><span className="text-gray-500">หมายเหตุ:</span> {viewDN.notes}</div>}
                 </div>
               </div>
-
-              {/* Items */}
               <div>
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">รายการสินค้า</h4>
                 <table className="w-full text-sm">

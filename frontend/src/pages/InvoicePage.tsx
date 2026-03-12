@@ -72,7 +72,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
 };
 
-// Mock data
 const MOCK_INVOICES: Invoice[] = [
   { id: 1, invoice_number: 'INV-2026-0001', sales_order_id: 1, so_order_number: 'SO-2026-0010', customer_name: 'บริษัท ทดสอบ จำกัด', billing_company: 'บริษัท ทดสอบ จำกัด', billing_address: '123 ถ.สุขุมวิท', billing_tax_id: '0105500000001', subtotal: 10000, vat_rate: 7, vat_amount: 700, total_amount: 10700, status: 'draft', due_date: '2026-04-15', items: [{ product_name: 'สินค้า A', quantity: 10, unit_price: 1000, uom: 'Pcs.', amount: 10000 }] },
   { id: 2, invoice_number: 'INV-2026-0002', sales_order_id: 2, so_order_number: 'SO-2026-0011', customer_name: 'ร้านค้าตัวอย่าง', billing_company: 'ร้านค้าตัวอย่าง', subtotal: 5000, vat_rate: 7, vat_amount: 350, total_amount: 5350, status: 'sent', due_date: '2026-03-20', items: [{ product_name: 'สินค้า B', quantity: 5, unit_price: 1000, uom: 'Kg', amount: 5000 }] },
@@ -88,7 +87,6 @@ export default function InvoicePage() {
   const [sendTarget, setSendTarget] = useState<Invoice | null>(null);
   const [paidTarget, setPaidTarget] = useState<Invoice | null>(null);
 
-  // Form state
   const [formSource, setFormSource] = useState<InvoiceSource>('so');
   const [formSOId, setFormSOId] = useState<number | ''>('');
   const [formDNId, setFormDNId] = useState<number | ''>('');
@@ -96,8 +94,6 @@ export default function InvoicePage() {
   const [formDueDate, setFormDueDate] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formItems, setFormItems] = useState<InvoiceItem[]>([]);
-
-  // Billing fields (editable)
   const [formBillingCompany, setFormBillingCompany] = useState('');
   const [formBillingAddress, setFormBillingAddress] = useState('');
   const [formBillingTaxId, setFormBillingTaxId] = useState('');
@@ -120,7 +116,7 @@ export default function InvoicePage() {
 
   const isOverdue = (iv: Invoice) => iv.status !== 'paid' && new Date(iv.due_date) < new Date();
 
-  const loadSOItems = async (soId: number) => {
+  const loadSOItems = async (soId: number): Promise<InvoiceItem[]> => {
     try {
       const detail = await api.get<SalesOrder>(`/sales-orders/${soId}`);
       if (detail.items) {
@@ -131,7 +127,7 @@ export default function InvoicePage() {
           amount: it.quantity * it.unit_price,
         }));
       }
-    } catch { /* fallback below */ }
+    } catch { /* fallback */ }
     return [];
   };
 
@@ -150,7 +146,6 @@ export default function InvoicePage() {
     const dn = dns.find((d) => d.id === dnId);
     if (dn) {
       setFormBillingCompany(dn.customer_name || '');
-      // DN items would be loaded from backend
       setFormItems([]);
     }
   };
@@ -160,15 +155,12 @@ export default function InvoicePage() {
       ? formMultiSOIds.filter((id) => id !== soId)
       : [...formMultiSOIds, soId];
     setFormMultiSOIds(next);
-
-    // Reload items from all selected SOs
     const allItems: InvoiceItem[] = [];
     for (const id of next) {
       const items = await loadSOItems(id);
       allItems.push(...items);
     }
     setFormItems(allItems);
-
     if (next.length > 0) {
       const first = orders.find((o) => o.id === next[0]);
       if (first) setFormBillingCompany(first.customer_name || '');
@@ -204,7 +196,6 @@ export default function InvoicePage() {
     if (formSource === 'so' && formSOId) payload.sales_order_id = Number(formSOId);
     if (formSource === 'dn' && formDNId) payload.delivery_note_id = Number(formDNId);
     if (formSource === 'multi' && formMultiSOIds.length) payload.sales_order_ids = formMultiSOIds;
-
     await api.post('/invoices', payload);
     setFormOpen(false); load();
   };
@@ -227,7 +218,6 @@ export default function InvoicePage() {
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
-  // === FORM VIEW ===
   if (formOpen) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -236,7 +226,6 @@ export default function InvoicePage() {
           <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">กลับรายการ</button>
         </div>
         <form onSubmit={handleCreate}>
-          {/* Source Selection */}
           <Section title="แหล่งที่มา">
             <div className="flex gap-3 mb-4">
               {(['so', 'dn', 'multi'] as InvoiceSource[]).map((src) => (
@@ -289,7 +278,6 @@ export default function InvoicePage() {
             )}
           </Section>
 
-          {/* Billing Info (editable) */}
           <Section title="ข้อมูลหัวบิล (แก้ไขได้)">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputField label="ชื่อบริษัท / ชื่อผู้ซื้อ" value={formBillingCompany} onChange={setFormBillingCompany} placeholder="ชื่อบนหัวบิล" />
@@ -303,14 +291,12 @@ export default function InvoicePage() {
             </div>
           </Section>
 
-          {/* Due date */}
           <Section title="กำหนดชำระ">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputField label="วันครบกำหนด" value={formDueDate} onChange={setFormDueDate} type="date" />
             </div>
           </Section>
 
-          {/* Items */}
           {formItems.length > 0 && (
             <Section title="รายการสินค้า">
               <div className="overflow-x-auto">
@@ -349,7 +335,6 @@ export default function InvoicePage() {
             </Section>
           )}
 
-          {/* Notes */}
           <Section title="หมายเหตุ">
             <textarea value={formNotes} onChange={(e) => setFormNotes(e.target.value)} rows={3}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -369,7 +354,6 @@ export default function InvoicePage() {
     );
   }
 
-  // === LIST VIEW ===
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-800 mb-4">ใบแจ้งหนี้ (Invoice)</h1>
@@ -409,7 +393,6 @@ export default function InvoicePage() {
         )}
       />
 
-      {/* View Detail Modal */}
       {viewInv && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setViewInv(null)}>
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
@@ -423,9 +406,7 @@ export default function InvoicePage() {
                 <button onClick={() => setViewInv(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
               </div>
             </div>
-
             <div className="space-y-4">
-              {/* Billing Info */}
               <div className="bg-blue-50 rounded-lg p-4">
                 <h4 className="text-xs font-semibold text-blue-700 mb-2">ข้อมูลหัวบิล</h4>
                 <div className="text-sm space-y-1">
@@ -434,8 +415,6 @@ export default function InvoicePage() {
                   {viewInv.billing_tax_id && <div><span className="text-gray-500">Tax ID:</span> {viewInv.billing_tax_id}</div>}
                 </div>
               </div>
-
-              {/* General Info */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลทั่วไป</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -445,8 +424,6 @@ export default function InvoicePage() {
                   <div><span className="text-gray-500">สถานะ:</span> {statusCfg[isOverdue(viewInv) ? 'overdue' : viewInv.status]?.label}</div>
                 </div>
               </div>
-
-              {/* Items */}
               <div>
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">รายการ</h4>
                 <table className="w-full text-sm">
@@ -472,8 +449,6 @@ export default function InvoicePage() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Totals */}
               <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>฿{Number(viewInv.subtotal).toLocaleString()}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">VAT {viewInv.vat_rate}%</span><span>฿{Number(viewInv.vat_amount).toLocaleString()}</span></div>
@@ -481,7 +456,6 @@ export default function InvoicePage() {
                   <span>Grand Total</span><span>฿{Number(viewInv.total_amount).toLocaleString()}</span>
                 </div>
               </div>
-
               {viewInv.notes && (
                 <div className="text-sm"><span className="text-gray-500">หมายเหตุ:</span> {viewInv.notes}</div>
               )}
