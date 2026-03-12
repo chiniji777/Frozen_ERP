@@ -151,6 +151,11 @@ app.get("/api/attachments/:filename", async (c) => {
   } catch { return c.json({ error: "File not found" }, 404); }
 });
 
+// Suppress favicon 404
+app.get("/favicon.ico", (c) => {
+  return new Response(null, { status: 204 });
+});
+
 // Serve frontend static files (after all API routes)
 import { serveStatic } from "hono/bun";
 app.use("/*", serveStatic({ root: "./frontend/dist" }));
