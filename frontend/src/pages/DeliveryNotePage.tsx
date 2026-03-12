@@ -17,12 +17,22 @@ interface DNItem {
   product_name?: string; product_id?: number; item_code?: string;
   quantity: number; uom: string; weight: number;
 }
+interface DeliveryPhoto {
+  id: number; photoUrl: string; latitude?: number; longitude?: number;
+  takenAt?: string; notes?: string;
+}
+interface DeliveryConfirmation {
+  id: number; signatureUrl?: string; latitude?: number; longitude?: number;
+  confirmedAt?: string;
+}
 interface DeliveryNote {
   id: number; dn_number: string; sales_order_id: number; sales_order_ids?: string;
   so_order_number?: string; customer_name?: string; status: string;
   delivery_date?: string; driver_name?: string; driver_phone?: string;
   vehicle_no?: string; pickup_point?: string; notes?: string;
   items: DNItem[]; created_at?: string;
+  delivery_photos?: DeliveryPhoto[];
+  delivery_confirmations?: DeliveryConfirmation[];
 }
 
 const statusCfg: Record<string, { label: string; color: string; next?: string; nextLabel?: string; nextColor?: string }> = {
@@ -30,6 +40,11 @@ const statusCfg: Record<string, { label: string; color: string; next?: string; n
   shipped: { label: 'จัดส่งแล้ว', color: 'bg-yellow-100 text-yellow-700', next: 'deliver', nextLabel: '✅ ส่งถึงแล้ว', nextColor: 'bg-green-600 hover:bg-green-700' },
   delivered: { label: 'ส่งถึงแล้ว', color: 'bg-green-100 text-green-700' },
   cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' },
+};
+
+const apiBase = () => {
+  const origin = window.location.origin;
+  return origin.includes('localhost') ? origin : origin;
 };
 
 const InputField = ({ label, value, onChange, type = 'text', placeholder = '' }: {
@@ -191,23 +206,37 @@ export default function DeliveryNotePage() {
           </div>
         </div>
 
-        {/* Status Flow */}
+        {/* Status Flow — parallel confirmations after shipped */}
         <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
           <div className="flex items-center justify-center gap-2 text-sm">
-            {['draft', 'shipped', 'delivered'].map((s, i) => {
-              const sc = statusCfg[s]!;
-              const isActive = s === dn.status;
-              const isPast = ['draft', 'shipped', 'delivered'].indexOf(dn.status) > i;
-              return (
-                <div key={s} className="flex items-center gap-2">
-                  {i > 0 && <div className={`w-8 h-0.5 ${isPast ? 'bg-green-400' : 'bg-gray-200'}`} />}
-                  <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${isActive ? sc.color + ' ring-2 ring-offset-1 ring-indigo-300' : isPast ? 'bg-green-100 text-green-700' : 'bg-gray-50 text-gray-400'}`}>
-                    {isPast && !isActive ? '✓ ' : ''}{sc.label}
-                  </div>
-                </div>
-              );
-            })}
+            {/* Step 1: ร่าง */}
+            <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${dn.status === 'draft' ? 'bg-gray-100 text-gray-700 ring-2 ring-offset-1 ring-indigo-300' : 'bg-green-100 text-green-700'}`}>
+              {dn.status !== 'draft' ? '✓ ' : ''}ร่าง
+            </div>
+            <div className={`w-8 h-0.5 ${dn.status !== 'draft' ? 'bg-green-400' : 'bg-gray-200'}`} />
+            {/* Step 2: จัดส่งแล้ว */}
+            <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${dn.status === 'shipped' ? 'bg-yellow-100 text-yellow-700 ring-2 ring-offset-1 ring-indigo-300' : dn.status === 'delivered' || dn.status === 'cancelled' ? 'bg-green-100 text-green-700' : 'bg-gray-50 text-gray-400'}`}>
+              {['delivered'].includes(dn.status) ? '✓ ' : ''}จัดส่งแล้ว
+            </div>
+            <div className={`w-8 h-0.5 ${dn.status === 'delivered' ? 'bg-green-400' : 'bg-gray-200'}`} />
+            {/* Step 3: Two parallel confirmations */}
+            <div className="flex flex-col gap-1">
+              <div className={`px-3 py-1 rounded-full text-xs font-medium ${dn.status === 'delivered' ? 'bg-green-100 text-green-700 ring-2 ring-offset-1 ring-green-300' : 'bg-gray-50 text-gray-400'}`}>
+                {dn.status === 'delivered' ? '✓ ' : ''}📦 ส่งถึงแล้ว
+              </div>
+              <div className={`px-3 py-1 rounded-full text-xs font-medium ${(dn.delivery_confirmations?.length ?? 0) > 0 ? 'bg-emerald-100 text-emerald-700 ring-2 ring-offset-1 ring-emerald-300' : 'bg-gray-50 text-gray-400'}`}>
+                {(dn.delivery_confirmations?.length ?? 0) > 0 ? '✓ ' : ''}✍️ เซ็นต์รับแล้ว
+              </div>
+            </div>
           </div>
+          {/* Success indicator */}
+          {(dn.status === 'delivered' || dn.status === 'shipped' || (dn.delivery_confirmations?.length ?? 0) > 0) && dn.status !== 'draft' && dn.status !== 'cancelled' && (
+            <div className="text-center mt-3 text-xs text-green-600 font-medium">
+              {dn.status === 'delivered' || (dn.delivery_confirmations?.length ?? 0) > 0
+                ? '✅ จัดส่งสำเร็จ'
+                : '📦 อยู่ระหว่างจัดส่ง'}
+            </div>
+          )}
         </div>
 
         <Section title="ข้อมูลทั่วไป">
@@ -253,6 +282,62 @@ export default function DeliveryNotePage() {
         </Section>
 
         {dn.notes && <Section title="หมายเหตุ"><p className="text-sm text-gray-700 whitespace-pre-wrap">{dn.notes}</p></Section>}
+
+        {/* Delivery Photos */}
+        {(dn.delivery_photos?.length ?? 0) > 0 && (
+          <Section title={`📸 รูปถ่ายส่งสินค้า (${dn.delivery_photos!.length})`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {dn.delivery_photos!.map((photo) => (
+                <div key={photo.id} className="border border-gray-100 rounded-lg overflow-hidden">
+                  <img src={photo.photoUrl} alt="delivery" className="w-full h-48 object-cover cursor-pointer hover:opacity-90"
+                    onClick={() => window.open(photo.photoUrl, '_blank')} />
+                  <div className="p-3 text-xs text-gray-500 space-y-1">
+                    {photo.takenAt && <div>📅 {photo.takenAt.slice(0, 16).replace('T', ' ')}</div>}
+                    {photo.latitude && photo.longitude && (
+                      <div>📍 <a href={`https://www.google.com/maps?q=${photo.latitude},${photo.longitude}`}
+                        target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">
+                        {photo.latitude.toFixed(4)}, {photo.longitude.toFixed(4)}
+                      </a></div>
+                    )}
+                    {photo.notes && <div className="text-gray-600">💬 {photo.notes}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* Customer Confirmations / Signatures */}
+        {(dn.delivery_confirmations?.length ?? 0) > 0 && (
+          <Section title="✍️ ลายเซ็นต์ลูกค้า / ยืนยันรับสินค้า">
+            <div className="space-y-4">
+              {dn.delivery_confirmations!.map((conf) => (
+                <div key={conf.id} className="border border-gray-100 rounded-lg p-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    {conf.signatureUrl && (
+                      <div className="flex-shrink-0">
+                        <p className="text-xs text-gray-500 mb-2">ลายเซ็นต์:</p>
+                        <img src={conf.signatureUrl} alt="customer signature"
+                          className="border rounded-lg bg-white p-2 h-24 cursor-pointer hover:opacity-90"
+                          onClick={() => window.open(conf.signatureUrl!, '_blank')} />
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-500 space-y-1.5 flex-grow">
+                      {conf.confirmedAt && <div className="flex items-center gap-1">📅 ยืนยันเมื่อ: <span className="text-gray-700 font-medium">{conf.confirmedAt.slice(0, 16).replace('T', ' ')}</span></div>}
+                      {conf.latitude && conf.longitude && (
+                        <div className="flex items-center gap-1">📍 ตำแหน่ง: <a href={`https://www.google.com/maps?q=${conf.latitude},${conf.longitude}`}
+                          target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">
+                          {conf.latitude.toFixed(4)}, {conf.longitude.toFixed(4)}
+                        </a></div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
         <ConfirmDialog open={!!actionTarget}
           message={actionTarget?.action === 'ship' ? `ยืนยันจัดส่ง "${actionTarget?.dn.dn_number}"?` : actionTarget?.action === 'cancel' ? `ยกเลิก "${actionTarget?.dn.dn_number}"?` : `ยืนยัน "${actionTarget?.dn.dn_number}" ส่งถึงแล้ว?`}
           onConfirm={handleAction} onCancel={() => setActionTarget(null)} />

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { deliveryNotes, dnItems, salesOrders, soItems, products, customers } from "../schema.js";
+import { deliveryNotes, dnItems, salesOrders, soItems, products, customers, deliveryPhotos, deliveryConfirmations } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
 import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
@@ -40,6 +40,12 @@ async function enrichDN(dn: typeof deliveryNotes.$inferSelect) {
     }
   }
 
+  // Fetch delivery tracking data (photos + customer confirmations)
+  const photos = await db.select().from(deliveryPhotos)
+    .where(eq(deliveryPhotos.deliveryNoteId, dn.id)).all();
+  const confirmations = await db.select().from(deliveryConfirmations)
+    .where(eq(deliveryConfirmations.deliveryNoteId, dn.id)).all();
+
   return {
     ...dn,
     dn_number: dn.dnNumber,
@@ -51,6 +57,21 @@ async function enrichDN(dn: typeof deliveryNotes.$inferSelect) {
     pickup_point: dn.pickupPoint,
     created_at: dn.createdAt,
     items: formattedItems,
+    delivery_photos: photos.map(p => ({
+      id: p.id,
+      photoUrl: p.photoUrl,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      takenAt: p.takenAt,
+      notes: p.notes,
+    })),
+    delivery_confirmations: confirmations.map(c => ({
+      id: c.id,
+      signatureUrl: c.signatureUrl,
+      latitude: c.latitude,
+      longitude: c.longitude,
+      confirmedAt: c.confirmedAt,
+    })),
   };
 }
 
