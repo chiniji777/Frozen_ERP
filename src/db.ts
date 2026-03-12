@@ -1,12 +1,11 @@
-import { drizzle } from "drizzle-orm/libsql";
-import type { LibSQLDatabase } from "drizzle-orm/libsql";
+// ⚠️ ALL imports are dynamic or type-only — NOTHING loads native modules at import time!
+// drizzle-orm/libsql internally imports @libsql/client which loads native .node bindings.
+// On Vercel serverless, native bindings are missing → module hangs forever.
 import type { Client } from "@libsql/client";
-import * as schema from "./schema.js";
 
-// ⚠️ NOTHING runs at import time — all lazy!
-// @libsql/client native bindings hang on Vercel, so we use dynamic import.
 let _client: Client | null = null;
-let _db: LibSQLDatabase<typeof schema> | null = null;
+let _db: any | null = null;
+let _schema: any | null = null;
 
 async function createLazyClient(): Promise<Client> {
   const url = process.env.TURSO_DATABASE_URL;
@@ -31,16 +30,23 @@ export async function getClient(): Promise<Client> {
   return _client;
 }
 
-export async function getDB(): Promise<LibSQLDatabase<typeof schema>> {
+async function loadDrizzle(client: Client) {
+  const { drizzle } = await import("drizzle-orm/libsql");
+  const schema = await import("./schema.js");
+  _schema = schema;
+  return drizzle(client, { schema });
+}
+
+export async function getDB() {
   if (!_db) {
-    _db = drizzle(await getClient(), { schema });
+    _db = await loadDrizzle(await getClient());
   }
   return _db;
 }
 
 // Backward compat — Proxy for `import { db }`
 // Only works AFTER initDB() has been called (via middleware)
-export const db = new Proxy({} as LibSQLDatabase<typeof schema>, {
+export const db = new Proxy({} as any, {
   get(_target, prop, receiver) {
     if (!_db) {
       throw new Error("[db] Not initialized yet. Ensure API middleware ran initDB() first.");
@@ -81,7 +87,7 @@ export async function initDB() {
   const client = await getClient();
   // Also populate _db so Proxy works
   if (!_db) {
-    _db = drizzle(client, { schema });
+    _db = await loadDrizzle(client);
   }
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
