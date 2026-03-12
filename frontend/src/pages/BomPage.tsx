@@ -8,15 +8,15 @@ interface RawMaterial {
   id: number;
   name: string;
   unit: string;
-  price_per_unit: number;
+  pricePerUnit: number;
 }
 
 interface BomItem {
-  raw_material_id: number;
+  rawMaterialId: number;
   quantity: number;
   unit: string;
-  raw_material_name?: string;
-  price_per_unit?: number;
+  materialName?: string;
+  pricePerUnit?: number;
 }
 
 interface Product {
@@ -27,10 +27,18 @@ interface Product {
 interface Bom {
   id: number;
   name: string;
-  product_id: number;
-  product_name?: string;
+  description?: string;
+  productId: number;
+  product?: Product;
   items: BomItem[];
-  total_cost?: number;
+}
+
+function calcItemCost(item: BomItem): number {
+  return (item.pricePerUnit || 0) * (item.quantity || 0);
+}
+
+function calcTotalCost(items: BomItem[]): number {
+  return items.reduce((sum, it) => sum + calcItemCost(it), 0);
 }
 
 export default function BomPage() {
@@ -43,6 +51,7 @@ export default function BomPage() {
   const [deleteTarget, setDeleteTarget] = useState<Bom | null>(null);
 
   const [formName, setFormName] = useState('');
+  const [formDescription, setFormDescription] = useState('');
   const [formProductId, setFormProductId] = useState<number | ''>('');
   const [formItems, setFormItems] = useState<BomItem[]>([]);
 
@@ -67,27 +76,39 @@ export default function BomPage() {
   const openAdd = () => {
     setEditing(null);
     setFormName('');
+    setFormDescription('');
     setFormProductId('');
-    setFormItems([{ raw_material_id: 0, quantity: 1, unit: '' }]);
+    setFormItems([{ rawMaterialId: 0, quantity: 1, unit: '' }]);
     setModalOpen(true);
   };
 
   const openEdit = (b: Bom) => {
     setEditing(b);
     setFormName(b.name);
-    setFormProductId(b.product_id);
-    setFormItems(b.items.length > 0 ? b.items : [{ raw_material_id: 0, quantity: 1, unit: '' }]);
+    setFormDescription(b.description || '');
+    setFormProductId(b.productId);
+    setFormItems(b.items.length > 0 ? b.items.map(it => ({
+      rawMaterialId: it.rawMaterialId,
+      quantity: it.quantity,
+      unit: it.unit,
+      materialName: it.materialName,
+      pricePerUnit: it.pricePerUnit,
+    })) : [{ rawMaterialId: 0, quantity: 1, unit: '' }]);
     setModalOpen(true);
   };
 
-  const addItem = () => setFormItems([...formItems, { raw_material_id: 0, quantity: 1, unit: '' }]);
+  const addItem = () => setFormItems([...formItems, { rawMaterialId: 0, quantity: 1, unit: '' }]);
   const removeItem = (i: number) => setFormItems(formItems.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, val: unknown) => {
     const next = [...formItems];
     (next[i] as unknown as Record<string, unknown>)[field] = val;
-    if (field === 'raw_material_id') {
+    if (field === 'rawMaterialId') {
       const mat = materials.find((m) => m.id === Number(val));
-      if (mat) next[i].unit = mat.unit;
+      if (mat) {
+        next[i].unit = mat.unit;
+        next[i].pricePerUnit = mat.pricePerUnit;
+        next[i].materialName = mat.name;
+      }
     }
     setFormItems(next);
   };
@@ -96,10 +117,12 @@ export default function BomPage() {
     e.preventDefault();
     const body = {
       name: formName,
-      product_id: Number(formProductId),
-      items: formItems.filter((it) => it.raw_material_id > 0).map((it) => ({
-        raw_material_id: it.raw_material_id,
+      description: formDescription,
+      productId: Number(formProductId),
+      items: formItems.filter((it) => it.rawMaterialId > 0).map((it) => ({
+        rawMaterialId: it.rawMaterialId,
         quantity: Number(it.quantity),
+        unit: it.unit,
       })),
     };
     if (editing) {
@@ -118,6 +141,13 @@ export default function BomPage() {
     load();
   };
 
+  // Calculate live cost from form items (lookup material prices)
+  const liveFormItems = formItems.map(it => ({
+    ...it,
+    pricePerUnit: it.pricePerUnit ?? materials.find(m => m.id === it.rawMaterialId)?.pricePerUnit ?? 0,
+  }));
+  const liveTotal = calcTotalCost(liveFormItems);
+
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
   return (
@@ -128,8 +158,15 @@ export default function BomPage() {
         columns={[
           { key: 'id', label: 'รหัส' },
           { key: 'name', label: 'ชื่อ BOM' },
-          { key: 'product_name', label: 'สินค้า', render: (b) => b.product_name || products.find((p) => p.id === b.product_id)?.name || '-' },
-          { key: 'items', label: 'วัตถุดิบ', render: (b) => `${b.items?.length ?? 0} รายการ` },
+          { key: 'productId', label: 'สินค้า', render: (b: Bom) => b.product?.name || products.find((p) => p.id === b.productId)?.name || '-' },
+          { key: 'items', label: 'วัตถุดิบ', render: (b: Bom) => `${b.items?.length ?? 0} รายการ` },
+          {
+            key: 'totalCost', label: 'ต้นทุนวัตถุดิบ',
+            render: (b: Bom) => {
+              const total = calcTotalCost(b.items || []);
+              return <span className="font-semibold text-emerald-700">฿{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>;
+            },
+          },
         ]}
         data={data}
         getId={(b) => b.id}
@@ -159,31 +196,60 @@ export default function BomPage() {
               {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
+            <textarea rows={2} value={formDescription} onChange={(e) => setFormDescription(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+          </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-700">วัตถุดิบ</label>
               <button type="button" onClick={addItem} className="text-xs text-indigo-600 hover:text-indigo-800">+ เพิ่มรายการ</button>
             </div>
-            <div className="flex flex-col gap-2">
+
+            {/* Header */}
+            <div className="grid grid-cols-12 gap-1 text-xs text-gray-500 mb-1 px-1">
+              <div className="col-span-4">วัตถุดิบ</div>
+              <div className="col-span-2 text-right">จำนวน</div>
+              <div className="col-span-1">หน่วย</div>
+              <div className="col-span-2 text-right">ราคา/หน่วย</div>
+              <div className="col-span-2 text-right">รวม</div>
+              <div className="col-span-1"></div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
               {formItems.map((item, i) => {
-                const mat = materials.find((m) => m.id === item.raw_material_id);
+                const mat = materials.find((m) => m.id === item.rawMaterialId);
+                const price = item.pricePerUnit ?? mat?.pricePerUnit ?? 0;
+                const cost = price * (item.quantity || 0);
                 return (
-                  <div key={i} className="flex gap-2 items-center">
-                    <select value={item.raw_material_id} onChange={(e) => updateItem(i, 'raw_material_id', Number(e.target.value))}
-                      className="flex-1 px-2 py-1.5 border rounded-lg text-sm">
-                      <option value={0}>-- เลือกวัตถุดิบ --</option>
+                  <div key={i} className="grid grid-cols-12 gap-1 items-center">
+                    <select value={item.rawMaterialId} onChange={(e) => updateItem(i, 'rawMaterialId', Number(e.target.value))}
+                      className="col-span-4 px-2 py-1.5 border rounded text-sm">
+                      <option value={0}>-- เลือก --</option>
                       {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </select>
                     <input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
-                      className="w-20 px-2 py-1.5 border rounded-lg text-sm text-right" />
-                    <span className="text-xs text-gray-500 w-10">{item.unit || mat?.unit || ''}</span>
-                    {formItems.length > 1 && (
-                      <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
-                    )}
+                      className="col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
+                    <span className="col-span-1 text-xs text-gray-500 truncate">{item.unit || mat?.unit || ''}</span>
+                    <span className="col-span-2 text-xs text-gray-500 text-right">฿{price.toLocaleString()}</span>
+                    <span className="col-span-2 text-xs font-semibold text-emerald-700 text-right">฿{cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    <div className="col-span-1 text-center">
+                      {formItems.length > 1 && (
+                        <button type="button" onClick={() => removeItem(i)} className="text-red-400 hover:text-red-600 text-sm">✕</button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
+            </div>
+
+            {/* Total */}
+            <div className="flex justify-end mt-3 pt-2 border-t">
+              <div className="text-sm font-bold text-gray-800">
+                ต้นทุนรวม: <span className="text-emerald-700 text-lg">฿{liveTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
             </div>
           </div>
 
