@@ -17,6 +17,7 @@ import { dashboardRoute } from "./routes/dashboard.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
+import { join } from "path";
 
 export const app = new Hono();
 
@@ -70,6 +71,21 @@ app.route("/api/receipts", receiptsRoute);
 app.route("/api/expenses", expensesRoute);
 app.use("/api/dashboard", authMiddleware);
 app.route("/api/dashboard", dashboardRoute);
+
+// Serve attachment files
+app.use("/api/attachments/*", authMiddleware);
+app.get("/api/attachments/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  if (filename.includes("..") || filename.includes("/")) return c.json({ error: "Invalid filename" }, 400);
+  const filePath = join(process.cwd(), "data", "attachments", filename);
+  try {
+    const file = Bun.file(filePath);
+    if (!await file.exists()) return c.json({ error: "File not found" }, 404);
+    return new Response(file.stream(), {
+      headers: { "Content-Type": file.type || "application/octet-stream", "Content-Disposition": `inline; filename="${filename}"` },
+    });
+  } catch { return c.json({ error: "File not found" }, 404); }
+});
 
 // Init DB on startup
 const _init = initDB().catch(console.error);

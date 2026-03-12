@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { salesOrders, soItems, soPaymentTerms, products, customers } from "../schema.js";
+import { salesOrders, soItems, soPaymentTerms, soAttachments, products, customers } from "../schema.js";
 import { eq, like, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
+import { join } from "path";
+import { mkdir, readFile, stat } from "fs/promises";
 
 const salesOrdersRoute = new Hono();
 
@@ -35,7 +37,8 @@ salesOrdersRoute.get("/:id", async (c) => {
   }).from(soItems).leftJoin(products, eq(soItems.productId, products.id))
     .where(eq(soItems.salesOrderId, id)).all();
   const paymentTermsRows = await db.select().from(soPaymentTerms).where(eq(soPaymentTerms.salesOrderId, id)).all();
-  return c.json({ ...o, customer, items, paymentTerms: paymentTermsRows });
+  const attachments = await db.select().from(soAttachments).where(eq(soAttachments.salesOrderId, id)).all();
+  return c.json({ ...o, customer, items, paymentTerms: paymentTermsRows, attachments });
 });
 
 salesOrdersRoute.post("/", async (c) => {
@@ -110,6 +113,9 @@ salesOrdersRoute.post("/", async (c) => {
     salesPartner,
     commissionRate,
     totalCommission,
+    poNumber: body.poNumber || null,
+    poDate: body.poDate || null,
+    poNotes: body.poNotes || null,
     notes: body.notes || null,
   }).run();
 
@@ -220,6 +226,9 @@ salesOrdersRoute.put("/:id", async (c) => {
     salesPartner: body.salesPartner ?? existing.salesPartner,
     commissionRate,
     totalCommission,
+    poNumber: body.poNumber ?? existing.poNumber,
+    poDate: body.poDate ?? existing.poDate,
+    poNotes: body.poNotes ?? existing.poNotes,
     notes: body.notes ?? existing.notes,
     updatedAt: sql`datetime('now')`,
   }).where(eq(salesOrders.id, id)).run();
@@ -234,6 +243,173 @@ salesOrdersRoute.post("/:id/confirm", async (c) => {
   if (o.status !== "draft") return c.json({ error: "Can only confirm draft orders" }, 400);
   await db.update(salesOrders).set({ status: "confirmed", updatedAt: sql`datetime('now')` }).where(eq(salesOrders.id, id)).run();
   return c.json({ ok: true, status: "confirmed" });
+});
+
+// === Attachments ===
+const ATTACHMENTS_DIR = join(process.cwd(), "data", "attachments");
+
+salesOrdersRoute.post("/:id/attachments", async (c) => {
+  const id = Number(c.req.param("id"));
+  const o = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  if (!o) return c.json({ error: "Sales order not found" }, 404);
+
+  const formData = await c.req.formData();
+  const file = formData.get("file");
+  if (!file || !(file instanceof File)) return c.json({ error: "file required" }, 400);
+
+  await mkdir(ATTACHMENTS_DIR, { recursive: true });
+  const ext = file.name.split(".").pop() || "bin";
+  const filename = `so-${id}-${Date.now()}.${ext}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await Bun.write(join(ATTACHMENTS_DIR, filename), buffer);
+
+  const result = await db.insert(soAttachments).values({
+    salesOrderId: id,
+    filename,
+    originalName: file.name,
+    mimeType: file.type || null,
+    size: file.size,
+  }).run();
+
+  return c.json({ ok: true, id: Number(result.lastInsertRowid), filename }, 201);
+});
+
+salesOrdersRoute.get("/:id/attachments", async (c) => {
+  const id = Number(c.req.param("id"));
+  const rows = await db.select().from(soAttachments).where(eq(soAttachments.salesOrderId, id)).all();
+  return c.json(rows);
+});
+
+salesOrdersRoute.delete("/:soId/attachments/:attId", async (c) => {
+  const attId = Number(c.req.param("attId"));
+  const att = await db.select().from(soAttachments).where(eq(soAttachments.id, attId)).get();
+  if (!att) return c.json({ error: "Attachment not found" }, 404);
+  try { await Bun.write(join(ATTACHMENTS_DIR, att.filename), ""); } catch {}
+  await db.delete(soAttachments).where(eq(soAttachments.id, attId)).run();
+  return c.json({ ok: true });
+});
+
+// === Print ===
+salesOrdersRoute.get("/:id/print", async (c) => {
+  const id = Number(c.req.param("id"));
+  const o = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  if (!o) return c.json({ error: "Sales order not found" }, 404);
+  const customer = await db.select().from(customers).where(eq(customers.id, o.customerId)).get();
+  const items = await db.select({
+    id: soItems.id, itemCode: soItems.itemCode, quantity: soItems.quantity,
+    unitPrice: soItems.unitPrice, uom: soItems.uom, weight: soItems.weight,
+    amount: soItems.amount, productName: products.name,
+  }).from(soItems).leftJoin(products, eq(soItems.productId, products.id))
+    .where(eq(soItems.salesOrderId, id)).all();
+  const paymentTermsRows = await db.select().from(soPaymentTerms).where(eq(soPaymentTerms.salesOrderId, id)).all();
+
+  const fmt = (n: number) => n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const html = `<!DOCTYPE html>
+<html lang="th"><head><meta charset="UTF-8"><title>Sales Order ${o.orderNumber}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Sarabun', 'Segoe UI', sans-serif; font-size: 13px; color: #333; padding: 20px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e40af; padding-bottom: 15px; margin-bottom: 15px; }
+  .company h1 { font-size: 20px; color: #1e40af; } .company p { font-size: 11px; color: #666; }
+  .doc-info { text-align: right; } .doc-info h2 { font-size: 18px; color: #1e40af; margin-bottom: 5px; }
+  .doc-info p { font-size: 12px; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+  .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+  .info-box h4 { font-size: 11px; color: #1e40af; text-transform: uppercase; margin-bottom: 6px; }
+  .info-box p { font-size: 12px; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+  thead th { background: #1e40af; color: white; padding: 8px 6px; font-size: 11px; text-align: left; }
+  tbody td { padding: 7px 6px; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  .text-right { text-align: right; }
+  .totals { display: flex; justify-content: flex-end; margin-bottom: 15px; }
+  .totals-box { width: 280px; }
+  .totals-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
+  .totals-row.grand { border-top: 2px solid #1e40af; font-size: 16px; font-weight: bold; color: #1e40af; padding-top: 8px; }
+  .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+  .footer-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; }
+  .footer-box h4 { font-size: 11px; color: #1e40af; text-transform: uppercase; margin-bottom: 6px; }
+  .sign-area { display: flex; justify-content: space-between; margin-top: 40px; }
+  .sign-box { text-align: center; width: 200px; }
+  .sign-line { border-top: 1px solid #333; margin-top: 50px; padding-top: 5px; font-size: 11px; }
+  @media print { body { padding: 0; } @page { margin: 15mm; } }
+</style></head><body>
+<div class="header">
+  <div class="company">
+    <h1>Frozen Food Plus Co., Ltd.</h1>
+    <p>บริษัท โฟรเซ่นฟู้ดพลัส จำกัด</p>
+  </div>
+  <div class="doc-info">
+    <h2>ใบสั่งขาย / Sales Order</h2>
+    <p><strong>${o.orderNumber}</strong></p>
+    <p>วันที่: ${o.date || "-"}</p>
+    <p>สถานะ: ${o.status}</p>
+    ${o.poNumber ? `<p>PO#: ${o.poNumber}</p>` : ""}
+    ${o.poDate ? `<p>PO Date: ${o.poDate}</p>` : ""}
+  </div>
+</div>
+<div class="info-grid">
+  <div class="info-box">
+    <h4>ลูกค้า / Customer</h4>
+    <p><strong>${customer?.name || "-"}</strong></p>
+    ${customer?.fullName ? `<p>${customer.fullName}</p>` : ""}
+    ${o.customerAddress ? `<p>${o.customerAddress}</p>` : ""}
+    ${o.contactPerson ? `<p>ติดต่อ: ${o.contactPerson}</p>` : ""}
+    ${o.contact ? `<p>โทร: ${o.contact}</p>` : ""}
+    ${customer?.taxId ? `<p>Tax ID: ${customer.taxId}</p>` : ""}
+  </div>
+  <div class="info-box">
+    <h4>การจัดส่ง / Delivery</h4>
+    ${o.shippingAddressName ? `<p>${o.shippingAddressName}</p>` : ""}
+    ${o.shippingAddress ? `<p>${o.shippingAddress}</p>` : ""}
+    ${o.deliveryStartDate ? `<p>เริ่ม: ${o.deliveryStartDate}</p>` : ""}
+    ${o.deliveryEndDate ? `<p>สิ้นสุด: ${o.deliveryEndDate}</p>` : ""}
+    <p>คลัง: ${o.warehouse || "Ladprao 43 - FFP"}</p>
+  </div>
+</div>
+<table>
+  <thead><tr>
+    <th>#</th><th>Item Code</th><th>รายการ</th><th>UOM</th>
+    <th class="text-right">จำนวน</th><th class="text-right">น้ำหนัก(kg)</th>
+    <th class="text-right">ราคา/หน่วย</th><th class="text-right">จำนวนเงิน</th>
+  </tr></thead>
+  <tbody>${items.map((it, i) => `<tr>
+    <td>${i + 1}</td><td>${it.itemCode || "-"}</td><td>${it.productName || "-"}</td><td>${it.uom || "Pcs."}</td>
+    <td class="text-right">${fmt(it.quantity)}</td><td class="text-right">${fmt(it.weight || 0)}</td>
+    <td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.amount)}</td>
+  </tr>`).join("")}</tbody>
+</table>
+<div class="totals"><div class="totals-box">
+  <div class="totals-row"><span>จำนวนรวม</span><span>${fmt(o.totalQuantity || 0)}</span></div>
+  <div class="totals-row"><span>น้ำหนักรวม</span><span>${fmt(o.totalNetWeight || 0)} kg</span></div>
+  <div class="totals-row"><span>ยอดรวม (Subtotal)</span><span>${fmt(o.subtotal)}</span></div>
+  <div class="totals-row"><span>VAT ${o.vatRate}%</span><span>${fmt(o.vatAmount)}</span></div>
+  <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>${fmt(o.totalAmount)}</span></div>
+</div></div>
+<div class="footer">
+  <div class="footer-box">
+    <h4>เงื่อนไขการชำระ / Payment Terms</h4>
+    <p>${o.paymentTermsTemplate || "-"}</p>
+    ${paymentTermsRows.length ? `<table style="margin-top:5px"><thead><tr><th>งวด</th><th>คำอธิบาย</th><th>กำหนด</th><th class="text-right">%</th><th class="text-right">จำนวน</th></tr></thead><tbody>${paymentTermsRows.map(pt => `<tr><td>${pt.paymentTerm || "-"}</td><td>${pt.description || "-"}</td><td>${pt.dueDate || "-"}</td><td class="text-right">${pt.invoicePortion || 0}</td><td class="text-right">${fmt(pt.paymentAmount || 0)}</td></tr>`).join("")}</tbody></table>` : ""}
+    ${o.poNotes ? `<p style="margin-top:8px"><strong>หมายเหตุ PO:</strong> ${o.poNotes}</p>` : ""}
+  </div>
+  <div class="footer-box">
+    <h4>ค่าคอมมิชชั่น / Commission</h4>
+    <p>Sales Partner: ${o.salesPartner || "-"}</p>
+    <p>Commission Rate: ${o.commissionRate || 0}%</p>
+    <p>Total Commission: ${fmt(o.totalCommission || 0)}</p>
+  </div>
+</div>
+${o.notes ? `<div style="margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px"><strong>หมายเหตุ:</strong> ${o.notes}</div>` : ""}
+<div class="sign-area">
+  <div class="sign-box"><div class="sign-line">ผู้สั่งซื้อ / Customer</div></div>
+  <div class="sign-box"><div class="sign-line">ผู้อนุมัติ / Authorized</div></div>
+</div>
+<script>window.onload=()=>window.print()</script>
+</body></html>`;
+
+  return c.html(html);
 });
 
 export { salesOrdersRoute };

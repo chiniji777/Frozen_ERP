@@ -13,6 +13,7 @@ interface Props<T> {
   onAdd?: () => void;
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
+  extraActions?: (item: T) => React.ReactNode;
   getId: (item: T) => number | string;
 }
 
@@ -25,6 +26,7 @@ export default function DataTable<T>({
   onAdd,
   onEdit,
   onDelete,
+  extraActions,
   getId,
 }: Props<T>) {
   const [search, setSearch] = useState('');
@@ -69,7 +71,7 @@ export default function DataTable<T>({
                   {col.label}
                 </th>
               ))}
-              {(onEdit || onDelete) && (
+              {(onEdit || onDelete || extraActions) && (
                 <th className="text-right px-4 py-3 font-semibold text-gray-600">จัดการ</th>
               )}
             </tr>
@@ -89,8 +91,9 @@ export default function DataTable<T>({
                       {col.render ? col.render(item) : String((item as Record<string, unknown>)[col.key] ?? '-')}
                     </td>
                   ))}
-                  {(onEdit || onDelete) && (
+                  {(onEdit || onDelete || extraActions) && (
                     <td className="px-4 py-3 text-right space-x-2">
+                      {extraActions && extraActions(item)}
                       {onEdit && (
                         <button
                           onClick={() => onEdit(item)}

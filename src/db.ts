@@ -259,6 +259,9 @@ async function migrateSalesOrders() {
     ["sales_partner", "TEXT"],
     ["commission_rate", "REAL DEFAULT 0"],
     ["total_commission", "REAL DEFAULT 0"],
+    ["po_number", "TEXT"],
+    ["po_date", "TEXT"],
+    ["po_notes", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
@@ -267,6 +270,18 @@ async function migrateSalesOrders() {
       // column already exists — skip
     }
   }
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS so_attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_order_id INTEGER NOT NULL,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT,
+      size INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_so_attachments_so ON so_attachments(sales_order_id);
+  `);
 }
 
 async function migrateSoItems() {
