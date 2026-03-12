@@ -20,8 +20,11 @@ export default function TopBar({ onMenuClick }: Props) {
       </button>
       <div className="flex-1" />
       <div className="flex items-center gap-3">
+        {user?.avatarUrl && (
+          <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+        )}
         <span className="text-sm text-gray-600">
-          {user?.username ?? 'ผู้ใช้'}
+          {user?.email || user?.username || 'ผู้ใช้'}
         </span>
         <button
           onClick={logout}

@@ -3,6 +3,8 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 interface User {
   id: number;
   username: string;
+  email: string;
+  avatarUrl: string | null;
   role: string;
 }
 
@@ -10,6 +12,7 @@ interface AuthCtx {
   user: User | null;
   token: string | null;
   login: (username: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -46,6 +49,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   };
 
+  const loginWithGoogle = async (idToken: string) => {
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'อีเมลนี้ไม่ได้รับอนุญาตให้เข้าใช้งาน');
+    }
+    const data = await res.json();
+    localStorage.setItem('token', data.token);
+    setToken(data.token);
+    setUser(data.user);
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setToken(null);
@@ -53,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, loginWithGoogle, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
