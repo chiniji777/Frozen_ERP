@@ -16,7 +16,6 @@ import { expensesRoute } from "./routes/expenses.js";
 import { dashboardRoute } from "./routes/dashboard.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
-import { seedAdmin } from "./seed.js";
 import { rateLimit } from "./rate-limit.js";
 
 export const app = new Hono();
@@ -37,8 +36,8 @@ app.onError((err, c) => {
 // Health check
 app.get("/api/health", (c) => c.json({ ok: true, service: "erp-backend" }));
 
-// Rate limit: login 5 attempts / 15 min, API 100 req / min
-app.use("/api/auth/login", rateLimit({ max: 5, windowMs: 15 * 60 * 1000, keyPrefix: "login" }));
+// Rate limit: auth 10 attempts / 15 min, API 100 req / min
+app.use("/api/auth/google", rateLimit({ max: 10, windowMs: 15 * 60 * 1000, keyPrefix: "auth" }));
 app.use("/api/*", rateLimit({ max: 100, windowMs: 60 * 1000, keyPrefix: "api" }));
 
 // Auth routes (public)
@@ -72,8 +71,8 @@ app.route("/api/expenses", expensesRoute);
 app.use("/api/dashboard", authMiddleware);
 app.route("/api/dashboard", dashboardRoute);
 
-// Init DB + seed on startup
-const _init = initDB().then(() => seedAdmin()).catch(console.error);
+// Init DB on startup
+const _init = initDB().catch(console.error);
 
 const port = 4000;
 console.log(`[erp] Server starting on port ${port}`);

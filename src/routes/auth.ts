@@ -2,54 +2,100 @@ import { Hono } from "hono";
 import { db } from "../db.js";
 import { users } from "../schema.js";
 import { eq } from "drizzle-orm";
-import { signToken, authMiddleware, requireRole, hashPassword, verifyPassword } from "../auth.js";
+import { signToken } from "../auth.js";
+
+const ALLOWED_EMAILS = ["tanawat.pree@gmail.com"];
 
 const auth = new Hono();
 
-auth.post("/login", async (c) => {
+auth.post("/google", async (c) => {
   const body = await c.req.json();
-  const { username, password } = body;
-  if (!username || !password) {
-    return c.json({ error: "username and password required" }, 400);
+  const { id_token } = body;
+
+  if (!id_token) {
+    return c.json({ error: "id_token is required" }, 400);
   }
-  const user = await db.select().from(users).where(eq(users.username, username)).get();
+
+  // Verify Google ID token
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  if (!googleClientId) {
+    return c.json({ error: "Server misconfiguration: GOOGLE_CLIENT_ID not set" }, 500);
+  }
+
+  let googlePayload: { email: string; name: string; sub: string; picture?: string };
+  try {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
+    if (!res.ok) {
+      return c.json({ error: "Invalid Google token" }, 401);
+    }
+    const data = await res.json() as Record<string, string>;
+
+    // Verify audience matches our client ID
+    if (data.aud !== googleClientId) {
+      return c.json({ error: "Token audience mismatch" }, 401);
+    }
+
+    googlePayload = {
+      email: data.email,
+      name: data.name || data.email.split("@")[0],
+      sub: data.sub,
+      picture: data.picture,
+    };
+  } catch {
+    return c.json({ error: "Failed to verify Google token" }, 401);
+  }
+
+  // Check email whitelist
+  if (!ALLOWED_EMAILS.includes(googlePayload.email)) {
+    return c.json({ error: "Access denied — email not authorized" }, 403);
+  }
+
+  // Upsert user
+  let user = await db.select().from(users).where(eq(users.email, googlePayload.email)).get();
+
   if (!user) {
-    return c.json({ error: "Invalid credentials" }, 401);
+    // Create new user
+    const result = await db.insert(users).values({
+      username: googlePayload.email.split("@")[0],
+      displayName: googlePayload.name,
+      role: "admin",
+      email: googlePayload.email,
+      googleId: googlePayload.sub,
+      avatarUrl: googlePayload.picture || null,
+    }).run();
+    user = await db.select().from(users).where(eq(users.email, googlePayload.email)).get();
+  } else {
+    // Update existing user info
+    await db.update(users).set({
+      googleId: googlePayload.sub,
+      avatarUrl: googlePayload.picture || user.avatarUrl,
+      displayName: googlePayload.name || user.displayName,
+    }).where(eq(users.id, user.id)).run();
   }
-  const valid = await verifyPassword(password, user.password);
-  if (!valid) {
-    return c.json({ error: "Invalid credentials" }, 401);
+
+  if (!user) {
+    return c.json({ error: "Failed to create user" }, 500);
   }
-  const token = await signToken({ userId: user.id, username: user.username, role: user.role });
+
+  const token = await signToken({
+    userId: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+  });
+
   return c.json({
     ok: true,
     token,
-    user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role },
+    user: {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+    },
   });
-});
-
-auth.post("/register", authMiddleware, requireRole("admin"), async (c) => {
-  const body = await c.req.json();
-  const { username, password, displayName, role, email } = body;
-  if (!username || !password || !displayName) {
-    return c.json({ error: "username, password, displayName required" }, 400);
-  }
-  if (role && !["admin", "manager", "staff"].includes(role)) {
-    return c.json({ error: "role must be admin, manager, or staff" }, 400);
-  }
-  const existing = await db.select().from(users).where(eq(users.username, username)).get();
-  if (existing) {
-    return c.json({ error: "Username already exists" }, 409);
-  }
-  const hashed = await hashPassword(password);
-  const result = await db.insert(users).values({
-    username,
-    password: hashed,
-    displayName,
-    role: role || "staff",
-    email: email || null,
-  }).run();
-  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
 
 export { auth };

@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify } from "jose";
-import bcrypt from "bcryptjs";
 import type { Context, Next } from "hono";
 
 if (!process.env.JWT_SECRET) {
@@ -7,15 +6,7 @@ if (!process.env.JWT_SECRET) {
 }
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
-}
-
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
-}
-
-export async function signToken(payload: { userId: number; username: string; role: string }): Promise<string> {
+export async function signToken(payload: { userId: number; username: string; email: string; role: string }): Promise<string> {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("24h")
@@ -25,7 +16,7 @@ export async function signToken(payload: { userId: number; username: string; rol
 
 export async function verifyToken(token: string) {
   const { payload } = await jwtVerify(token, JWT_SECRET);
-  return payload as { userId: number; username: string; role: string };
+  return payload as { userId: number; username: string; email: string; role: string };
 }
 
 export async function authMiddleware(c: Context, next: Next) {

@@ -9,10 +9,11 @@ const timestamps = {
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
-  password: text("password").notNull(),
   displayName: text("display_name").notNull(),
   role: text("role", { enum: ["admin", "manager", "staff"] }).notNull().default("staff"),
-  email: text("email"),
+  email: text("email").notNull().unique(),
+  googleId: text("google_id"),
+  avatarUrl: text("avatar_url"),
   ...timestamps,
 });
 
