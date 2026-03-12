@@ -236,6 +236,69 @@ export async function initDB() {
   `);
   await migrateCustomers();
   await migrateProducts();
+  await migrateSalesOrders();
+  await migrateSoItems();
+  await migrateSoPaymentTerms();
+}
+
+async function migrateSalesOrders() {
+  const newCols: [string, string][] = [
+    ["date", "TEXT"],
+    ["delivery_start_date", "TEXT"],
+    ["delivery_end_date", "TEXT"],
+    ["customer_address", "TEXT"],
+    ["shipping_address_name", "TEXT"],
+    ["shipping_address", "TEXT"],
+    ["contact_person", "TEXT"],
+    ["contact", "TEXT"],
+    ["mobile_no", "TEXT"],
+    ["warehouse", "TEXT DEFAULT 'Ladprao 43 - FFP'"],
+    ["total_quantity", "REAL DEFAULT 0"],
+    ["total_net_weight", "REAL DEFAULT 0"],
+    ["payment_terms_template", "TEXT"],
+    ["sales_partner", "TEXT"],
+    ["commission_rate", "REAL DEFAULT 0"],
+    ["total_commission", "REAL DEFAULT 0"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE sales_orders ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
+}
+
+async function migrateSoItems() {
+  const newCols: [string, string][] = [
+    ["item_code", "TEXT"],
+    ["rate", "REAL"],
+    ["uom", "TEXT DEFAULT 'Pcs.'"],
+    ["weight", "REAL DEFAULT 0"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE so_items ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
+}
+
+async function migrateSoPaymentTerms() {
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS so_payment_terms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_order_id INTEGER NOT NULL,
+      payment_term TEXT,
+      description TEXT,
+      due_date TEXT,
+      invoice_portion REAL,
+      payment_amount REAL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_so_payment_terms_so ON so_payment_terms(sales_order_id);
+  `);
 }
 
 async function migrateProducts() {
