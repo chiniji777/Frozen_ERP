@@ -26,6 +26,29 @@ bomRoute.get("/", async (c) => {
   return c.json(result);
 });
 
+bomRoute.get("/by-product/:productId", async (c) => {
+  const productId = Number(c.req.param("productId"));
+  const boms = await db.select().from(bom).where(eq(bom.productId, productId)).all();
+  const result = [];
+  for (const b of boms) {
+    const items = await db.select({
+      id: bomItems.id,
+      rawMaterialId: bomItems.rawMaterialId,
+      quantity: bomItems.quantity,
+      unit: bomItems.unit,
+      materialName: rawMaterials.name,
+      pricePerUnit: rawMaterials.pricePerUnit,
+      stock: rawMaterials.stock,
+    }).from(bomItems)
+      .leftJoin(rawMaterials, eq(bomItems.rawMaterialId, rawMaterials.id))
+      .where(eq(bomItems.bomId, b.id))
+      .all();
+    const product = await db.select().from(products).where(eq(products.id, b.productId)).get();
+    result.push({ ...b, product, items });
+  }
+  return c.json(result);
+});
+
 bomRoute.get("/:id", async (c) => {
   const id = Number(c.req.param("id"));
   const b = await db.select().from(bom).where(eq(bom.id, id)).get();
