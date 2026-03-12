@@ -166,8 +166,11 @@ export const soPaymentTerms = sqliteTable("so_payment_terms", {
 export const deliveryNotes = sqliteTable("delivery_notes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   salesOrderId: integer("sales_order_id").notNull(),
+  salesOrderIds: text("sales_order_ids"),
   dnNumber: text("dn_number").notNull().unique(),
   status: text("status", { enum: ["pending", "shipped", "delivered"] }).notNull().default("pending"),
+  driverPhone: text("driver_phone"),
+  pickupPoint: text("pickup_point"),
   shippedAt: text("shipped_at"),
   deliveredAt: text("delivered_at"),
   notes: text("notes"),

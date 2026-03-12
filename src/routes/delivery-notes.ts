@@ -18,18 +18,36 @@ deliveryNotesRoute.get("/", async (c) => {
 
 deliveryNotesRoute.post("/", async (c) => {
   const body = await c.req.json();
-  if (!body.salesOrderId) return c.json({ error: "salesOrderId required" }, 400);
-  const so = await db.select().from(salesOrders).where(eq(salesOrders.id, body.salesOrderId)).get();
-  if (!so) return c.json({ error: "Sales order not found" }, 404);
-  if (so.status !== "confirmed") return c.json({ error: "Sales order must be confirmed" }, 400);
+  // Support multi-SO: accept salesOrderIds (array) or salesOrderId (single)
+  const soIds: number[] = body.salesOrderIds?.length
+    ? body.salesOrderIds.map(Number)
+    : body.salesOrderId ? [Number(body.salesOrderId)] : [];
+  if (soIds.length === 0) return c.json({ error: "salesOrderId or salesOrderIds required" }, 400);
+
+  // Validate all SOs exist and are confirmed
+  for (const soId of soIds) {
+    const so = await db.select().from(salesOrders).where(eq(salesOrders.id, soId)).get();
+    if (!so) return c.json({ error: `Sales order ${soId} not found` }, 404);
+    if (so.status !== "confirmed") return c.json({ error: `Sales order ${soId} must be confirmed` }, 400);
+  }
+
   const dnNumber = await generateRunningNumber("DN", "delivery_notes", "dn_number");
   const result = await db.insert(deliveryNotes).values({
-    salesOrderId: body.salesOrderId, dnNumber, notes: body.notes || null,
+    salesOrderId: soIds[0],
+    salesOrderIds: JSON.stringify(soIds),
+    dnNumber,
+    driverPhone: body.driverPhone || null,
+    pickupPoint: body.pickupPoint || null,
+    notes: body.notes || null,
   }).run();
   const dnId = Number(result.lastInsertRowid);
-  const items = await db.select().from(soItems).where(eq(soItems.salesOrderId, body.salesOrderId)).all();
-  for (const item of items) {
-    await db.insert(dnItems).values({ deliveryNoteId: dnId, productId: item.productId, quantity: item.quantity }).run();
+
+  // Collect items from all SOs
+  for (const soId of soIds) {
+    const items = await db.select().from(soItems).where(eq(soItems.salesOrderId, soId)).all();
+    for (const item of items) {
+      await db.insert(dnItems).values({ deliveryNoteId: dnId, productId: item.productId, quantity: item.quantity }).run();
+    }
   }
   return c.json({ ok: true, id: dnId, dnNumber }, 201);
 });
