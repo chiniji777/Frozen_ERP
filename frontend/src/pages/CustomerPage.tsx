@@ -295,6 +295,7 @@ export default function CustomerPage() {
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={(c) => setDeleteTarget(c)}
+        onRowClick={openEdit}
         extraActions={(c: Customer) => (
           <button onClick={() => setViewTarget(c)} className="text-gray-500 hover:text-indigo-600 text-sm mr-1">
             ดูเพิ่ม

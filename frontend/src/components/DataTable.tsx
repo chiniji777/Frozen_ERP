@@ -19,6 +19,7 @@ interface Props<T> {
   selectedIds?: Set<number | string>;
   onSelectionChange?: (ids: Set<number | string>) => void;
   toolbarExtra?: React.ReactNode;
+  onRowClick?: (item: T) => void;
 }
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -36,6 +37,7 @@ export default function DataTable<T>({
   selectedIds,
   onSelectionChange,
   toolbarExtra,
+  onRowClick,
 }: Props<T>) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -124,9 +126,9 @@ export default function DataTable<T>({
               paged.map((item) => {
                 const itemId = getId(item);
                 return (
-                <tr key={itemId} className={`border-b border-gray-50 hover:bg-gray-50 ${selectable && selectedIds?.has(itemId) ? 'bg-indigo-50' : ''}`}>
+                <tr key={itemId} className={`border-b border-gray-50 hover:bg-gray-50 ${selectable && selectedIds?.has(itemId) ? 'bg-indigo-50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`} onClick={onRowClick ? () => onRowClick(item) : undefined}>
                   {selectable && (
-                    <td className="px-4 py-3 w-10">
+                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds?.has(itemId) ?? false} onChange={() => toggleSelect(itemId)} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                     </td>
                   )}
@@ -136,7 +138,7 @@ export default function DataTable<T>({
                     </td>
                   ))}
                   {(onEdit || onDelete || extraActions) && (
-                    <td className="px-4 py-3 text-right space-x-2">
+                    <td className="px-4 py-3 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
                       {extraActions && extraActions(item)}
                       {onEdit && (
                         <button
