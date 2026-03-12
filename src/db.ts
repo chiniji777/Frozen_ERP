@@ -23,10 +23,11 @@ export async function initDB() {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
       display_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'staff',
-      email TEXT,
+      email TEXT NOT NULL UNIQUE,
+      google_id TEXT,
+      avatar_url TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
