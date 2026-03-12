@@ -19,12 +19,15 @@ interface DeliveryNote {
   id: number;
   dn_number: string;
   sales_order_id: number;
+  sales_order_ids?: string;
   so_order_number?: string;
   customer_name?: string;
   status: string;
   delivery_date?: string;
   driver_name?: string;
+  driver_phone?: string;
   vehicle_no?: string;
+  pickup_point?: string;
   notes?: string;
   items: DNItem[];
   created_at?: string;
@@ -71,13 +74,14 @@ export default function DeliveryNotePage() {
   const [viewDN, setViewDN] = useState<DeliveryNote | null>(null);
   const [actionTarget, setActionTarget] = useState<{ dn: DeliveryNote; action: string } | null>(null);
 
-  const [formSOId, setFormSOId] = useState<number | ''>('');
+  const [formSOIds, setFormSOIds] = useState<number[]>([]);
   const [formDeliveryDate, setFormDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
   const [formDriverName, setFormDriverName] = useState('');
+  const [formDriverPhone, setFormDriverPhone] = useState('');
   const [formVehicleNo, setFormVehicleNo] = useState('');
+  const [formPickupPoint, setFormPickupPoint] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formItems, setFormItems] = useState<DNItem[]>([]);
-  const [selectedSOLabel, setSelectedSOLabel] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -93,23 +97,29 @@ export default function DeliveryNotePage() {
 
   useEffect(() => { load(); }, []);
 
-  const onSOChange = async (soId: number) => {
-    setFormSOId(soId);
-    const so = orders.find((o) => o.id === soId);
-    if (!so) { setFormItems([]); setSelectedSOLabel(''); return; }
-    setSelectedSOLabel(`${so.order_number} — ${so.customer_name || ''}`);
-    try {
-      const detail = await api.get<SalesOrder>(`/sales-orders/${soId}`);
-      if (detail.items) {
-        setFormItems(detail.items.map((it) => ({
-          product_name: it.product_name || '', product_id: it.product_id,
-          item_code: it.item_code, quantity: it.quantity,
-          uom: it.uom || 'Pcs.', weight: it.weight || 0,
-        })));
-      }
-    } catch {
-      setFormItems([{ product_name: 'สินค้า', quantity: 1, uom: 'Pcs.', weight: 0 }]);
+  const toggleSO = async (soId: number) => {
+    let newIds: number[];
+    if (formSOIds.includes(soId)) {
+      newIds = formSOIds.filter((id) => id !== soId);
+    } else {
+      newIds = [...formSOIds, soId];
     }
+    setFormSOIds(newIds);
+    // Reload items from all selected SOs
+    const allItems: DNItem[] = [];
+    for (const id of newIds) {
+      try {
+        const detail = await api.get<SalesOrder>(`/sales-orders/${id}`);
+        if (detail.items) {
+          allItems.push(...detail.items.map((it) => ({
+            product_name: it.product_name || '', product_id: it.product_id,
+            item_code: it.item_code, quantity: it.quantity,
+            uom: it.uom || 'Pcs.', weight: it.weight || 0,
+          })));
+        }
+      } catch { /* skip */ }
+    }
+    setFormItems(allItems);
   };
 
   const updateItem = (i: number, field: keyof DNItem, val: string | number) => {
@@ -119,20 +129,22 @@ export default function DeliveryNotePage() {
   };
 
   const openAdd = () => {
-    setFormSOId(''); setFormDeliveryDate(new Date().toISOString().split('T')[0]);
-    setFormDriverName(''); setFormVehicleNo(''); setFormNotes('');
-    setFormItems([]); setSelectedSOLabel('');
+    setFormSOIds([]); setFormDeliveryDate(new Date().toISOString().split('T')[0]);
+    setFormDriverName(''); setFormDriverPhone(''); setFormVehicleNo('');
+    setFormPickupPoint(''); setFormNotes(''); setFormItems([]);
     setFormOpen(true);
   };
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formSOId) return;
+    if (formSOIds.length === 0) return;
     await api.post('/delivery-notes', {
-      sales_order_id: Number(formSOId),
+      salesOrderIds: formSOIds,
       delivery_date: formDeliveryDate || null,
       driver_name: formDriverName || null,
+      driverPhone: formDriverPhone || null,
       vehicle_no: formVehicleNo || null,
+      pickupPoint: formPickupPoint || null,
       notes: formNotes || null,
       items: formItems.map((it) => ({
         product_id: it.product_id, item_code: it.item_code,
@@ -166,29 +178,30 @@ export default function DeliveryNotePage() {
           <button onClick={() => setFormOpen(false)} className="text-gray-400 hover:text-gray-600 text-sm">กลับรายการ</button>
         </div>
         <form onSubmit={handleCreate}>
-          <Section title="เลือกใบสั่งขาย">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">ใบสั่งขาย (SO)</label>
-                <select required value={formSOId} onChange={(e) => onSOChange(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                  <option value="">-- เลือก SO --</option>
-                  {orders.map((o) => <option key={o.id} value={o.id}>{o.order_number} — {o.customer_name}</option>)}
-                </select>
-              </div>
-              {selectedSOLabel && (
-                <div className="flex items-center">
-                  <span className="text-sm text-gray-500">อ้างอิง: <strong className="text-gray-700">{selectedSOLabel}</strong></span>
-                </div>
-              )}
+          <Section title="เลือกใบสั่งขาย (เลือกได้หลายรายการ)">
+            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+              {orders.length === 0 ? (
+                <p className="text-sm text-gray-400 py-2 text-center">ไม่มี SO ที่ confirmed</p>
+              ) : orders.map((o) => (
+                <label key={o.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 ${formSOIds.includes(o.id) ? 'bg-indigo-50' : ''}`}>
+                  <input type="checkbox" checked={formSOIds.includes(o.id)} onChange={() => toggleSO(o.id)}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                  <span className="text-sm text-gray-700">{o.order_number} — {o.customer_name}</span>
+                </label>
+              ))}
             </div>
+            {formSOIds.length > 0 && (
+              <p className="mt-2 text-xs text-indigo-600">เลือก {formSOIds.length} ใบสั่งขาย</p>
+            )}
           </Section>
 
           <Section title="ข้อมูลจัดส่ง">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InputField label="วันที่จัดส่ง" value={formDeliveryDate} onChange={setFormDeliveryDate} type="date" />
               <InputField label="ชื่อคนขับ" value={formDriverName} onChange={setFormDriverName} placeholder="ชื่อคนขับรถ" />
+              <InputField label="เบอร์โทรคนขับ" value={formDriverPhone} onChange={setFormDriverPhone} placeholder="08x-xxx-xxxx" />
               <InputField label="ทะเบียนรถ" value={formVehicleNo} onChange={setFormVehicleNo} placeholder="เช่น กท-1234" />
+              <InputField label="จุดรับสินค้า" value={formPickupPoint} onChange={setFormPickupPoint} placeholder="สถานที่ไปรับของ" />
             </div>
           </Section>
 
@@ -245,7 +258,7 @@ export default function DeliveryNotePage() {
           <div className="flex justify-end gap-3 mb-8">
             <button type="button" onClick={() => setFormOpen(false)}
               className="px-6 py-2.5 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
-            <button type="submit" disabled={!formSOId}
+            <button type="submit" disabled={formSOIds.length === 0}
               className="px-6 py-2.5 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium disabled:opacity-50">
               สร้างใบส่งของ
             </button>
@@ -317,7 +330,9 @@ export default function DeliveryNotePage() {
                 <h4 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลจัดส่ง</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="text-gray-500">คนขับ:</span> {viewDN.driver_name || '-'}</div>
+                  <div><span className="text-gray-500">เบอร์โทรคนขับ:</span> {viewDN.driver_phone || '-'}</div>
                   <div><span className="text-gray-500">ทะเบียนรถ:</span> {viewDN.vehicle_no || '-'}</div>
+                  <div><span className="text-gray-500">จุดรับสินค้า:</span> {viewDN.pickup_point || '-'}</div>
                   {viewDN.notes && <div className="col-span-2"><span className="text-gray-500">หมายเหตุ:</span> {viewDN.notes}</div>}
                 </div>
               </div>
