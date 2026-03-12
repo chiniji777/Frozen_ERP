@@ -1,7 +1,8 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
+import SearchableSelect from '../components/SearchableSelect';
 
 interface Customer {
   id: number; name: string; fullName?: string; nickName?: string;
@@ -91,6 +92,9 @@ export default function SalesOrderPage() {
   const [detailOrder, setDetailOrder] = useState<SalesOrder | null>(null);
   const [attachments, setAttachments] = useState<SOAttachment[]>([]);
   const [companyName, setCompanyName] = useState('Frozen Food Plus Co., Ltd.');
+  const [creatingDn, setCreatingDn] = useState(false);
+  const [creatingInv, setCreatingInv] = useState(false);
+  const [toast, setToast] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -106,6 +110,16 @@ export default function SalesOrderPage() {
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  // Searchable select options
+  const customerOptions = useMemo(() =>
+    customers.map((c) => ({ value: c.id, label: c.name, searchText: c.nickName || '' })),
+    [customers]
+  );
+  const productOptions = useMemo(() =>
+    products.map((p) => ({ value: p.id, label: p.name, searchText: p.sku || '' })),
+    [products]
+  );
 
   // Auto-fill when customer changes
   const onCustomerChange = (custId: number) => {
@@ -177,8 +191,47 @@ export default function SalesOrderPage() {
     e.target.value = '';
   };
 
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(''), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   const handlePrint = (orderId: number) => {
     window.open(`/api/sales-orders/${orderId}/print`, '_blank');
+  };
+
+  const handleCreateDn = async () => {
+    if (!detailOrder) return;
+    setCreatingDn(true);
+    try {
+      await api.post('/delivery-notes', { sales_order_id: detailOrder.id });
+      setToast('สร้างใบส่งของ (DN) สำเร็จ');
+      const updated = await api.get<SalesOrder>(`/sales-orders/${detailOrder.id}`);
+      setDetailOrder(updated);
+      load();
+    } catch {
+      setToast('ไม่สามารถสร้าง DN ได้');
+    } finally {
+      setCreatingDn(false);
+    }
+  };
+
+  const handleCreateInvoice = async () => {
+    if (!detailOrder) return;
+    setCreatingInv(true);
+    try {
+      await api.post('/invoices', { sales_order_id: detailOrder.id });
+      setToast('สร้างใบแจ้งหนี้ (Invoice) สำเร็จ');
+      const updated = await api.get<SalesOrder>(`/sales-orders/${detailOrder.id}`);
+      setDetailOrder(updated);
+      load();
+    } catch {
+      setToast('ไม่สามารถสร้าง Invoice ได้');
+    } finally {
+      setCreatingInv(false);
+    }
   };
 
   const openAdd = () => {
@@ -267,6 +320,18 @@ export default function SalesOrderPage() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold">{detailOrder.orderNumber}</h2>
                 <div className="flex gap-2">
+                  {detailOrder.status === 'confirmed' && (
+                    <button onClick={handleCreateDn} disabled={creatingDn}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                      {creatingDn ? 'กำลังสร้าง...' : 'สร้าง DN'}
+                    </button>
+                  )}
+                  {detailOrder.status === 'delivered' && (
+                    <button onClick={handleCreateInvoice} disabled={creatingInv}
+                      className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                      {creatingInv ? 'กำลังสร้าง...' : 'สร้าง Invoice'}
+                    </button>
+                  )}
                   <button onClick={() => handlePrint(detailOrder.id)} className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Print</button>
                   <button onClick={() => setDetailOrder(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
                 </div>
@@ -307,6 +372,11 @@ export default function SalesOrderPage() {
         )}
         <ConfirmDialog open={!!confirmTarget} message={`Confirm Sales Order "${confirmTarget?.orderNumber}"?`}
           onConfirm={handleConfirm} onCancel={() => setConfirmTarget(null)} />
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">
+            {toast}
+          </div>
+        )}
       </div>
     );
   }
@@ -332,11 +402,13 @@ export default function SalesOrderPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Customer</label>
-              <select required value={formCustId} onChange={(e) => onCustomerChange(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-                <option value="">-- Select Customer --</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={customerOptions}
+                value={formCustId}
+                onChange={(v) => onCustomerChange(Number(v))}
+                placeholder="พิมพ์ชื่อ/รหัสลูกค้า..."
+                required
+              />
             </div>
             <InputField label="Company" value={companyName} onChange={() => {}} disabled />
             <InputField label="Date" value={formDate} onChange={setFormDate} type="date" />
@@ -390,11 +462,13 @@ export default function SalesOrderPage() {
                         className="w-24 px-2 py-1 border rounded text-sm" placeholder="Code" />
                     </td>
                     <td className="py-2 pr-2">
-                      <select value={item.productId} onChange={(e) => updateItem(i, 'productId', Number(e.target.value))}
-                        className="w-40 px-2 py-1 border rounded text-sm">
-                        <option value={0}>-- Select --</option>
-                        {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
+                      <SearchableSelect
+                        options={productOptions}
+                        value={item.productId}
+                        onChange={(v) => updateItem(i, 'productId', Number(v))}
+                        placeholder="ค้นสินค้า..."
+                        className="w-48"
+                      />
                     </td>
                     <td className="py-2 pr-2">
                       <input type="number" min="0" step="0.01" value={item.quantity}
