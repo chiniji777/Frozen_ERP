@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -95,6 +95,8 @@ export default function SalesOrderPage() {
   const [creatingInv, setCreatingInv] = useState(false);
   const [toast, setToast] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
+  const [cancelTarget, setCancelTarget] = useState<SalesOrder | null>(null);
 
   // Reset to list view when sidebar re-navigates to this page
   useEffect(() => {
@@ -292,11 +294,9 @@ export default function SalesOrderPage() {
     setCreatingDn(true);
     try {
       await api.post('/delivery-notes', { salesOrderId: soId });
-      setToast('สร้างใบส่งของ (DN) สำเร็จ');
-      const updated = await api.get<SalesOrder>(`/sales-orders/${soId}`);
-      setDetailOrder(updated);
-      setAttachments(updated.attachments || []);
+      setToast('สร้างใบส่งของ (DN) สำเร็จ — กำลังไปหน้า DN...');
       load();
+      setTimeout(() => navigate('/delivery-notes'), 500);
     } catch {
       setToast('ไม่สามารถสร้าง DN ได้');
     } finally { setCreatingDn(false); }
@@ -306,11 +306,9 @@ export default function SalesOrderPage() {
     setCreatingInv(true);
     try {
       await api.post('/invoices', { salesOrderId: soId });
-      setToast('สร้างใบแจ้งหนี้ (Invoice) สำเร็จ');
-      const updated = await api.get<SalesOrder>(`/sales-orders/${soId}`);
-      setDetailOrder(updated);
-      setAttachments(updated.attachments || []);
+      setToast('สร้างใบแจ้งหนี้ (Invoice) สำเร็จ — กำลังไปหน้า Invoice...');
       load();
+      setTimeout(() => navigate('/invoices'), 500);
     } catch {
       setToast('ไม่สามารถสร้าง Invoice ได้');
     } finally { setCreatingInv(false); }
@@ -375,6 +373,22 @@ export default function SalesOrderPage() {
     load();
   };
 
+  const handleCancelSO = async () => {
+    if (!cancelTarget) return;
+    try {
+      await api.post(`/sales-orders/${cancelTarget.id}/cancel`, {});
+      setToast(`ยกเลิก ${cancelTarget.orderNumber} สำเร็จ`);
+      if (detailOrder && detailOrder.id === cancelTarget.id) {
+        const updated = await api.get<SalesOrder>(`/sales-orders/${cancelTarget.id}`);
+        setDetailOrder(updated);
+      }
+      load();
+    } catch {
+      setToast('ไม่สามารถยกเลิกได้ — อาจมี DN/Invoice ที่ยัง active');
+    }
+    setCancelTarget(null);
+  };
+
   const handleConfirm = async () => {
     if (!confirmTarget) return;
     await api.post(`/sales-orders/${confirmTarget.id}/confirm`, {});
@@ -419,6 +433,10 @@ export default function SalesOrderPage() {
                 <button onClick={() => setConfirmTarget(so)}
                   className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                   ✓ Confirm
+                </button>
+                <button onClick={() => setCancelTarget(so)}
+                  className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                  ✕ ยกเลิก
                 </button>
               </>
             )}
@@ -598,6 +616,8 @@ export default function SalesOrderPage() {
 
         <ConfirmDialog open={!!confirmTarget} message={`Confirm Sales Order "${confirmTarget?.orderNumber}"?`}
           onConfirm={handleConfirm} onCancel={() => setConfirmTarget(null)} />
+        <ConfirmDialog open={!!cancelTarget} message={`ยกเลิกใบสั่งขาย "${cancelTarget?.orderNumber}" ใช่ไหม? (ไม่สามารถกู้คืนได้)`}
+          onConfirm={handleCancelSO} onCancel={() => setCancelTarget(null)} />
         {toast && (
           <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">
             {toast}
