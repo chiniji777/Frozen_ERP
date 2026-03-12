@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
 import { purchaseOrders, poItems, rawMaterials } from "../schema.js";
+import { generateRunningNumber } from "../utils.js";
 import { eq, sql } from "drizzle-orm";
 
 const purchaseOrdersRoute = new Hono();
@@ -20,8 +21,8 @@ purchaseOrdersRoute.post("/", async (c) => {
     }
   }
 
-  // Auto-gen PO number
-  const poNumber = `PO-${Date.now()}`;
+  // Auto-gen PO number (running number like SO, IV, DN)
+  const poNumber = await generateRunningNumber("PO", "purchase_orders", "po_number");
 
   // Calculate total
   const totalAmount = body.items.reduce((sum: number, item: any) => {
