@@ -3,8 +3,21 @@ import { db } from "../db.js";
 import { salesOrders, soItems, soPaymentTerms, soAttachments, products, customers } from "../schema.js";
 import { eq, like, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
-import { join } from "path";
-import { mkdir, readFile, stat } from "fs/promises";
+import { join, basename } from "path";
+import { mkdir, unlink } from "fs/promises";
+
+function escapeHtml(s: string | null | undefined): string {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel", "application/msword", "text/plain", "text/csv",
+]);
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const salesOrdersRoute = new Hono();
 
@@ -256,6 +269,8 @@ salesOrdersRoute.post("/:id/attachments", async (c) => {
   const formData = await c.req.formData();
   const file = formData.get("file");
   if (!file || !(file instanceof File)) return c.json({ error: "file required" }, 400);
+  if (file.size > MAX_FILE_SIZE) return c.json({ error: "File too large (max 10MB)" }, 400);
+  if (file.type && !ALLOWED_MIME_TYPES.has(file.type)) return c.json({ error: `File type not allowed: ${file.type}` }, 400);
 
   await mkdir(ATTACHMENTS_DIR, { recursive: true });
   const ext = file.name.split(".").pop() || "bin";
@@ -284,7 +299,7 @@ salesOrdersRoute.delete("/:soId/attachments/:attId", async (c) => {
   const attId = Number(c.req.param("attId"));
   const att = await db.select().from(soAttachments).where(eq(soAttachments.id, attId)).get();
   if (!att) return c.json({ error: "Attachment not found" }, 404);
-  try { await Bun.write(join(ATTACHMENTS_DIR, att.filename), ""); } catch {}
+  try { await unlink(join(ATTACHMENTS_DIR, att.filename)); } catch {}
   await db.delete(soAttachments).where(eq(soAttachments.id, attId)).run();
   return c.json({ ok: true });
 });
@@ -342,30 +357,30 @@ salesOrdersRoute.get("/:id/print", async (c) => {
   </div>
   <div class="doc-info">
     <h2>ใบสั่งขาย / Sales Order</h2>
-    <p><strong>${o.orderNumber}</strong></p>
-    <p>วันที่: ${o.date || "-"}</p>
-    <p>สถานะ: ${o.status}</p>
-    ${o.poNumber ? `<p>PO#: ${o.poNumber}</p>` : ""}
-    ${o.poDate ? `<p>PO Date: ${o.poDate}</p>` : ""}
+    <p><strong>${escapeHtml(o.orderNumber)}</strong></p>
+    <p>วันที่: ${escapeHtml(o.date) || "-"}</p>
+    <p>สถานะ: ${escapeHtml(o.status)}</p>
+    ${o.poNumber ? `<p>PO#: ${escapeHtml(o.poNumber)}</p>` : ""}
+    ${o.poDate ? `<p>PO Date: ${escapeHtml(o.poDate)}</p>` : ""}
   </div>
 </div>
 <div class="info-grid">
   <div class="info-box">
     <h4>ลูกค้า / Customer</h4>
-    <p><strong>${customer?.name || "-"}</strong></p>
-    ${customer?.fullName ? `<p>${customer.fullName}</p>` : ""}
-    ${o.customerAddress ? `<p>${o.customerAddress}</p>` : ""}
-    ${o.contactPerson ? `<p>ติดต่อ: ${o.contactPerson}</p>` : ""}
-    ${o.contact ? `<p>โทร: ${o.contact}</p>` : ""}
-    ${customer?.taxId ? `<p>Tax ID: ${customer.taxId}</p>` : ""}
+    <p><strong>${escapeHtml(customer?.name) || "-"}</strong></p>
+    ${customer?.fullName ? `<p>${escapeHtml(customer.fullName)}</p>` : ""}
+    ${o.customerAddress ? `<p>${escapeHtml(o.customerAddress)}</p>` : ""}
+    ${o.contactPerson ? `<p>ติดต่อ: ${escapeHtml(o.contactPerson)}</p>` : ""}
+    ${o.contact ? `<p>โทร: ${escapeHtml(o.contact)}</p>` : ""}
+    ${customer?.taxId ? `<p>Tax ID: ${escapeHtml(customer.taxId)}</p>` : ""}
   </div>
   <div class="info-box">
     <h4>การจัดส่ง / Delivery</h4>
-    ${o.shippingAddressName ? `<p>${o.shippingAddressName}</p>` : ""}
-    ${o.shippingAddress ? `<p>${o.shippingAddress}</p>` : ""}
-    ${o.deliveryStartDate ? `<p>เริ่ม: ${o.deliveryStartDate}</p>` : ""}
-    ${o.deliveryEndDate ? `<p>สิ้นสุด: ${o.deliveryEndDate}</p>` : ""}
-    <p>คลัง: ${o.warehouse || "Ladprao 43 - FFP"}</p>
+    ${o.shippingAddressName ? `<p>${escapeHtml(o.shippingAddressName)}</p>` : ""}
+    ${o.shippingAddress ? `<p>${escapeHtml(o.shippingAddress)}</p>` : ""}
+    ${o.deliveryStartDate ? `<p>เริ่ม: ${escapeHtml(o.deliveryStartDate)}</p>` : ""}
+    ${o.deliveryEndDate ? `<p>สิ้นสุด: ${escapeHtml(o.deliveryEndDate)}</p>` : ""}
+    <p>คลัง: ${escapeHtml(o.warehouse) || "Ladprao 43 - FFP"}</p>
   </div>
 </div>
 <table>
@@ -375,7 +390,7 @@ salesOrdersRoute.get("/:id/print", async (c) => {
     <th class="text-right">ราคา/หน่วย</th><th class="text-right">จำนวนเงิน</th>
   </tr></thead>
   <tbody>${items.map((it, i) => `<tr>
-    <td>${i + 1}</td><td>${it.itemCode || "-"}</td><td>${it.productName || "-"}</td><td>${it.uom || "Pcs."}</td>
+    <td>${i + 1}</td><td>${escapeHtml(it.itemCode) || "-"}</td><td>${escapeHtml(it.productName) || "-"}</td><td>${escapeHtml(it.uom) || "Pcs."}</td>
     <td class="text-right">${fmt(it.quantity)}</td><td class="text-right">${fmt(it.weight || 0)}</td>
     <td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.amount)}</td>
   </tr>`).join("")}</tbody>
@@ -390,18 +405,18 @@ salesOrdersRoute.get("/:id/print", async (c) => {
 <div class="footer">
   <div class="footer-box">
     <h4>เงื่อนไขการชำระ / Payment Terms</h4>
-    <p>${o.paymentTermsTemplate || "-"}</p>
-    ${paymentTermsRows.length ? `<table style="margin-top:5px"><thead><tr><th>งวด</th><th>คำอธิบาย</th><th>กำหนด</th><th class="text-right">%</th><th class="text-right">จำนวน</th></tr></thead><tbody>${paymentTermsRows.map(pt => `<tr><td>${pt.paymentTerm || "-"}</td><td>${pt.description || "-"}</td><td>${pt.dueDate || "-"}</td><td class="text-right">${pt.invoicePortion || 0}</td><td class="text-right">${fmt(pt.paymentAmount || 0)}</td></tr>`).join("")}</tbody></table>` : ""}
-    ${o.poNotes ? `<p style="margin-top:8px"><strong>หมายเหตุ PO:</strong> ${o.poNotes}</p>` : ""}
+    <p>${escapeHtml(o.paymentTermsTemplate) || "-"}</p>
+    ${paymentTermsRows.length ? `<table style="margin-top:5px"><thead><tr><th>งวด</th><th>คำอธิบาย</th><th>กำหนด</th><th class="text-right">%</th><th class="text-right">จำนวน</th></tr></thead><tbody>${paymentTermsRows.map(pt => `<tr><td>${escapeHtml(pt.paymentTerm) || "-"}</td><td>${escapeHtml(pt.description) || "-"}</td><td>${escapeHtml(pt.dueDate) || "-"}</td><td class="text-right">${pt.invoicePortion || 0}</td><td class="text-right">${fmt(pt.paymentAmount || 0)}</td></tr>`).join("")}</tbody></table>` : ""}
+    ${o.poNotes ? `<p style="margin-top:8px"><strong>หมายเหตุ PO:</strong> ${escapeHtml(o.poNotes)}</p>` : ""}
   </div>
   <div class="footer-box">
     <h4>ค่าคอมมิชชั่น / Commission</h4>
-    <p>Sales Partner: ${o.salesPartner || "-"}</p>
+    <p>Sales Partner: ${escapeHtml(o.salesPartner) || "-"}</p>
     <p>Commission Rate: ${o.commissionRate || 0}%</p>
     <p>Total Commission: ${fmt(o.totalCommission || 0)}</p>
   </div>
 </div>
-${o.notes ? `<div style="margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px"><strong>หมายเหตุ:</strong> ${o.notes}</div>` : ""}
+${o.notes ? `<div style="margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px"><strong>หมายเหตุ:</strong> ${escapeHtml(o.notes)}</div>` : ""}
 <div class="sign-area">
   <div class="sign-box"><div class="sign-line">ผู้สั่งซื้อ / Customer</div></div>
   <div class="sign-box"><div class="sign-line">ผู้อนุมัติ / Authorized</div></div>

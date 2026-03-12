@@ -17,7 +17,7 @@ import { dashboardRoute } from "./routes/dashboard.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
-import { join } from "path";
+import { join, basename } from "path";
 
 export const app = new Hono();
 
