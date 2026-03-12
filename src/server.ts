@@ -99,6 +99,7 @@ app.route("/api/dashboard", dashboardRoute);
 app.use("/api/settings", authMiddleware);
 app.route("/api/settings", settingsRoute);
 app.use("/api/dbd/*", authMiddleware);
+app.use("/api/dbd/lookup/*", rateLimit({ max: 5, windowMs: 1000, keyPrefix: "dbd-lookup" }));
 app.route("/api/dbd", dbdRoute);
 
 // Serve attachment files
