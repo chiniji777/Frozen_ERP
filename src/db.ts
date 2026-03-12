@@ -1,52 +1,31 @@
-// ⚠️ ALL imports are dynamic or type-only — NOTHING loads native modules at import time!
-// drizzle-orm/libsql internally imports @libsql/client which loads native .node bindings.
-// On Vercel serverless, native bindings are missing → module hangs forever.
-import type { Client } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import * as schema from "./schema.js";
+
+// Simple local SQLite — no Turso, no Vercel workarounds
+export const DB_PATH = "file:data/erp.db";
 
 let _client: Client | null = null;
-let _db: any | null = null;
-let _schema: any | null = null;
+let _db: LibSQLDatabase<typeof schema> | null = null;
 
-async function createLazyClient(): Promise<Client> {
-  const url = process.env.TURSO_DATABASE_URL;
-  if (!url && process.env.VERCEL) {
-    throw new Error("[db] TURSO_DATABASE_URL not set on Vercel!");
-  }
-  if (process.env.VERCEL || (url && url.startsWith("libsql://"))) {
-    // Vercel / remote Turso → HTTP client (pure JS, no native bindings)
-    const { createClient } = await import("@libsql/client/http");
-    return createClient({ url: url!, authToken: process.env.TURSO_AUTH_TOKEN });
-  } else {
-    // Local dev → native client with file DB
-    const { createClient } = await import("@libsql/client");
-    return createClient({ url: url || "file:data/erp.db", authToken: process.env.TURSO_AUTH_TOKEN });
-  }
-}
-
-export async function getClient(): Promise<Client> {
+function getClient(): Client {
   if (!_client) {
-    _client = await createLazyClient();
+    _client = createClient({ url: DB_PATH });
   }
   return _client;
 }
 
-async function loadDrizzle(client: Client) {
-  const { drizzle } = await import("drizzle-orm/libsql");
-  const schema = await import("./schema.js");
-  _schema = schema;
-  return drizzle(client, { schema });
-}
-
-export async function getDB() {
+export function getDB(): LibSQLDatabase<typeof schema> {
   if (!_db) {
-    _db = await loadDrizzle(await getClient());
+    _db = drizzle(getClient(), { schema });
   }
   return _db;
 }
 
 // Backward compat — Proxy for `import { db }`
 // Only works AFTER initDB() has been called (via middleware)
-export const db = new Proxy({} as any, {
+export const db = new Proxy({} as LibSQLDatabase<typeof schema>, {
   get(_target, prop, receiver) {
     if (!_db) {
       throw new Error("[db] Not initialized yet. Ensure API middleware ran initDB() first.");
@@ -57,7 +36,7 @@ export const db = new Proxy({} as any, {
 
 // Initialize tables
 async function migrateCustomers() {
-  const client = await getClient();
+  const client = getClient();
   const newCols = [
     ["code", "TEXT"],
     ["full_name", "TEXT"],
@@ -84,10 +63,10 @@ async function migrateCustomers() {
 }
 
 export async function initDB() {
-  const client = await getClient();
+  const client = getClient();
   // Also populate _db so Proxy works
   if (!_db) {
-    _db = await loadDrizzle(client);
+    _db = drizzle(client, { schema });
   }
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
@@ -292,14 +271,11 @@ export async function initDB() {
   await migrateSoPaymentTerms();
   await migrateCompanySettings();
   await migrateUsers();
-  // seedAdminUser uses Bun.password — skip on Vercel
-  if (!process.env.VERCEL) {
-    await seedAdminUser();
-  }
+  await seedAdminUser();
 }
 
 async function migrateUsers() {
-  const client = await getClient();
+  const client = getClient();
   try {
     await client.execute("ALTER TABLE users ADD COLUMN password TEXT");
   } catch {
@@ -308,8 +284,7 @@ async function migrateUsers() {
 }
 
 async function seedAdminUser() {
-  // Uses Bun.password.hash — only works in local Bun runtime
-  const client = await getClient();
+  const client = getClient();
   const existing = await client.execute("SELECT id, password FROM users WHERE username = 'admin'");
   if (existing.rows.length === 0) {
     const hashed = await Bun.password.hash("admin123");
@@ -327,7 +302,7 @@ async function seedAdminUser() {
 }
 
 async function migrateCompanySettings() {
-  const client = await getClient();
+  const client = getClient();
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS company_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -356,7 +331,7 @@ async function migrateCompanySettings() {
 }
 
 async function migrateSalesOrders() {
-  const client = await getClient();
+  const client = getClient();
   const newCols: [string, string][] = [
     ["date", "TEXT"],
     ["delivery_start_date", "TEXT"],
@@ -400,7 +375,7 @@ async function migrateSalesOrders() {
 }
 
 async function migrateSoItems() {
-  const client = await getClient();
+  const client = getClient();
   const newCols: [string, string][] = [
     ["item_code", "TEXT"],
     ["rate", "REAL"],
@@ -417,7 +392,7 @@ async function migrateSoItems() {
 }
 
 async function migrateSoPaymentTerms() {
-  const client = await getClient();
+  const client = getClient();
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS so_payment_terms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -434,7 +409,7 @@ async function migrateSoPaymentTerms() {
 }
 
 async function migrateProducts() {
-  const client = await getClient();
+  const client = getClient();
   const newCols: [string, string][] = [
     ["raw_material", "TEXT"],
     ["raw_material_yield", "REAL"],

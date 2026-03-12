@@ -10,13 +10,10 @@
  */
 
 import { createClient } from "@libsql/client";
-import { join } from "path";
-
-const localDbPath = `file:${join(import.meta.dir, "../data/erp.db")}`;
+import { DB_PATH } from "./db.js";
 
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || localDbPath,
-  authToken: process.env.TURSO_AUTH_TOKEN,
+  url: DB_PATH,
 });
 
 async function migrate() {
