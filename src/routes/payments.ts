@@ -95,6 +95,18 @@ paymentsRoute.post("/upload-slip", async (c) => {
   if (!file) return c.json({ error: "slip file required" }, 400);
   if (!invoiceId || !amount || amount <= 0) return c.json({ error: "invoiceId and amount required" }, 400);
 
+  // Validate file type
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+  if (!allowedTypes.includes(file.type)) {
+    return c.json({ error: `Invalid file type: ${file.type}. Allowed: jpg, png, webp, pdf` }, 400);
+  }
+
+  // Validate file size (max 10MB)
+  const maxSize = 10 * 1024 * 1024;
+  if (file.size > maxSize) {
+    return c.json({ error: `File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Max: 10MB` }, 400);
+  }
+
   const invoice = await db.select().from(invoices).where(eq(invoices.id, invoiceId)).get();
   if (!invoice) return c.json({ error: "Invoice not found" }, 404);
 
@@ -107,7 +119,11 @@ paymentsRoute.post("/upload-slip", async (c) => {
   }
 
   // Save file
-  const ext = file.name.split(".").pop() || "jpg";
+  const allowedExts = ["jpg", "jpeg", "png", "webp", "pdf"];
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  if (!allowedExts.includes(ext)) {
+    return c.json({ error: `Invalid file extension: .${ext}` }, 400);
+  }
   const timestamp = Date.now();
   const filename = `slip_${invoiceId}_${timestamp}.${ext}`;
   const dir = join(process.cwd(), "data", "attachments");
@@ -208,6 +224,26 @@ paymentsRoute.post("/batch", async (c) => {
   const body = await c.req.json();
   if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
     return c.json({ error: "items array required: [{invoiceId, amount}]" }, 400);
+  }
+
+  // Pre-validate ทุก item ก่อนจ่าย — ถ้ามีตัวไหนเกินยอด reject ทั้ง batch
+  const errors = [];
+  for (const item of body.items) {
+    if (!item.invoiceId || !item.amount || item.amount <= 0) {
+      errors.push({ invoiceId: item.invoiceId, error: "invoiceId and amount > 0 required" });
+      continue;
+    }
+    const inv = await db.select().from(invoices).where(eq(invoices.id, item.invoiceId)).get();
+    if (!inv) { errors.push({ invoiceId: item.invoiceId, error: "Invoice not found" }); continue; }
+    const existPay = await db.select().from(payments).where(eq(payments.invoiceId, item.invoiceId)).all();
+    const paid = existPay.reduce((sum, p) => sum + p.amount, 0);
+    const rem = inv.totalAmount - paid;
+    if (item.amount > rem + 0.01) {
+      errors.push({ invoiceId: item.invoiceId, error: `Amount ${item.amount} exceeds remaining ${rem.toFixed(2)}` });
+    }
+  }
+  if (errors.length > 0) {
+    return c.json({ error: "Validation failed", details: errors }, 400);
   }
 
   const results = [];

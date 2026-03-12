@@ -1,10 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
-import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
-
-interface Customer { id: number; name: string; address?: string; phone?: string; }
 interface SalesOrder {
   id: number; order_number: string; customer_name?: string; customer_id?: number;
   status: string; items?: SOItem[];
@@ -121,7 +118,7 @@ export default function DeliveryNotePage() {
 
   const updateItem = (i: number, field: keyof DNItem, val: string | number) => {
     const next = [...formItems];
-    (next[i] as Record<string, unknown>)[field] = val;
+    (next[i] as unknown as Record<string, unknown>)[field] = val;
     setFormItems(next);
   };
 
