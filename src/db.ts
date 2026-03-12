@@ -271,6 +271,8 @@ export async function initDB() {
   await migrateSoPaymentTerms();
   await migrateCompanySettings();
   await migrateUsers();
+  await migratePayments();
+  await migrateReceipts();
   await seedAdminUser();
 }
 
@@ -406,6 +408,39 @@ async function migrateSoPaymentTerms() {
     );
     CREATE INDEX IF NOT EXISTS idx_so_payment_terms_so ON so_payment_terms(sales_order_id);
   `);
+}
+
+async function migratePayments() {
+  const client = getClient();
+  const newCols: [string, string][] = [
+    ["slip_image", "TEXT"],
+    ["payment_date", "TEXT"],
+    ["bank_name", "TEXT"],
+    ["payer_name", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE payments ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
+}
+
+async function migrateReceipts() {
+  const client = getClient();
+  const newCols: [string, string][] = [
+    ["receipt_company_name", "TEXT"],
+    ["receipt_address", "TEXT"],
+    ["receipt_tax_id", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE receipts ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists — skip
+    }
+  }
 }
 
 async function migrateProducts() {
