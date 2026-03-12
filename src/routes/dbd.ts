@@ -7,15 +7,33 @@ import { join } from "path";
 
 const dbdRoute = new Hono();
 
-interface DbdJuristic {
-  juristic_id?: string;
-  juristic_name_th?: string;
-  juristic_name_en?: string;
-  juristic_type?: string;
-  register_date?: string;
-  juristic_status?: string;
-  address_th?: string;
+// DBD OpenAPI response format
+interface DbdAddressInfo {
+  FullAddress?: string;
 }
+
+interface DbdResultItem {
+  JuristicID?: string;
+  JuristicName_TH?: string;
+  JuristicName_EN?: string;
+  JuristicType?: string;
+  JuristicStatus?: string;
+  RegisterDate?: string;
+  RegisterCapital?: string;
+  AddressInformations?: DbdAddressInfo[];
+}
+
+interface DbdResponse {
+  ResultList?: DbdResultItem[];
+}
+
+// JuristicType mapping
+const JURISTIC_TYPES: Record<string, string> = {
+  "2": "ห้างหุ้นส่วนสามัญ",
+  "3": "ห้างหุ้นส่วนจำกัด",
+  "5": "บริษัทจำกัด",
+  "7": "บริษัทมหาชนจำกัด",
+};
 
 interface CustomerImport {
   "Full Name"?: string;
@@ -83,28 +101,29 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
 
   let externalFailed = false;
 
-  // Try MOC DataAPI first (timeout 5s)
+  // Try DBD OpenAPI first (timeout 5s)
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`https://dataapi.moc.go.th/juristic?juristic_id=${taxId}`, {
+    const res = await fetch(`https://openapi.dbd.go.th/api/v1/juristic_person/${taxId}`, {
       signal: controller.signal,
     });
     clearTimeout(timeout);
     if (res.ok) {
-      const data = await res.json() as DbdJuristic | DbdJuristic[];
-      const item = Array.isArray(data) ? data[0] : data;
-      if (item?.juristic_id) {
+      const data = await res.json() as DbdResponse;
+      const item = data?.ResultList?.[0];
+      if (item?.JuristicID) {
+        const addr = item.AddressInformations?.[0];
         const result: LookupResult = {
           found: true,
-          taxId: item.juristic_id,
-          companyName: item.juristic_name_th || "",
-          companyNameEn: item.juristic_name_en || "",
-          address: item.address_th || "",
-          registeredDate: item.register_date || "",
-          status: item.juristic_status || "",
-          type: item.juristic_type || "Company",
-          source: "moc",
+          taxId: item.JuristicID,
+          companyName: item.JuristicName_TH || "",
+          companyNameEn: item.JuristicName_EN || "",
+          address: addr?.FullAddress || "",
+          registeredDate: item.RegisterDate || "",
+          status: item.JuristicStatus || "",
+          type: JURISTIC_TYPES[item.JuristicType || ""] || "Company",
+          source: "dbd",
         };
         setCache(taxId, result);
         return result;
