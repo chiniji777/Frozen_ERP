@@ -12,6 +12,7 @@ interface Expense {
   date: string;
   slipImage: string | null;
   notes: string;
+  status?: string;
 }
 
 interface ExpenseForm {
@@ -31,7 +32,7 @@ export default function ExpensePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [form, setForm] = useState<ExpenseForm>(emptyForm);
-  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Expense | null>(null);
   const [filterCat, setFilterCat] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
@@ -168,10 +169,15 @@ export default function ExpensePage() {
     load();
   };
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    await api.del(`/expenses/${deleteTarget.id}`);
-    setDeleteTarget(null);
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    try {
+      await api.put(`/expenses/${cancelTarget.id}/cancel`, {});
+      setToast(`ยกเลิกค่าใช้จ่าย "${cancelTarget.description}" สำเร็จ`);
+    } catch {
+      setToast('ไม่สามารถยกเลิกได้');
+    }
+    setCancelTarget(null);
     load();
   };
 
@@ -214,13 +220,14 @@ export default function ExpensePage() {
           { key: 'description', label: 'รายละเอียด' },
           { key: 'amount', label: 'จำนวนเงิน', render: (e: Expense) => `${Number(e.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}` },
           { key: 'slipImage', label: 'สลิป', render: (e: Expense) => e.slipImage ? <span className="text-green-600 text-xs">มีสลิป</span> : <span className="text-gray-400 text-xs">-</span> },
+          { key: 'status', label: 'สถานะ', render: (e: Expense) => e.status === 'cancelled' ? <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">ยกเลิก</span> : <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">ปกติ</span> },
         ]}
         data={filtered}
         getId={(e) => e.id}
         searchPlaceholder="ค้นหาค่าใช้จ่าย..."
         onAdd={openAdd}
         onEdit={openEdit}
-        onDelete={(e) => setDeleteTarget(e)}
+        onDelete={(e) => setCancelTarget(e)}
         onRowClick={openEdit}
       />
 
@@ -319,8 +326,8 @@ export default function ExpensePage() {
         </form>
       </Modal>
 
-      <ConfirmDialog open={!!deleteTarget} message={`ต้องการลบค่าใช้จ่าย "${deleteTarget?.description}" ใช่ไหม?`}
-        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+      <ConfirmDialog open={!!cancelTarget} message={`ต้องการยกเลิกค่าใช้จ่าย "${cancelTarget?.description}" ใช่ไหม?`}
+        onConfirm={handleCancel} onCancel={() => setCancelTarget(null)} />
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg animate-fade-in">
