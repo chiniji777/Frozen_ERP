@@ -1,23 +1,48 @@
 import { drizzle } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import * as schema from "./schema.js";
 
-const isVercel = !!process.env.VERCEL;
-const dbUrl = process.env.TURSO_DATABASE_URL || (isVercel ? "" : "file:data/erp.db");
+// Lazy singleton — nothing runs at import time
+let _client: Client | null = null;
+let _db: LibSQLDatabase<typeof schema> | null = null;
 
-if (!dbUrl) {
-  console.error("[db] TURSO_DATABASE_URL not set! DB will not work.");
+function getClient(): Client {
+  if (!_client) {
+    const url = process.env.TURSO_DATABASE_URL;
+    if (!url) {
+      // Local dev fallback only — on Vercel this will error clearly
+      if (process.env.VERCEL) {
+        throw new Error("[db] TURSO_DATABASE_URL not set on Vercel!");
+      }
+      _client = createClient({ url: "file:data/erp.db" });
+    } else {
+      _client = createClient({
+        url,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      });
+    }
+  }
+  return _client;
 }
 
-const client = createClient({
-  url: dbUrl || "file:data/erp.db",
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
+export function getDB(): LibSQLDatabase<typeof schema> {
+  if (!_db) {
+    _db = drizzle(getClient(), { schema });
+  }
+  return _db;
+}
 
-export const db = drizzle(client, { schema });
+// Backward compat — lazy getter
+export const db = new Proxy({} as LibSQLDatabase<typeof schema>, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getDB(), prop, receiver);
+  },
+});
 
 // Initialize tables
 async function migrateCustomers() {
+  const client = getClient();
   const newCols = [
     ["code", "TEXT"],
     ["full_name", "TEXT"],
@@ -45,6 +70,7 @@ async function migrateCustomers() {
 }
 
 export async function initDB() {
+  const client = getClient();
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -250,6 +276,7 @@ export async function initDB() {
 }
 
 async function migrateCompanySettings() {
+  const client = getClient();
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS company_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -278,6 +305,7 @@ async function migrateCompanySettings() {
 }
 
 async function migrateSalesOrders() {
+  const client = getClient();
   const newCols: [string, string][] = [
     ["date", "TEXT"],
     ["delivery_start_date", "TEXT"],
@@ -321,6 +349,7 @@ async function migrateSalesOrders() {
 }
 
 async function migrateSoItems() {
+  const client = getClient();
   const newCols: [string, string][] = [
     ["item_code", "TEXT"],
     ["rate", "REAL"],
@@ -337,6 +366,7 @@ async function migrateSoItems() {
 }
 
 async function migrateSoPaymentTerms() {
+  const client = getClient();
   await client.executeMultiple(`
     CREATE TABLE IF NOT EXISTS so_payment_terms (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -353,6 +383,7 @@ async function migrateSoPaymentTerms() {
 }
 
 async function migrateProducts() {
+  const client = getClient();
   const newCols: [string, string][] = [
     ["raw_material", "TEXT"],
     ["raw_material_yield", "REAL"],
