@@ -87,6 +87,8 @@ export default function PrintMenu({ options, className = '' }: Props) {
     if (opt.params) {
       for (const [k, v] of Object.entries(opt.params)) params.set(k, v);
     }
+    const token = localStorage.getItem('token');
+    if (token) params.set('token', token);
     const qs = params.toString();
     window.open(`/api${opt.path}${qs ? '?' + qs : ''}`, '_blank');
     setOpen(false);
