@@ -13,7 +13,20 @@ interface Supplier {
   bankAccountNumber: string | null;
   bankAccountName: string | null;
   promptPayId: string | null;
+  taxId?: string | null;
+  address?: string | null;
+  supplierType?: string | null;
 }
+
+const WHT_INCOME_TYPES = [
+  { code: 'rent_property', label: 'ค่าเช่าอสังหาริมทรัพย์', section: '40(5)(ก)', rate: 5 },
+  { code: 'service', label: 'ค่าบริการ / จ้างทำของ', section: '40(8)', rate: 3 },
+  { code: 'transport', label: 'ค่าขนส่ง', section: '40(8)', rate: 1 },
+  { code: 'advertising', label: 'ค่าโฆษณา', section: '40(8)', rate: 2 },
+  { code: 'contractor', label: 'ค่ารับเหมา', section: '40(7)(8)', rate: 3 },
+  { code: 'professional', label: 'ค่าวิชาชีพอิสระ', section: '40(6)', rate: 3 },
+  { code: 'prize', label: 'รางวัล/ส่วนลด', section: '40(8)', rate: 5 },
+] as const;
 
 interface Expense {
   id: number;
@@ -30,6 +43,14 @@ interface Expense {
   recurringExpenseId?: number;
   supplierId?: number | null;
   supplier?: Supplier | null;
+  hasWithholdingTax?: number;
+  whtFormType?: string | null;
+  whtIncomeType?: string | null;
+  whtIncomeDescription?: string | null;
+  whtRate?: number | null;
+  whtAmount?: number | null;
+  whtNetAmount?: number | null;
+  whtDocNumber?: string | null;
 }
 
 interface ExpenseForm {
@@ -42,6 +63,10 @@ interface ExpenseForm {
   dueDate: string;
   paymentMethod: string;
   supplierId: string;
+  hasWithholdingTax: boolean;
+  whtFormType: string;
+  whtIncomeType: string;
+  whtRate: string;
 }
 
 interface RecurringMonthlyItem {
@@ -59,7 +84,7 @@ interface RecurringMonthlyItem {
   paymentMethod: string;
 }
 
-const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '', supplierId: '' };
+const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '', supplierId: '', hasWithholdingTax: false, whtFormType: 'pnd3', whtIncomeType: '', whtRate: '' };
 
 const statusConfig: Record<ExpenseStatus, { label: string; bg: string; text: string }> = {
   pending: { label: 'รอจ่าย', bg: 'bg-amber-100', text: 'text-amber-700' },
@@ -256,6 +281,10 @@ export default function ExpensePage() {
       date: e.date?.slice(0, 10) || '', notes: e.notes || '', slipImage: e.slipImage || '',
       dueDate: e.dueDate?.slice(0, 10) || '', paymentMethod: e.paymentMethod || '',
       supplierId: e.supplierId ? String(e.supplierId) : '',
+      hasWithholdingTax: !!e.hasWithholdingTax,
+      whtFormType: e.whtFormType || 'pnd3',
+      whtIncomeType: e.whtIncomeType || '',
+      whtRate: e.whtRate ? String(e.whtRate) : '',
     });
     setSlipPreview(e.slipImage ? `/api/data/${e.slipImage}` : '');
     setModalOpen(true);
@@ -325,7 +354,23 @@ export default function ExpensePage() {
 
   const handleSubmit = async (ev: FormEvent) => {
     ev.preventDefault();
-    const body = { ...form, amount: Number(form.amount), supplierId: form.supplierId ? Number(form.supplierId) : null };
+    const amt = Number(form.amount);
+    const whtRate = form.hasWithholdingTax && form.whtRate ? Number(form.whtRate) : null;
+    const whtAmount = form.hasWithholdingTax && whtRate ? Math.round(amt * whtRate / 100 * 100) / 100 : null;
+    const whtNetAmount = whtAmount != null ? Math.round((amt - whtAmount) * 100) / 100 : null;
+    const whtIncome = WHT_INCOME_TYPES.find(t => t.code === form.whtIncomeType);
+    const body = {
+      ...form,
+      amount: amt,
+      supplierId: form.supplierId ? Number(form.supplierId) : null,
+      hasWithholdingTax: form.hasWithholdingTax,
+      whtFormType: form.hasWithholdingTax ? form.whtFormType : null,
+      whtIncomeType: form.hasWithholdingTax ? form.whtIncomeType : null,
+      whtIncomeDescription: form.hasWithholdingTax && whtIncome ? `${whtIncome.label} ${whtIncome.section}` : null,
+      whtRate,
+      whtAmount,
+      whtNetAmount,
+    };
     if (editing) {
       await api.put(`/expenses/${editing.id}`, body);
     } else {
@@ -431,6 +476,21 @@ export default function ExpensePage() {
             </div>
           )}
         </div>
+
+        {!!exp.hasWithholdingTax && (
+          <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
+            <h2 className="text-sm font-semibold text-gray-600 mb-3">หัก ณ ที่จ่าย</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+              <InfoRow label="แบบฟอร์ม" value={exp.whtFormType === 'pnd3' ? 'ภ.ง.ด. 3 (บุคคลธรรมดา)' : exp.whtFormType === 'pnd53' ? 'ภ.ง.ด. 53 (นิติบุคคล)' : exp.whtFormType} />
+              <InfoRow label="ประเภทเงินได้" value={exp.whtIncomeDescription || exp.whtIncomeType} />
+              <InfoRow label="อัตราภาษี" value={exp.whtRate ? `${exp.whtRate}%` : undefined} />
+              <InfoRow label="ยอดก่อนหัก" value={<span className="font-medium">฿{Number(exp.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>} />
+              <InfoRow label="ภาษีที่หัก" value={exp.whtAmount ? <span className="text-red-600 font-bold">฿{Number(exp.whtAmount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span> : undefined} />
+              <InfoRow label="ยอดจ่ายจริง" value={exp.whtNetAmount ? <span className="text-green-700 font-bold text-lg">฿{Number(exp.whtNetAmount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span> : undefined} />
+              {exp.whtDocNumber && <InfoRow label="เลขที่เอกสาร" value={exp.whtDocNumber} />}
+            </div>
+          </div>
+        )}
 
         {exp.slipImage && (
           <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
@@ -662,6 +722,62 @@ export default function ExpensePage() {
                 <option value="cheque">เช็ค</option>
               </select>
             </div>
+          </div>
+
+          {/* Withholding Tax */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.hasWithholdingTax}
+                onChange={(e) => setForm({ ...form, hasWithholdingTax: e.target.checked })}
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              <span className="text-sm font-medium text-gray-700">หัก ณ ที่จ่าย</span>
+            </label>
+            {form.hasWithholdingTax && (
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">แบบฟอร์ม</label>
+                    <select value={form.whtFormType} onChange={(e) => setForm({ ...form, whtFormType: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                      <option value="pnd3">ภ.ง.ด. 3 (บุคคลธรรมดา)</option>
+                      <option value="pnd53">ภ.ง.ด. 53 (นิติบุคคล)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">ประเภทเงินได้</label>
+                    <select value={form.whtIncomeType}
+                      onChange={(e) => {
+                        const sel = WHT_INCOME_TYPES.find(t => t.code === e.target.value);
+                        setForm({ ...form, whtIncomeType: e.target.value, whtRate: sel ? String(sel.rate) : form.whtRate });
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                      <option value="">เลือกประเภท...</option>
+                      {WHT_INCOME_TYPES.map(t => <option key={t.code} value={t.code}>{t.label} {t.section} ({t.rate}%)</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">อัตรา (%)</label>
+                    <input type="number" step="0.01" value={form.whtRate}
+                      onChange={(e) => setForm({ ...form, whtRate: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">ภาษีที่หัก</label>
+                    <div className="px-3 py-2 bg-red-50 rounded-lg text-sm text-red-700 font-bold">
+                      ฿{form.amount && form.whtRate ? (Number(form.amount) * Number(form.whtRate) / 100).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '0.00'}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">ยอดจ่ายจริง</label>
+                    <div className="px-3 py-2 bg-green-50 rounded-lg text-sm text-green-700 font-bold">
+                      ฿{form.amount && form.whtRate ? (Number(form.amount) - Number(form.amount) * Number(form.whtRate) / 100).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : (Number(form.amount) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

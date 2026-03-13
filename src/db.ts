@@ -315,6 +315,7 @@ export async function initDB() {
   await migrateShortTermLoans();
   await migrateExpenseNumber();
   await migrateExpenseSupplier();
+  await migrateWithholdingTax();
   await seedAdminUser();
 }
 
@@ -866,5 +867,22 @@ async function migrateExpenseNumber() {
     }
     const expenseNumber = `${prefix}-${dateStr}-${String(seq).padStart(3, "0")}`;
     await client.execute({ sql: "UPDATE expenses SET expense_number = ? WHERE id = ?", args: [expenseNumber, id] });
+  }
+}
+
+async function migrateWithholdingTax() {
+  const client = getClient();
+  const whtCols: [string, string][] = [
+    ["has_withholding_tax", "INTEGER DEFAULT 0"],
+    ["wht_form_type", "TEXT"],
+    ["wht_income_type", "TEXT"],
+    ["wht_income_description", "TEXT"],
+    ["wht_rate", "REAL"],
+    ["wht_amount", "REAL"],
+    ["wht_net_amount", "REAL"],
+    ["wht_doc_number", "TEXT"],
+  ];
+  for (const [col, def] of whtCols) {
+    try { await client.execute(`ALTER TABLE expenses ADD COLUMN ${col} ${def}`); } catch (_) { /* exists */ }
   }
 }
