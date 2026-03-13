@@ -155,6 +155,24 @@ export default function InvoicePage() {
     })();
   }, [loading, fromDNHandled, location.search]);
 
+  // Handle ?openId= param: auto-open detail view for a specific invoice
+  const [openIdHandled, setOpenIdHandled] = useState(false);
+  useEffect(() => {
+    if (loading || openIdHandled) return;
+    const params = new URLSearchParams(location.search);
+    const openId = params.get('openId');
+    if (!openId) return;
+    setOpenIdHandled(true);
+    (async () => {
+      try {
+        const iv = await api.get<Invoice>(`/invoices/${Number(openId)}`);
+        setDetailInv(iv);
+        setFormOpen(false);
+      } catch { /* ignore */ }
+      navigate('/invoices', { replace: true });
+    })();
+  }, [loading, openIdHandled, location.search]);
+
   const isOverdue = (iv: Invoice) => iv.status !== 'paid' && iv.status !== 'cancelled' && iv.due_date && new Date(iv.due_date) < new Date();
   const effectiveStatus = (iv: Invoice) => isOverdue(iv) ? 'overdue' : iv.status;
 
