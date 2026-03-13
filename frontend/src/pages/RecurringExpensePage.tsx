@@ -23,6 +23,7 @@ interface RecurringExpense {
 
 interface MonthlyItem {
   id: number;
+  paymentId: number;
   recurringExpenseId: number;
   expenseId: number | null;
   month: string;
@@ -110,7 +111,7 @@ export default function RecurringExpensePage() {
     setLoading(true);
     Promise.all([
       api.get<MonthlyItem[]>(`/recurring-expenses/monthly?month=${selectedMonth}`),
-      api.get<Summary>('/recurring-expenses/summary'),
+      api.get<Summary>(`/recurring-expenses/summary?month=${selectedMonth}`),
     ])
       .then(([items, sum]) => {
         setMonthlyItems(items);
@@ -316,7 +317,7 @@ export default function RecurringExpensePage() {
           { key: 'status', label: 'สถานะ', render: (item: MonthlyItem) => getStatusBadge(item) },
         ]}
         data={monthlyItems}
-        getId={(item) => item.id}
+        getId={(item) => item.paymentId ?? item.id}
         searchPlaceholder="ค้นหารายการ..."
         onAdd={openAddTemplate}
         onEdit={openEditTemplate}
