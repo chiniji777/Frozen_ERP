@@ -168,6 +168,8 @@ app.route("/api/product-categories", productCategoriesRoute);
 app.use("/api/dbd/*", authMiddleware);
 app.use("/api/dbd/lookup/*", rateLimit({ max: 5, windowMs: 1000, keyPrefix: "dbd-lookup" }));
 app.route("/api/dbd", dbdRoute);
+app.use("/api/stock/*", authMiddleware);
+app.route("/api/stock", stockRoute);
 
 // Serve attachment files
 app.use("/api/attachments/*", authMiddleware);
