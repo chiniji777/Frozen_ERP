@@ -42,11 +42,6 @@ const statusCfg: Record<string, { label: string; color: string; next?: string; n
   cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' },
 };
 
-const apiBase = () => {
-  const origin = window.location.origin;
-  return origin.includes('localhost') ? origin : origin;
-};
-
 const InputField = ({ label, value, onChange, type = 'text', placeholder = '' }: {
   label: string; value: string | number; onChange: (v: string) => void; type?: string; placeholder?: string;
 }) => (
