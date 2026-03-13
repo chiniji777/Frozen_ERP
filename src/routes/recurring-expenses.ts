@@ -52,6 +52,72 @@ function withComputedFields(r: typeof recurringExpenses.$inferSelect) {
   };
 }
 
+
+// POST /generate — auto-generate expenses จาก recurring expenses สำหรับเดือนที่ระบุ
+recurringExpensesRoute.post("/generate", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const now = new Date();
+  const month = body.month || now.toISOString().slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return c.json({ error: "month format: YYYY-MM" }, 400);
+  }
+
+  const activeItems = await db.select().from(recurringExpenses)
+    .where(eq(recurringExpenses.isActive, 1)).all();
+
+  const created: { recurringExpenseId: number; expenseId: number; name: string; amount: number }[] = [];
+  const skipped: { recurringExpenseId: number; name: string; reason: string }[] = [];
+
+  for (const item of activeItems) {
+    if (item.startDate && month < item.startDate.slice(0, 7)) {
+      skipped.push({ recurringExpenseId: item.id, name: item.name, reason: "before startDate" });
+      continue;
+    }
+    if (item.endDate && month > item.endDate.slice(0, 7)) {
+      skipped.push({ recurringExpenseId: item.id, name: item.name, reason: "after endDate" });
+      continue;
+    }
+
+    const existing = await db.select().from(recurringExpensePayments)
+      .where(and(
+        eq(recurringExpensePayments.recurringExpenseId, item.id),
+        eq(recurringExpensePayments.month, month),
+      )).get();
+    if (existing) {
+      skipped.push({ recurringExpenseId: item.id, name: item.name, reason: "already exists" });
+      continue;
+    }
+
+    const expenseDate = `${month}-01`;
+    const dueDate = item.dueDay ? `${month}-${String(item.dueDay).padStart(2, "0")}` : null;
+    const expenseResult = await db.insert(expenses).values({
+      category: item.category,
+      description: `${item.name} (${month})`,
+      amount: item.amount,
+      date: expenseDate,
+      dueDate,
+      paymentMethod: item.paymentMethod || null,
+      recurringExpenseId: item.id,
+      notes: item.notes || `ค่าใช้จ่ายประจำ: ${item.name}`,
+      status: "unpaid",
+    }).run();
+    const expenseId = Number(expenseResult.lastInsertRowid);
+
+    await db.insert(recurringExpensePayments).values({
+      recurringExpenseId: item.id,
+      expenseId,
+      month,
+      amount: item.amount,
+      status: "pending",
+      paymentMethod: item.paymentMethod || null,
+    }).run();
+
+    created.push({ recurringExpenseId: item.id, expenseId, name: item.name, amount: item.amount });
+  }
+
+  return c.json({ ok: true, month, created: created.length, skipped: skipped.length, details: { created, skipped } });
+});
+
 // GET /categories
 recurringExpensesRoute.get("/categories", async (c) => {
   return c.json(await loadCategories());
