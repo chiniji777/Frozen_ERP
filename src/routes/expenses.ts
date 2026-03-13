@@ -305,16 +305,18 @@ expensesRoute.get("/:id/print-wht", async (c) => {
 
   // Thai date
   const thaiMonths = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-  const d = new Date(exp.date);
+  const d = new Date(exp.date); // วันที่รายการ (ใช้ในตาราง detail)
   const thaiDate = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+  // วันที่จ่ายเงิน (ใช้สำหรับ "ยื่นวันที่" + เดือนที่จ่ายเงินได้พึงประเมิน)
+  const paidDate = exp.paidAt ? new Date(exp.paidAt) : d;
 
   // Income type description
   const incomeDesc = escapeHtml(exp.whtIncomeDescription || exp.whtIncomeType || "-");
 
   // Tax ID as individual digits for box display
   const companyTaxDigits = (company.taxId || "").replace(/[^0-9]/g, "").padEnd(13, " ").split("");
-  const monthIndex = d.getMonth(); // 0-11
-  const thaiYear = d.getFullYear() + 543;
+  const monthIndex = paidDate.getMonth(); // 0-11 ใช้เดือนที่จ่ายเงิน
+  const thaiYear = paidDate.getFullYear() + 543;
 
   // WHT income type mapping to มาตรา sections
   const incomeTypeMap: Record<string, { section: string; desc: string }> = {
@@ -550,7 +552,7 @@ expensesRoute.get("/:id/print-wht", async (c) => {
     </div>
     <div style="margin-top:4px">( <span class="sig-dotted"></span> )</div>
     <div style="margin-top:4px">ตำแหน่ง <span class="sig-dotted"></span></div>
-    <div style="margin-top:4px">ยื่นวันที่ <span class="dotted" style="min-width:30px">${d.getDate()}</span> เดือน <span class="dotted" style="min-width:100px">${thaiMonths[d.getMonth()]}</span> พ.ศ. <span class="dotted" style="min-width:60px">${thaiYear}</span></div>
+    <div style="margin-top:4px">ยื่นวันที่ <span class="dotted" style="min-width:30px">${paidDate.getDate()}</span> เดือน <span class="dotted" style="min-width:100px">${thaiMonths[paidDate.getMonth()]}</span> พ.ศ. <span class="dotted" style="min-width:60px">${paidDate.getFullYear() + 543}</span></div>
   </div>
 
   <!-- ===== FOOTER ===== -->
