@@ -316,11 +316,6 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
       slipImage: body.slipImage || null,
       paymentMethod: body.paymentMethod || recurring.paymentMethod || null,
       notes: body.notes || null,
-    ref1: body.ref1 || null,
-    ref2: body.ref2 || null,
-    bankAccount: body.bankAccount || null,
-    bankName: body.bankName || null,
-    accountName: body.accountName || null,
     }).where(eq(recurringExpensePayments.id, payment.id)).run();
   } else {
     // Create new payment record
@@ -334,11 +329,6 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
       slipImage: body.slipImage || null,
       paymentMethod: body.paymentMethod || recurring.paymentMethod || null,
       notes: body.notes || null,
-    ref1: body.ref1 || null,
-    ref2: body.ref2 || null,
-    bankAccount: body.bankAccount || null,
-    bankName: body.bankName || null,
-    accountName: body.accountName || null,
     }).run();
   }
 
