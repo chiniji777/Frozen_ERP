@@ -24,6 +24,21 @@ interface ExpenseForm {
   slipImage: string;
 }
 
+interface RecurringMonthlyItem {
+  id: number;
+  paymentId: number;
+  recurringExpenseId: number;
+  month: string;
+  amount: number;
+  paidAt: string | null;
+  status: 'pending' | 'paid';
+  name: string;
+  category: string;
+  dueDay: number;
+  payTo: string;
+  paymentMethod: string;
+}
+
 const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '' };
 
 export default function ExpensePage() {
@@ -34,14 +49,17 @@ export default function ExpensePage() {
   const [form, setForm] = useState<ExpenseForm>(emptyForm);
   const [cancelTarget, setCancelTarget] = useState<Expense | null>(null);
   const [filterCat, setFilterCat] = useState('');
-  const [filterFrom, setFilterFrom] = useState('');
-  const [filterTo, setFilterTo] = useState('');
+  const [filterMonth, setFilterMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [categories, setCategories] = useState<string[]>([]);
   const [toast, setToast] = useState('');
   const [uploading, setUploading] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [slipPreview, setSlipPreview] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [recurringItems, setRecurringItems] = useState<RecurringMonthlyItem[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -57,7 +75,30 @@ export default function ExpensePage() {
       .catch(() => setCategories(['ค่าขนส่ง', 'ค่าน้ำมัน', 'ค่าวัตถุดิบ', 'ค่าบรรจุภัณฑ์', 'ค่าสาธารณูปโภค', 'ค่าแรงงาน', 'อื่นๆ']));
   };
 
-  useEffect(() => { load(); loadCategories(); }, []);
+  const loadRecurring = () => {
+    api.get<RecurringMonthlyItem[]>(`/recurring-expenses/monthly?month=${filterMonth}`)
+      .then(setRecurringItems)
+      .catch(() => setRecurringItems([]));
+  };
+
+  const handleMarkPaid = async (item: RecurringMonthlyItem) => {
+    try {
+      await api.post(`/recurring-expenses/${item.recurringExpenseId}/pay`, {
+        month: filterMonth,
+        amount: item.amount,
+        paidAt: new Date().toISOString().slice(0, 10),
+        paymentMethod: item.paymentMethod || '',
+        notes: '',
+        slipImage: '',
+      });
+      setToast(`ชำระ "${item.name}" สำเร็จ`);
+      loadRecurring();
+    } catch {
+      setToast('ชำระไม่สำเร็จ');
+    }
+  };
+
+  useEffect(() => { load(); loadCategories(); loadRecurring(); }, [filterMonth]);
 
   useEffect(() => {
     if (!toast) return;
@@ -69,12 +110,15 @@ export default function ExpensePage() {
 
   const filtered = data.filter((e) => {
     if (filterCat && e.category !== filterCat) return false;
-    if (filterFrom && e.date < filterFrom) return false;
-    if (filterTo && e.date > filterTo) return false;
+    if (filterMonth && e.date) {
+      const expMonth = e.date.slice(0, 7);
+      if (expMonth !== filterMonth) return false;
+    }
     return true;
   });
 
   const monthlyTotal = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
+  const pendingRecurring = recurringItems.filter((r) => r.status === 'pending');
 
   const openAdd = () => {
     setEditing(null);
@@ -189,6 +233,11 @@ export default function ExpensePage() {
 
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div>
+          <label className="block text-xs text-gray-500 mb-1">เดือน</label>
+          <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+        </div>
+        <div>
           <label className="block text-xs text-gray-500 mb-1">หมวด</label>
           <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)}
             className="px-3 py-1.5 border rounded-lg text-sm">
@@ -196,21 +245,39 @@ export default function ExpensePage() {
             {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">จาก</label>
-          <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)}
-            className="px-3 py-1.5 border rounded-lg text-sm" />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">ถึง</label>
-          <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)}
-            className="px-3 py-1.5 border rounded-lg text-sm" />
-        </div>
         <div className="ml-auto bg-indigo-50 rounded-lg px-4 py-2">
           <span className="text-sm text-gray-500">ยอดรวม: </span>
           <span className="text-lg font-bold text-indigo-700">{monthlyTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
         </div>
       </div>
+
+      {/* Recurring Expenses - Pending */}
+      {pendingRecurring.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">ค่าใช้จ่ายประจำ — รอจ่าย</h2>
+          <div className="grid gap-3">
+            {pendingRecurring.map((item) => (
+              <div key={item.paymentId ?? item.id} className="bg-amber-50 rounded-xl border border-amber-200 p-4 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-800">{item.name}</div>
+                  <div className="flex gap-3 text-xs text-gray-500 mt-0.5">
+                    <span>{item.category}</span>
+                    {item.dueDay && <span>กำหนด: วันที่ {item.dueDay}</span>}
+                    {item.payTo && <span>จ่ายให้: {item.payTo}</span>}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="font-bold text-gray-800">{Number(item.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</div>
+                  <button onClick={() => handleMarkPaid(item)}
+                    className="mt-1 px-3 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700">
+                    จ่ายแล้ว
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <DataTable
         columns={[
