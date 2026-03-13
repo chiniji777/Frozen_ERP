@@ -92,6 +92,7 @@ recurringExpensesRoute.post("/generate", async (c) => {
     const expenseDate = `${month}-01`;
     const dueDate = item.dueDay ? `${month}-${String(item.dueDay).padStart(2, "0")}` : null;
     const expenseNumber = await generateRunningNumber("REC", "expenses", "expense_number");
+    const genWhtAmt = item.hasWithholdingTax && item.whtRate ? item.amount * item.whtRate / 100 : null;
     const expenseResult = await db.insert(expenses).values({
       expenseNumber,
       category: item.category,
@@ -101,8 +102,16 @@ recurringExpensesRoute.post("/generate", async (c) => {
       dueDate,
       paymentMethod: item.paymentMethod || null,
       recurringExpenseId: item.id,
+      supplierId: item.supplierId || null,
       notes: item.notes || `ค่าใช้จ่ายประจำ: ${item.name}`,
       status: "unpaid",
+      hasWithholdingTax: item.hasWithholdingTax || 0,
+      whtFormType: item.hasWithholdingTax ? item.whtFormType : null,
+      whtIncomeType: item.hasWithholdingTax ? item.whtIncomeType : null,
+      whtIncomeDescription: item.hasWithholdingTax ? item.whtIncomeDescription : null,
+      whtRate: item.hasWithholdingTax ? item.whtRate : null,
+      whtAmount: genWhtAmt,
+      whtNetAmount: genWhtAmt ? item.amount - genWhtAmt : null,
     }).run();
     const expenseId = Number(expenseResult.lastInsertRowid);
 
@@ -145,6 +154,10 @@ recurringExpensesRoute.post("/payments/:paymentId/send-to-expense", async (c) =>
   const dueDate = item.dueDay ? `${payment.month}-${String(item.dueDay).padStart(2, "0")}` : null;
   const expenseNumber = await generateRunningNumber("REC", "expenses", "expense_number");
 
+  // คำนวณ WHT amount ถ้ามี
+  const whtAmount = item.hasWithholdingTax && item.whtRate ? payment.amount * item.whtRate / 100 : null;
+  const whtNetAmount = whtAmount ? payment.amount - whtAmount : null;
+
   const expenseResult = await db.insert(expenses).values({
     expenseNumber,
     category: item.category,
@@ -154,9 +167,16 @@ recurringExpensesRoute.post("/payments/:paymentId/send-to-expense", async (c) =>
     dueDate,
     paymentMethod: payment.paymentMethod || item.paymentMethod || null,
     recurringExpenseId: item.id,
-    supplierId: null,
+    supplierId: item.supplierId || null,
     notes: item.notes || `ค่าใช้จ่ายประจำ: ${item.name}`,
     status: "pending",
+    hasWithholdingTax: item.hasWithholdingTax || 0,
+    whtFormType: item.hasWithholdingTax ? item.whtFormType : null,
+    whtIncomeType: item.hasWithholdingTax ? item.whtIncomeType : null,
+    whtIncomeDescription: item.hasWithholdingTax ? item.whtIncomeDescription : null,
+    whtRate: item.hasWithholdingTax ? item.whtRate : null,
+    whtAmount,
+    whtNetAmount,
   }).run();
   const expenseId = Number(expenseResult.lastInsertRowid);
 

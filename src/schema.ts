@@ -413,6 +413,12 @@ export const recurringExpenses = sqliteTable("recurring_expenses", {
   bankName: text("bank_name"),
   accountName: text("account_name"),
   imageUrl: text("image_url"),
+  hasWithholdingTax: integer("has_withholding_tax").default(0),
+  whtFormType: text("wht_form_type"),
+  whtIncomeType: text("wht_income_type"),
+  whtIncomeDescription: text("wht_income_description"),
+  whtRate: real("wht_rate"),
+  supplierId: integer("supplier_id"),
   ...timestamps,
 });
 

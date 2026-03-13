@@ -25,6 +25,12 @@ interface RecurringExpense {
   bankAccount: string;
   accountName: string;
   imageUrl: string | null;
+  hasWithholdingTax: number;
+  whtFormType: string | null;
+  whtIncomeType: string | null;
+  whtIncomeDescription: string | null;
+  whtRate: number | null;
+  supplierId: number | null;
 }
 
 interface MonthlyItem {
@@ -71,6 +77,11 @@ interface TemplateForm {
   bankAccount: string;
   accountName: string;
   imageUrl: string;
+  hasWithholdingTax: boolean;
+  whtFormType: string;
+  whtIncomeType: string;
+  whtRate: string;
+  supplierId: string;
 }
 
 interface PayForm {
@@ -85,7 +96,18 @@ const emptyTemplateForm: TemplateForm = {
   name: '', category: '', amount: '', dueDay: '', payTo: '',
   paymentMethod: '', totalDebt: '', startDate: '', endDate: '', notes: '',
   ref1: '', ref2: '', bankName: '', bankAccount: '', accountName: '', imageUrl: '',
+  hasWithholdingTax: false, whtFormType: 'pnd53', whtIncomeType: '', whtRate: '', supplierId: '',
 };
+
+const WHT_INCOME_TYPES = [
+  { code: 'rent_property', label: 'ค่าเช่าอสังหาริมทรัพย์', section: '40(5)(ก)', rate: 5 },
+  { code: 'service', label: 'ค่าบริการ / จ้างทำของ', section: '40(8)', rate: 3 },
+  { code: 'transport', label: 'ค่าขนส่ง', section: '40(8)', rate: 1 },
+  { code: 'advertising', label: 'ค่าโฆษณา', section: '40(8)', rate: 2 },
+  { code: 'contractor', label: 'ค่ารับเหมา', section: '40(7)(8)', rate: 3 },
+  { code: 'professional', label: 'ค่าวิชาชีพอิสระ', section: '40(6)', rate: 3 },
+  { code: 'prize', label: 'รางวัล/ส่วนลด', section: '40(8)', rate: 5 },
+] as const;
 
 const emptyPayForm: PayForm = {
   amount: '', paidAt: '', paymentMethod: '', notes: '', slipImage: '',
@@ -193,6 +215,11 @@ export default function RecurringExpensePage() {
           ref1: tmpl.ref1 || '', ref2: tmpl.ref2 || '',
           bankName: tmpl.bankName || '', bankAccount: tmpl.bankAccount || '', accountName: tmpl.accountName || '',
           imageUrl: tmpl.imageUrl || '',
+          hasWithholdingTax: !!tmpl.hasWithholdingTax,
+          whtFormType: tmpl.whtFormType || 'pnd53',
+          whtIncomeType: tmpl.whtIncomeType || '',
+          whtRate: tmpl.whtRate ? String(tmpl.whtRate) : '',
+          supplierId: tmpl.supplierId ? String(tmpl.supplierId) : '',
         });
         setTemplateImagePreview(tmpl.imageUrl ? `/api/${tmpl.imageUrl}` : '');
         setTemplateModalOpen(true);
@@ -225,6 +252,7 @@ export default function RecurringExpensePage() {
 
   const handleTemplateSubmit = async (ev: FormEvent) => {
     ev.preventDefault();
+    const whtIncome = WHT_INCOME_TYPES.find(t => t.code === templateForm.whtIncomeType);
     const body = {
       ...templateForm,
       amount: Number(templateForm.amount),
@@ -232,6 +260,12 @@ export default function RecurringExpensePage() {
       totalDebt: Number(templateForm.totalDebt) || 0,
       endDate: templateForm.endDate || null,
       imageUrl: templateForm.imageUrl || null,
+      hasWithholdingTax: templateForm.hasWithholdingTax ? 1 : 0,
+      whtFormType: templateForm.hasWithholdingTax ? templateForm.whtFormType : null,
+      whtIncomeType: templateForm.hasWithholdingTax ? templateForm.whtIncomeType : null,
+      whtIncomeDescription: templateForm.hasWithholdingTax && whtIncome ? `${whtIncome.label} ${whtIncome.section}` : null,
+      whtRate: templateForm.hasWithholdingTax ? Number(templateForm.whtRate) || null : null,
+      supplierId: templateForm.supplierId ? Number(templateForm.supplierId) : null,
     };
     try {
       if (editingTemplate) {
@@ -506,6 +540,58 @@ export default function RecurringExpensePage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+          {/* WHT Section */}
+          <div className="border-t pt-3 mt-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+              <input type="checkbox" checked={templateForm.hasWithholdingTax}
+                onChange={(e) => setTemplateForm({ ...templateForm, hasWithholdingTax: e.target.checked })}
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              หัก ณ ที่จ่าย
+            </label>
+            {templateForm.hasWithholdingTax && (
+              <div className="grid grid-cols-2 gap-3 ml-6">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">ประเภทแบบ</label>
+                  <select value={templateForm.whtFormType} onChange={(e) => setTemplateForm({ ...templateForm, whtFormType: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="pnd3">ภ.ง.ด. 3 (บุคคลธรรมดา)</option>
+                    <option value="pnd53">ภ.ง.ด. 53 (นิติบุคคล)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">ประเภทเงินได้</label>
+                  <select value={templateForm.whtIncomeType} onChange={(e) => {
+                    const sel = WHT_INCOME_TYPES.find(t => t.code === e.target.value);
+                    setTemplateForm({ ...templateForm, whtIncomeType: e.target.value, whtRate: sel ? String(sel.rate) : templateForm.whtRate });
+                  }} className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="">เลือกประเภท...</option>
+                    {WHT_INCOME_TYPES.map(t => <option key={t.code} value={t.code}>{t.label} {t.section} ({t.rate}%)</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">อัตรา (%)</label>
+                  <input type="number" step="0.01" value={templateForm.whtRate}
+                    onChange={(e) => setTemplateForm({ ...templateForm, whtRate: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">ภาษีที่หัก/เดือน</label>
+                  <div className="px-3 py-2 bg-red-50 rounded-lg text-sm text-red-700 font-bold">
+                    ฿{templateForm.amount && templateForm.whtRate ? (Number(templateForm.amount) * Number(templateForm.whtRate) / 100).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '0.00'}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-500 mb-1">ผู้ขาย (สำหรับ WHT)</label>
+                  <select value={templateForm.supplierId} onChange={(e) => setTemplateForm({ ...templateForm, supplierId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <option value="">ไม่ระบุ</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
             <textarea value={templateForm.notes} onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
               rows={2} placeholder="หมายเหตุเพิ่มเติม..."
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm resize-none" />

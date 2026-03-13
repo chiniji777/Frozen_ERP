@@ -742,6 +742,12 @@ async function migrateRecurringExpenses() {
     ["account_name", "TEXT"],
     ["total_amount", "REAL DEFAULT 0"],
     ["principal_amount", "REAL DEFAULT 0"],
+    ["has_withholding_tax", "INTEGER DEFAULT 0"],
+    ["wht_form_type", "TEXT"],
+    ["wht_income_type", "TEXT"],
+    ["wht_income_description", "TEXT"],
+    ["wht_rate", "REAL"],
+    ["supplier_id", "INTEGER"],
   ];
   for (const [col, type] of newCols) {
     try {
