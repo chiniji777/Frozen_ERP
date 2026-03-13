@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { payments, invoices, customers, salesOrders } from "../schema.js";
+import { payments, invoices, customers, salesOrders, receipts } from "../schema.js";
 import { eq, sql, and, inArray } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
 import { join } from "path";
@@ -300,6 +300,23 @@ paymentsRoute.post("/batch", async (c) => {
   }
 
   return c.json({ ok: true, payments: results }, 201);
+});
+
+
+// === Delete Payment ===
+paymentsRoute.delete("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const pmt = await db.select().from(payments).where(eq(payments.id, id)).get();
+  if (!pmt) return c.json({ error: "Payment not found" }, 404);
+
+  const rcpts = await db.select({ id: receipts.id }).from(receipts).where(eq(receipts.paymentId, id)).all();
+  if (rcpts.length > 0) {
+    return c.json({ error: "Cannot delete: has receipts linked. Delete them first.", relatedIds: rcpts.map(r => r.id) }, 400);
+  }
+
+  await db.delete(payments).where(eq(payments.id, id)).run();
+
+  return c.json({ ok: true, deletedId: id });
 });
 
 export { paymentsRoute };
