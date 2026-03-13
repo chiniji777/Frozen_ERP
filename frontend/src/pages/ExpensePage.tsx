@@ -318,7 +318,7 @@ export default function ExpensePage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ ...emptyForm, date: new Date().toISOString().slice(0, 10) });
+    setForm({ ...emptyForm, date: new Date().toISOString().slice(0, 10), category: urlCategory || '' });
     setSlipPreview('');
     setModalOpen(true);
   };
