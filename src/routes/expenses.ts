@@ -310,14 +310,6 @@ expensesRoute.get("/:id/print-wht", async (c) => {
   // วันที่จ่ายเงิน (ใช้สำหรับ "ยื่นวันที่" + เดือนที่จ่ายเงินได้พึงประเมิน)
   const paidDate = exp.paidAt ? new Date(exp.paidAt) : d;
 
-  // Income type description
-  const incomeDesc = escapeHtml(exp.whtIncomeDescription || exp.whtIncomeType || "-");
-
-  // Tax ID as individual digits for box display
-  const companyTaxDigits = (company.taxId || "").replace(/[^0-9]/g, "").padEnd(13, " ").split("");
-  const monthIndex = paidDate.getMonth(); // 0-11 ใช้เดือนที่จ่ายเงิน
-  const thaiYear = paidDate.getFullYear() + 543;
-
   // WHT income type mapping to มาตรา sections
   const incomeTypeMap: Record<string, { section: string; desc: string }> = {
     rent_property: { section: "40(5)(ก)", desc: "ค่าเช่าอสังหาริมทรัพย์" },
@@ -328,7 +320,25 @@ expensesRoute.get("/:id/print-wht", async (c) => {
     professional: { section: "40(6)", desc: "ค่าวิชาชีพอิสระ" },
     prize: { section: "40(8)", desc: "รางวัล/ส่วนลด" },
   };
-  const incomeInfo = incomeTypeMap[exp.whtIncomeType || ""] || { section: "-", desc: incomeDesc };
+
+  // Income type: ลอง map จาก code ก่อน → fallback whtIncomeDescription → ใช้ description ของ expense
+  const mappedIncome = incomeTypeMap[exp.whtIncomeType || ""];
+  let incomeInfo: { section: string; desc: string };
+  if (mappedIncome) {
+    incomeInfo = mappedIncome;
+  } else if (exp.whtIncomeDescription) {
+    // whtIncomeDescription อาจมีรูปแบบ "ค่าบริการ / จ้างทำของ 40(8)" — ลอง parse section
+    const sectionMatch = exp.whtIncomeDescription.match(/(\d+\([^)]+\)(?:\([^)]+\))?)/);
+    incomeInfo = { section: sectionMatch ? sectionMatch[1] : "-", desc: escapeHtml(exp.whtIncomeDescription) };
+  } else {
+    // fallback ใช้ description ของ expense เอง
+    incomeInfo = { section: "-", desc: escapeHtml(exp.description || "-") };
+  }
+
+  // Tax ID as individual digits for box display
+  const companyTaxDigits = (company.taxId || "").replace(/[^0-9]/g, "").padEnd(13, " ").split("");
+  const monthIndex = paidDate.getMonth(); // 0-11 ใช้เดือนที่จ่ายเงิน
+  const thaiYear = paidDate.getFullYear() + 543;
 
   // Supplier tax ID digits for box display
   const supplierTaxDigits = (sup?.taxId || "").replace(/[^0-9]/g, "").padEnd(13, " ").split("");
@@ -432,6 +442,9 @@ expensesRoute.get("/:id/print-wht", async (c) => {
     <div class="subtitle">ตามมาตรา 3 เตรส และมาตรา 69 ทวิ</div>
     <div class="subtitle">และการเสียภาษีตามมาตรา 65 จัตวา แห่งประมวลรัษฎากร</div>
   </div>
+
+  <!-- ===== เลขที่เอกสาร ===== -->
+  ${exp.whtDocNumber ? `<div style="text-align:right; font-size:14px; margin-bottom:4px;"><strong>เลขที่เอกสาร:</strong> <span style="font-size:16px; color:#2d8a6e; font-weight:bold;">${escapeHtml(exp.whtDocNumber)}</span></div>` : ""}
 
   <!-- ===== TAX ID + นำส่งภาษีตาม (two columns) ===== -->
   <div class="two-col">
