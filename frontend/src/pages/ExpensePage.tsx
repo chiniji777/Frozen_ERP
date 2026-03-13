@@ -662,9 +662,7 @@ export default function ExpensePage() {
             const st = (e.status || 'pending') as ExpenseStatus;
             const cfg = statusConfig[st] || statusConfig.pending;
             return (
-              <span onClick={(ev) => { ev.stopPropagation(); if (st === 'cancelled') return; if (st === 'paid' && e.recurringExpenseId) return; handleToggleStatus(e); }}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text} ${st !== 'cancelled' ? 'cursor-pointer hover:opacity-80' : ''}`}
-                title={st === 'pending' || st === 'overdue' ? 'คลิกเพื่อเปลี่ยนเป็นจ่ายแล้ว' : st === 'paid' ? 'คลิกเพื่อเปลี่ยนเป็นรอจ่าย' : ''}>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}>
                 {cfg.label}
               </span>
             );
