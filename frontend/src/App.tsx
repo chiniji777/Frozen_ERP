@@ -22,6 +22,7 @@ const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const SupplierPage = lazy(() => import('./pages/SupplierPage'));
 const PurchaseOrderPage = lazy(() => import('./pages/PurchaseOrderPage'));
 const StockPage = lazy(() => import('./pages/StockPage'));
+const LoanPage = lazy(() => import('./pages/LoanPage'));
 // UomPage merged into SettingsPage as tab
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="/suppliers" element={<SupplierPage />} />
               <Route path="/purchase-orders" element={<PurchaseOrderPage />} />
               <Route path="/stock" element={<StockPage />} />
+              <Route path="/loans" element={<LoanPage />} />
               <Route path="/users" element={<UserManagementPage />} />
               {/* UomPage merged into SettingsPage */}
               <Route path="/settings" element={<SettingsPage />} />
