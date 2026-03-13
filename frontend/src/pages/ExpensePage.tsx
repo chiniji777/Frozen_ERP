@@ -260,14 +260,14 @@ export default function ExpensePage() {
   const handleToggleStatus = (expense: Expense) => {
     const st = expense.status || 'pending';
     if (st === 'paid') {
-      if (expense.recurringExpenseId) return;
       handleMarkExpenseUnpaid(expense);
     } else if (st === 'pending' || st === 'overdue') {
-      if (expense.recurringExpenseId) {
+      // If expense exists in DB (has positive id), pay it directly
+      if (expense.id > 0) {
+        handleMarkExpensePaid(expense);
+      } else if (expense.recurringExpenseId) {
         const ri = recurringItems.find((r) => r.recurringExpenseId === expense.recurringExpenseId && r.status === 'pending');
         if (ri) handleMarkRecurringPaid(ri);
-      } else {
-        handleMarkExpensePaid(expense);
       }
     }
   };
