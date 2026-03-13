@@ -4,6 +4,8 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 
+type ExpenseStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
+
 interface Expense {
   id: number;
   category: string;
@@ -12,7 +14,11 @@ interface Expense {
   date: string;
   slipImage: string | null;
   notes: string;
-  status?: string;
+  status?: ExpenseStatus;
+  dueDate?: string;
+  paidAt?: string;
+  paymentMethod?: string;
+  recurringExpenseId?: number;
 }
 
 interface ExpenseForm {
@@ -22,6 +28,8 @@ interface ExpenseForm {
   date: string;
   notes: string;
   slipImage: string;
+  dueDate: string;
+  paymentMethod: string;
 }
 
 interface RecurringMonthlyItem {
@@ -39,7 +47,14 @@ interface RecurringMonthlyItem {
   paymentMethod: string;
 }
 
-const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '' };
+const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '' };
+
+const statusConfig: Record<ExpenseStatus, { label: string; bg: string; text: string }> = {
+  pending: { label: 'รอจ่าย', bg: 'bg-amber-100', text: 'text-amber-700' },
+  paid: { label: 'จ่ายแล้ว', bg: 'bg-green-100', text: 'text-green-700' },
+  overdue: { label: 'เกินกำหนด', bg: 'bg-red-100', text: 'text-red-700' },
+  cancelled: { label: 'ยกเลิก', bg: 'bg-gray-100', text: 'text-gray-500' },
+};
 
 export default function ExpensePage() {
   const [data, setData] = useState<Expense[]>([]);
@@ -49,6 +64,7 @@ export default function ExpensePage() {
   const [form, setForm] = useState<ExpenseForm>(emptyForm);
   const [cancelTarget, setCancelTarget] = useState<Expense | null>(null);
   const [filterCat, setFilterCat] = useState('');
+  const [filterStatus, setFilterStatus] = useState<ExpenseStatus | ''>('');
   const [filterMonth, setFilterMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -81,7 +97,7 @@ export default function ExpensePage() {
       .catch(() => setRecurringItems([]));
   };
 
-  const handleMarkPaid = async (item: RecurringMonthlyItem) => {
+  const handleMarkRecurringPaid = async (item: RecurringMonthlyItem) => {
     try {
       await api.post(`/recurring-expenses/${item.recurringExpenseId}/pay`, {
         month: filterMonth,
@@ -93,6 +109,20 @@ export default function ExpensePage() {
       });
       setToast(`ชำระ "${item.name}" สำเร็จ`);
       loadRecurring();
+      load();
+    } catch {
+      setToast('ชำระไม่สำเร็จ');
+    }
+  };
+
+  const handleMarkExpensePaid = async (expense: Expense) => {
+    try {
+      await api.patch(`/expenses/${expense.id}`, {
+        status: 'paid',
+        paidAt: new Date().toISOString().slice(0, 10),
+      });
+      setToast(`ชำระ "${expense.description}" สำเร็จ`);
+      load();
     } catch {
       setToast('ชำระไม่สำเร็จ');
     }
@@ -108,8 +138,27 @@ export default function ExpensePage() {
 
   const allCategories = [...new Set([...categories, ...data.map((e) => e.category).filter(Boolean)])];
 
-  const filtered = data.filter((e) => {
+  // Merge recurring items into main table
+  const recurringAsExpenses: Expense[] = recurringItems.map((r) => ({
+    id: r.paymentId ?? -(r.id),
+    category: r.category,
+    description: r.name,
+    amount: Number(r.amount),
+    date: `${filterMonth}-${String(r.dueDay).padStart(2, '0')}`,
+    slipImage: null,
+    notes: r.payTo ? `จ่ายให้: ${r.payTo}` : '',
+    status: (r.status === 'paid' ? 'paid' : 'pending') as ExpenseStatus,
+    dueDate: `${filterMonth}-${String(r.dueDay).padStart(2, '0')}`,
+    paidAt: r.paidAt || undefined,
+    paymentMethod: r.paymentMethod || undefined,
+    recurringExpenseId: r.recurringExpenseId,
+  }));
+
+  const allExpenses = [...data, ...recurringAsExpenses];
+
+  const filtered = allExpenses.filter((e) => {
     if (filterCat && e.category !== filterCat) return false;
+    if (filterStatus && (e.status || 'pending') !== filterStatus) return false;
     if (filterMonth && e.date) {
       const expMonth = e.date.slice(0, 7);
       if (expMonth !== filterMonth) return false;
@@ -118,7 +167,6 @@ export default function ExpensePage() {
   });
 
   const monthlyTotal = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
-  const pendingRecurring = recurringItems.filter((r) => r.status === 'pending');
 
   const openAdd = () => {
     setEditing(null);
@@ -128,10 +176,12 @@ export default function ExpensePage() {
   };
 
   const openEdit = (e: Expense) => {
+    if (e.recurringExpenseId) return; // recurring items are not directly editable
     setEditing(e);
     setForm({
       category: e.category, description: e.description, amount: String(e.amount),
       date: e.date?.slice(0, 10) || '', notes: e.notes || '', slipImage: e.slipImage || '',
+      dueDate: e.dueDate?.slice(0, 10) || '', paymentMethod: e.paymentMethod || '',
     });
     setSlipPreview(e.slipImage ? `/api/data/${e.slipImage}` : '');
     setModalOpen(true);
@@ -169,9 +219,7 @@ export default function ExpensePage() {
     }
     setOcrLoading(true);
     try {
-      // Re-upload for OCR or use existing file — call OCR slip API
       const fd = new FormData();
-      // Fetch the existing file and re-send for OCR
       const imgRes = await fetch(`/api/data/${form.slipImage}`);
       const blob = await imgRes.blob();
       fd.append('slip', blob, 'slip.jpg');
@@ -216,13 +264,23 @@ export default function ExpensePage() {
   const handleCancel = async () => {
     if (!cancelTarget) return;
     try {
-      await api.put(`/expenses/${cancelTarget.id}/cancel`, {});
+      await api.patch(`/expenses/${cancelTarget.id}/cancel`, {});
       setToast(`ยกเลิกค่าใช้จ่าย "${cancelTarget.description}" สำเร็จ`);
     } catch {
       setToast('ไม่สามารถยกเลิกได้');
     }
     setCancelTarget(null);
     load();
+  };
+
+  const renderStatusBadge = (e: Expense) => {
+    const st = (e.status || 'pending') as ExpenseStatus;
+    const cfg = statusConfig[st] || statusConfig.pending;
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.bg} ${cfg.text}`}>
+        {cfg.label}
+      </span>
+    );
   };
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
@@ -245,56 +303,64 @@ export default function ExpensePage() {
             {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">สถานะ</label>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as ExpenseStatus | '')}
+            className="px-3 py-1.5 border rounded-lg text-sm">
+            <option value="">ทั้งหมด</option>
+            <option value="pending">รอจ่าย</option>
+            <option value="paid">จ่ายแล้ว</option>
+            <option value="overdue">เกินกำหนด</option>
+            <option value="cancelled">ยกเลิก</option>
+          </select>
+        </div>
         <div className="ml-auto bg-indigo-50 rounded-lg px-4 py-2">
           <span className="text-sm text-gray-500">ยอดรวม: </span>
           <span className="text-lg font-bold text-indigo-700">{monthlyTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
         </div>
       </div>
 
-      {/* Recurring Expenses - Pending */}
-      {pendingRecurring.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">ค่าใช้จ่ายประจำ — รอจ่าย</h2>
-          <div className="grid gap-3">
-            {pendingRecurring.map((item) => (
-              <div key={item.paymentId ?? item.id} className="bg-amber-50 rounded-xl border border-amber-200 p-4 flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-800">{item.name}</div>
-                  <div className="flex gap-3 text-xs text-gray-500 mt-0.5">
-                    <span>{item.category}</span>
-                    {item.dueDay && <span>กำหนด: วันที่ {item.dueDay}</span>}
-                    {item.payTo && <span>จ่ายให้: {item.payTo}</span>}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="font-bold text-gray-800">{Number(item.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</div>
-                  <button onClick={() => handleMarkPaid(item)}
-                    className="mt-1 px-3 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700">
-                    จ่ายแล้ว
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       <DataTable
         columns={[
           { key: 'id', label: 'รหัส' },
           { key: 'date', label: 'วันที่', render: (e: Expense) => e.date?.slice(0, 10) || '-' },
-          { key: 'category', label: 'หมวด' },
+          { key: 'category', label: 'หมวด', render: (e: Expense) => (
+            <span className="flex items-center gap-1.5">
+              {e.category}
+              {e.recurringExpenseId && <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-600 font-medium">ประจำ</span>}
+            </span>
+          )},
           { key: 'description', label: 'รายละเอียด' },
           { key: 'amount', label: 'จำนวนเงิน', render: (e: Expense) => `${Number(e.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}` },
           { key: 'slipImage', label: 'สลิป', render: (e: Expense) => e.slipImage ? <span className="text-green-600 text-xs">มีสลิป</span> : <span className="text-gray-400 text-xs">-</span> },
-          { key: 'status', label: 'สถานะ', render: (e: Expense) => e.status === 'cancelled' ? <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">ยกเลิก</span> : <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">ปกติ</span> },
+          { key: 'status', label: 'สถานะ', render: renderStatusBadge },
+          { key: 'actions', label: '', render: (e: Expense) => {
+            const st = e.status || 'pending';
+            if (st !== 'pending') return null;
+            if (e.recurringExpenseId) {
+              const ri = recurringItems.find((r) => r.recurringExpenseId === e.recurringExpenseId && r.status === 'pending');
+              if (!ri) return null;
+              return (
+                <button onClick={(ev) => { ev.stopPropagation(); handleMarkRecurringPaid(ri); }}
+                  className="px-2.5 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700 whitespace-nowrap">
+                  จ่ายแล้ว
+                </button>
+              );
+            }
+            return (
+              <button onClick={(ev) => { ev.stopPropagation(); handleMarkExpensePaid(e); }}
+                className="px-2.5 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700 whitespace-nowrap">
+                จ่ายแล้ว
+              </button>
+            );
+          }},
         ]}
         data={filtered}
         getId={(e) => e.id}
         searchPlaceholder="ค้นหาค่าใช้จ่าย..."
         onAdd={openAdd}
         onEdit={openEdit}
-        onDelete={(e) => setCancelTarget(e)}
+        onDelete={(e) => e.recurringExpenseId ? undefined : setCancelTarget(e)}
         onRowClick={openEdit}
       />
 
@@ -375,6 +441,28 @@ export default function ExpensePage() {
               <input type="date" required value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+          </div>
+
+          {/* Due Date + Payment Method */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">วันครบกำหนด</label>
+              <input type="date" value={form.dueDate}
+                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ช่องทางชำระ</label>
+              <select value={form.paymentMethod}
+                onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                <option value="">เลือก...</option>
+                <option value="cash">เงินสด</option>
+                <option value="transfer">โอนเงิน</option>
+                <option value="credit">บัตรเครดิต</option>
+                <option value="cheque">เช็ค</option>
+              </select>
             </div>
           </div>
 
