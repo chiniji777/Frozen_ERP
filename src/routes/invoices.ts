@@ -234,8 +234,16 @@ invoicesRoute.post("/:id/pay", async (c) => {
   const id = Number(c.req.param("id"));
   const iv = await db.select().from(invoices).where(eq(invoices.id, id)).get();
   if (!iv) return c.json({ error: "Invoice not found" }, 404);
-  if (iv.status !== "sent" && iv.status !== "overdue") return c.json({ error: "Can only pay sent/overdue invoices" }, 400);
-  await db.update(invoices).set({ status: "paid", updatedAt: sql`datetime('now')` }).where(eq(invoices.id, id)).run();
+  if (iv.status === "paid") return c.json({ error: "Already paid" }, 400);
+  if (iv.status === "cancelled") return c.json({ error: "Cannot pay cancelled invoice" }, 400);
+  // Allow pay from any non-paid/non-cancelled status (draft, sent, overdue)
+  const body = await c.req.json().catch(() => ({}));
+  await db.update(invoices).set({
+    status: "paid",
+    confirmedBy: iv.confirmedBy || body.userId || null,
+    confirmedAt: iv.confirmedAt || sql`datetime('now')`,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(invoices.id, id)).run();
   return c.json({ ok: true, status: "paid" });
 });
 
