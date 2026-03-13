@@ -56,6 +56,22 @@ const statusConfig: Record<ExpenseStatus, { label: string; bg: string; text: str
   cancelled: { label: 'ยกเลิก', bg: 'bg-gray-100', text: 'text-gray-500' },
 };
 
+const paymentMethodLabel: Record<string, string> = {
+  cash: 'เงินสด',
+  transfer: 'โอนเงิน',
+  credit: 'บัตรเครดิต',
+  cheque: 'เช็ค',
+};
+
+function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
+  return (
+    <div className="flex justify-between py-2 border-b border-gray-50">
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-sm text-gray-800 text-right">{value || '-'}</span>
+    </div>
+  );
+}
+
 export default function ExpensePage() {
   const [data, setData] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +79,8 @@ export default function ExpensePage() {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [form, setForm] = useState<ExpenseForm>(emptyForm);
   const [cancelTarget, setCancelTarget] = useState<Expense | null>(null);
+  const [detailExp, setDetailExp] = useState<Expense | null>(null);
+  const [imageZoom, setImageZoom] = useState(false);
   const [filterCat, setFilterCat] = useState('');
   const [filterStatus, setFilterStatus] = useState<ExpenseStatus | ''>('');
   const [filterMonth, setFilterMonth] = useState(() => {
@@ -122,6 +140,9 @@ export default function ExpensePage() {
       });
       setToast(`ชำระ "${expense.description}" สำเร็จ`);
       load();
+      if (detailExp?.id === expense.id) {
+        setDetailExp({ ...expense, status: 'paid', paidAt: new Date().toISOString().slice(0, 10) });
+      }
     } catch {
       setToast('ชำระไม่สำเร็จ');
     }
@@ -199,7 +220,18 @@ export default function ExpensePage() {
     setModalOpen(true);
   };
 
+  const openDetail = (e: Expense) => {
+    setDetailExp(e);
+    setImageZoom(false);
+  };
+
+  const openEditFromDetail = () => {
+    if (!detailExp || detailExp.recurringExpenseId) return;
+    openEdit(detailExp);
+  };
+
   const openEdit = (e: Expense) => {
+    setDetailExp(null);
     if (e.recurringExpenseId) return;
     setEditing(e);
     setForm({
@@ -307,6 +339,80 @@ export default function ExpensePage() {
     );
   };
 
+
+  // === Detail View ===
+  if (detailExp && !modalOpen) {
+    const exp = detailExp;
+    const st = (exp.status || 'pending') as ExpenseStatus;
+    const cfg = statusConfig[st] || statusConfig.pending;
+
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setDetailExp(null)} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h1 className="text-2xl font-bold text-gray-800">ค่าใช้จ่าย #{exp.id}</h1>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
+            {exp.recurringExpenseId && <span className="px-2 py-0.5 rounded text-xs bg-indigo-100 text-indigo-600 font-medium">ประจำ</span>}
+          </div>
+          <div className="flex gap-2">
+            {!exp.recurringExpenseId && st !== 'cancelled' && (
+              <button onClick={openEditFromDetail} className="px-4 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">✏️ แก้ไข</button>
+            )}
+            {(st === 'pending' || st === 'overdue') && (
+              <button onClick={() => handleToggleStatus(exp)} className="px-4 py-2 text-sm text-white rounded-lg bg-green-600 hover:bg-green-700">💰 จ่ายแล้ว</button>
+            )}
+            {st === 'paid' && !exp.recurringExpenseId && (
+              <button onClick={() => handleToggleStatus(exp)} className="px-4 py-2 text-sm border border-amber-200 text-amber-600 rounded-lg hover:bg-amber-50">↩ เปลี่ยนเป็นรอจ่าย</button>
+            )}
+            {st === 'pending' && !exp.recurringExpenseId && (
+              <button onClick={() => setCancelTarget(exp)} className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
+          <h2 className="text-sm font-semibold text-gray-600 mb-3">ข้อมูลทั่วไป</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="รายละเอียด" value={<strong>{exp.description}</strong>} />
+            <InfoRow label="หมวดหมู่" value={exp.category} />
+            <InfoRow label="จำนวนเงิน" value={<span className="text-lg font-bold text-indigo-700">฿{Number(exp.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>} />
+            <InfoRow label="วันที่" value={exp.date?.slice(0, 10)} />
+            <InfoRow label="วันครบกำหนด" value={exp.dueDate?.slice(0, 10)} />
+            {exp.notes && <InfoRow label="หมายเหตุ" value={exp.notes} />}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
+          <h2 className="text-sm font-semibold text-gray-600 mb-3">การชำระเงิน</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+            <InfoRow label="สถานะ" value={renderStatusBadge(exp)} />
+            <InfoRow label="วิธีชำระ" value={exp.paymentMethod ? (paymentMethodLabel[exp.paymentMethod] || exp.paymentMethod) : undefined} />
+            <InfoRow label="วันที่ชำระ" value={exp.paidAt?.slice(0, 10)} />
+          </div>
+        </div>
+
+        {exp.slipImage && (
+          <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
+            <h2 className="text-sm font-semibold text-gray-600 mb-3">สลิป/ใบเสร็จ</h2>
+            <div className="flex justify-center">
+              <img src={`/api/data/${exp.slipImage}`} alt="slip"
+                className={`rounded-lg border border-gray-200 object-contain cursor-pointer transition-all ${imageZoom ? 'max-h-[80vh] max-w-full' : 'max-h-64'}`}
+                onClick={() => setImageZoom(!imageZoom)} />
+            </div>
+            {!imageZoom && <p className="text-xs text-gray-400 text-center mt-2">คลิกเพื่อขยาย</p>}
+          </div>
+        )}
+
+        <ConfirmDialog open={!!cancelTarget} message={`ต้องการยกเลิกค่าใช้จ่าย "${cancelTarget?.description}" ใช่ไหม?`}
+          onConfirm={handleCancel} onCancel={() => setCancelTarget(null)} />
+        {toast && (<div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg animate-fade-in">{toast}</div>)}
+      </div>
+    );
+  }
+
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
   return (
@@ -386,7 +492,7 @@ export default function ExpensePage() {
         onAdd={openAdd}
         onEdit={openEdit}
         onDelete={(e) => e.recurringExpenseId ? undefined : setCancelTarget(e)}
-        onRowClick={openEdit}
+        onRowClick={openDetail}
       />
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'แก้ไขค่าใช้จ่าย' : 'เพิ่มค่าใช้จ่ายใหม่'}>
