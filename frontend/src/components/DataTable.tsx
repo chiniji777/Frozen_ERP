@@ -28,7 +28,7 @@ interface Props<T> {
   defaultSortDir?: SortDir;
 }
 
-const PAGE_SIZES = [10, 25, 50, 100];
+const PAGE_SIZES = [25, 50, 100, 200];
 
 function SortIcon({ dir, active }: { dir: SortDir; active: boolean }) {
   return (
@@ -58,7 +58,7 @@ export default function DataTable<T>({
 }: Props<T>) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(25);
   const [sortKey, setSortKey] = useState<string>(defaultSortKey);
   const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
