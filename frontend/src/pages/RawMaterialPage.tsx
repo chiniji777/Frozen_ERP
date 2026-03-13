@@ -3,6 +3,9 @@ import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import ComboBox from '../components/ComboBox';
+
+interface Supplier { id: number; name: string; }
 
 interface RawMaterial {
   id: number;
@@ -25,6 +28,9 @@ export default function RawMaterialPage() {
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState<RawMaterial | null>(null);
+  const [supplierNames, setSupplierNames] = useState<string[]>([]);
+
+  const UNIT_OPTIONS = ['กก.', 'กรัม', 'ลิตร', 'มล.', 'ชิ้น', 'แพ็ค', 'ถุง', 'กล่อง', 'ขวด', 'ถัง', 'ม้วน', 'แผ่น', 'เมตร'];
 
   const load = () => {
     setLoading(true);
@@ -34,7 +40,10 @@ export default function RawMaterialPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get<Supplier[]>('/suppliers').then((list) => setSupplierNames(list.map((s) => s.name))).catch(() => {});
+  }, []);
 
   const openAdd = () => { setEditing(null); setForm(emptyForm); setModalOpen(true); };
   const openEdit = (m: RawMaterial) => {
@@ -122,8 +131,8 @@ export default function RawMaterialPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
-              <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+              <ComboBox value={form.unit} onChange={(v) => setForm({ ...form, unit: v })}
+                options={UNIT_OPTIONS} placeholder="เลือกหรือพิมพ์หน่วย" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ราคาต่อหน่วย (บาท)</label>
@@ -133,8 +142,8 @@ export default function RawMaterialPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">ผู้จำหน่าย</label>
-            <input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" placeholder="ชื่อผู้จำหน่าย" />
+            <ComboBox value={form.supplier} onChange={(v) => setForm({ ...form, supplier: v })}
+              options={supplierNames} placeholder="เลือกหรือพิมพ์ชื่อผู้จำหน่าย" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
