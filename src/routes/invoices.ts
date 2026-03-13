@@ -513,4 +513,22 @@ invoicesRoute.get("/:id/coa", async (c) => {
   return c.html(wrapHtml(`COA - ${targetItem.productName}`, "inv", coaBody));
 });
 
+
+// === Delete Invoice ===
+invoicesRoute.delete("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const inv = await db.select().from(invoices).where(eq(invoices.id, id)).get();
+  if (!inv) return c.json({ error: "Invoice not found" }, 404);
+
+  const pmts = await db.select({ id: payments.id }).from(payments).where(eq(payments.invoiceId, id)).all();
+  if (pmts.length > 0) {
+    return c.json({ error: "Cannot delete: has payments linked. Delete them first.", relatedIds: pmts.map(p => p.id) }, 400);
+  }
+
+  await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id)).run();
+  await db.delete(invoices).where(eq(invoices.id, id)).run();
+
+  return c.json({ ok: true, deletedId: id });
+});
+
 export { invoicesRoute };

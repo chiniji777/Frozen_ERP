@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { deliveryNotes, dnItems, salesOrders, soItems, products, customers, deliveryPhotos, deliveryConfirmations } from "../schema.js";
+import { deliveryNotes, dnItems, salesOrders, soItems, products, customers, deliveryPhotos, deliveryConfirmations, invoices } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
 import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
@@ -340,6 +340,26 @@ deliveryNotesRoute.get("/:id/coa", async (c) => {
   </div>`;
 
   return c.html(wrapHtml(`COA - ${targetItem.productName || targetItem.sku}`, "dn", coaBody));
+});
+
+
+// === Delete DN ===
+deliveryNotesRoute.delete("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const dn = await db.select().from(deliveryNotes).where(eq(deliveryNotes.id, id)).get();
+  if (!dn) return c.json({ error: "Delivery note not found" }, 404);
+
+  const ivs = await db.select({ id: invoices.id }).from(invoices).where(eq(invoices.deliveryNoteId, id)).all();
+  if (ivs.length > 0) {
+    return c.json({ error: "Cannot delete: has invoices linked. Delete them first.", relatedIds: ivs.map(i => i.id) }, 400);
+  }
+
+  await db.delete(dnItems).where(eq(dnItems.deliveryNoteId, id)).run();
+  await db.delete(deliveryPhotos).where(eq(deliveryPhotos.deliveryNoteId, id)).run();
+  await db.delete(deliveryConfirmations).where(eq(deliveryConfirmations.deliveryNoteId, id)).run();
+  await db.delete(deliveryNotes).where(eq(deliveryNotes.id, id)).run();
+
+  return c.json({ ok: true, deletedId: id });
 });
 
 export { deliveryNotesRoute };

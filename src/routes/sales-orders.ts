@@ -629,4 +629,29 @@ ${stickersHtml}
   return c.html(html);
 });
 
+
+// === Delete SO ===
+salesOrdersRoute.delete("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const so = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  if (!so) return c.json({ error: "Sales order not found" }, 404);
+
+  const dns = await db.select({ id: deliveryNotes.id }).from(deliveryNotes).where(eq(deliveryNotes.salesOrderId, id)).all();
+  if (dns.length > 0) {
+    return c.json({ error: "Cannot delete: has delivery notes. Delete them first.", relatedIds: dns.map(d => d.id) }, 400);
+  }
+
+  const ivs = await db.select({ id: invoices.id }).from(invoices).where(eq(invoices.salesOrderId, id)).all();
+  if (ivs.length > 0) {
+    return c.json({ error: "Cannot delete: has invoices. Delete them first.", relatedIds: ivs.map(i => i.id) }, 400);
+  }
+
+  await db.delete(soItems).where(eq(soItems.salesOrderId, id)).run();
+  await db.delete(soPaymentTerms).where(eq(soPaymentTerms.salesOrderId, id)).run();
+  await db.delete(soAttachments).where(eq(soAttachments.salesOrderId, id)).run();
+  await db.delete(salesOrders).where(eq(salesOrders.id, id)).run();
+
+  return c.json({ ok: true, deletedId: id });
+});
+
 export { salesOrdersRoute };
