@@ -9,7 +9,7 @@ interface RawMaterial { id: number; name: string; unit: string; stock: number; p
 interface POItem {
   id?: number; rawMaterialId: number; quantity: number;
   unit: string; unitPrice: number; amount: number;
-  materialName?: string; currentStock?: number;
+  materialName?: string;
 }
 interface PurchaseOrder {
   id: number; poNumber: string; productionOrderId?: number;
