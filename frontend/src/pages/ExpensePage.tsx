@@ -491,7 +491,7 @@ export default function ExpensePage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await api.delete(`/expenses/${deleteTarget.id}`);
+      await api.del(`/expenses/${deleteTarget.id}`);
       setToast(`ลบรายการ "${deleteTarget.description}" เรียบร้อย`);
     } catch {
       setToast('ไม่สามารถลบได้ (อาจจ่ายแล้ว)');
