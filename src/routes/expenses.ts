@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { expenses, suppliers, printLogs } from "../schema.js";
+import { expenses, suppliers, printLogs, recurringExpenses } from "../schema.js";
 import { eq, sql, desc } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
@@ -111,10 +111,18 @@ expensesRoute.get("/:id{[0-9]+}", async (c) => {
   if (!row) return c.json({ error: "Expense not found" }, 404);
 
   const now = new Date().toISOString().slice(0, 10);
+  let recurringInfo: { imageUrl?: string | null; bankName?: string | null; bankAccount?: string | null; accountName?: string | null; payTo?: string | null } | null = null;
+  if (row.expense.recurringExpenseId) {
+    const rec = await db.select().from(recurringExpenses).where(eq(recurringExpenses.id, row.expense.recurringExpenseId)).get();
+    if (rec) {
+      recurringInfo = { imageUrl: rec.imageUrl, bankName: rec.bankName, bankAccount: rec.bankAccount, accountName: rec.accountName, payTo: rec.payTo };
+    }
+  }
   return c.json({
     ...row.expense,
     displayStatus: row.expense.status === "pending" && row.expense.dueDate && row.expense.dueDate < now ? "overdue" : row.expense.status,
     supplier: row.supplier || null,
+    recurringInfo,
   });
 });
 

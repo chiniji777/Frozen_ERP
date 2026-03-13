@@ -52,6 +52,13 @@ interface Expense {
   whtNetAmount?: number | null;
   whtDocNumber?: string | null;
   expenseNumber?: string | null;
+  recurringInfo?: {
+    imageUrl?: string | null;
+    bankName?: string | null;
+    bankAccount?: string | null;
+    accountName?: string | null;
+    payTo?: string | null;
+  } | null;
 }
 
 interface PrintLog {
@@ -278,6 +285,7 @@ export default function ExpensePage() {
     setDetailExp(e);
     setImageZoom(false);
     setPrintLogs([]);
+    api.get<Expense>(`/expenses/${e.id}`).then((full) => setDetailExp(full)).catch(() => {});
     api.get<PrintLog[]>(`/expenses/${e.id}/print-logs`).then(setPrintLogs).catch(() => setPrintLogs([]));
   };
 
@@ -488,6 +496,21 @@ export default function ExpensePage() {
                     alt="PromptPay QR"
                     className="w-48 h-48 border rounded-lg"
                   />
+                </div>
+              )}
+            </div>
+          )}
+          {exp.recurringInfo && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <h3 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลจากรายการประจำ{exp.recurringInfo.payTo ? `: ${exp.recurringInfo.payTo}` : ''}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                {exp.recurringInfo.bankName && <InfoRow label="ธนาคาร" value={exp.recurringInfo.bankName} />}
+                {exp.recurringInfo.bankAccount && <InfoRow label="เลขบัญชี" value={exp.recurringInfo.bankAccount} />}
+                {exp.recurringInfo.accountName && <InfoRow label="ชื่อบัญชี" value={exp.recurringInfo.accountName} />}
+              </div>
+              {exp.recurringInfo.imageUrl && (
+                <div className="mt-3 flex justify-center">
+                  <img src={`/api/${exp.recurringInfo.imageUrl}`} alt="QR/เอกสาร" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
                 </div>
               )}
             </div>
