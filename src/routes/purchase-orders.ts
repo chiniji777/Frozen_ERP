@@ -161,7 +161,6 @@ purchaseOrdersRoute.patch("/:id/cancel", async (c) => {
   const po = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).get();
   if (!po) return c.json({ error: "Purchase order not found" }, 404);
   if (po.status === "cancelled") return c.json({ error: "Already cancelled" }, 400);
-  if (po.status === "received") return c.json({ error: "Cannot cancel received PO" }, 400);
 
   await db.update(purchaseOrders).set({
     status: "cancelled",

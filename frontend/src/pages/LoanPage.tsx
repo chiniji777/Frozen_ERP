@@ -323,7 +323,7 @@ export default function LoanPage() {
             </span>
           )},
           { key: 'dueDate', label: 'กำหนดคืน', render: (l: Loan) => l.dueDate?.slice(0, 10) || '-' },
-          { key: 'status', label: 'สถานะ', render: renderStatusBadge },
+          { key: 'status', label: 'สถานะ', filterable: true, render: renderStatusBadge },
         ]}
         data={data}
         getId={(l) => l.id}
