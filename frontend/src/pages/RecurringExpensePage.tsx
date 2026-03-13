@@ -96,10 +96,10 @@ export default function RecurringExpensePage() {
   const [monthlyItems, setMonthlyItems] = useState<MonthlyItem[]>([]);
   const [summary, setSummary] = useState<Summary>({ totalDue: 0, totalPaid: 0, totalPending: 0, totalRemainingDebt: 0 });
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [filterYear, setFilterYear] = useState(() => String(new Date().getFullYear()));
+  const [filterMonthNum, setFilterMonthNum] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'));
+  const selectedMonth = `${filterYear}-${filterMonthNum}`;
+  const [filterStatus, setFilterStatus] = useState('');
 
   // Template modal
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -322,17 +322,28 @@ export default function RecurringExpensePage() {
     loadMonthly();
   };
 
-  const getStatusBadge = (item: MonthlyItem) => {
-    if (item.status === 'paid') {
-      return <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">จ่ายแล้ว</span>;
-    }
+  const getDisplayStatus = (item: MonthlyItem): string => {
+    if (item.status === 'paid') return 'paid';
     const today = new Date();
-    const dueDate = new Date(today.getFullYear(), today.getMonth(), item.dueDay || 28);
-    if (today > dueDate && item.status === 'pending') {
-      return <span className="px-2 py-0.5 rounded-full text-xs bg-red-200 text-red-800">เลยกำหนด</span>;
-    }
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const dueDate = new Date(y, m - 1, item.dueDay || 28);
+    if (today > dueDate) return 'overdue';
+    return 'pending';
+  };
+
+  const getStatusBadge = (item: MonthlyItem) => {
+    const ds = getDisplayStatus(item);
+    if (ds === 'paid') return <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">จ่ายแล้ว</span>;
+    if (ds === 'overdue') return <span className="px-2 py-0.5 rounded-full text-xs bg-red-200 text-red-800">เลยกำหนด</span>;
     return <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">ค้างจ่าย</span>;
   };
+
+  const filteredItems = monthlyItems.filter(item => {
+    if (!filterStatus) return true;
+    const ds = getDisplayStatus(item);
+    if (filterStatus === 'unpaid') return ds === 'pending' || ds === 'overdue';
+    return ds === filterStatus;
+  });
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
@@ -340,13 +351,27 @@ export default function RecurringExpensePage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-800">ค่าใช้จ่ายประจำเดือน</h1>
-        <div className="flex items-center gap-3">
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-          />
+        <div className="flex items-center gap-2">
+          <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() - 1 + i).map(y => (
+              <option key={y} value={y}>พ.ศ. {y + 543}</option>
+            ))}
+          </select>
+          <select value={filterMonthNum} onChange={(e) => setFilterMonthNum(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            {['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'].map((m, i) => (
+              <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
+            ))}
+          </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            <option value="">ทุกสถานะ</option>
+            <option value="unpaid">ยังไม่ได้จ่าย</option>
+            <option value="paid">จ่ายแล้ว</option>
+            <option value="pending">ค้างจ่าย</option>
+            <option value="overdue">เลยกำหนด</option>
+          </select>
         </div>
       </div>
 
@@ -381,7 +406,7 @@ export default function RecurringExpensePage() {
           { key: 'paymentMethod', label: 'ช่องทาง', render: (item: MonthlyItem) => item.paymentMethod || '-' },
           { key: 'status', label: 'สถานะ', filterable: true, render: (item: MonthlyItem) => getStatusBadge(item) },
         ]}
-        data={monthlyItems}
+        data={filteredItems}
         getId={(item) => item.paymentId ?? item.id}
         searchPlaceholder="ค้นหารายการ..."
         onAdd={openAddTemplate}
