@@ -377,7 +377,7 @@ export default function RecurringExpensePage() {
           { key: 'amount', label: 'ยอด', render: (item: MonthlyItem) => Number(item.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) },
           { key: 'dueDay', label: 'กำหนด', render: (item: MonthlyItem) => item.dueDay ? `วันที่ ${item.dueDay}` : '-' },
           { key: 'paymentMethod', label: 'ช่องทาง', render: (item: MonthlyItem) => item.paymentMethod || '-' },
-          { key: 'status', label: 'สถานะ', render: (item: MonthlyItem) => getStatusBadge(item) },
+          { key: 'status', label: 'สถานะ', filterable: true, render: (item: MonthlyItem) => getStatusBadge(item) },
         ]}
         data={monthlyItems}
         getId={(item) => item.paymentId ?? item.id}
