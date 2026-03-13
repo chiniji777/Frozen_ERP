@@ -575,14 +575,14 @@ export default function InvoicePage() {
       <h1 className="text-2xl font-bold text-gray-800 mb-4">ใบแจ้งหนี้ (Invoice)</h1>
       <DataTable
         columns={[
-          { key: 'invoice_number', label: 'เลขที่' },
-          { key: 'customer_name', label: 'ลูกค้า', render: (iv) => iv.customer_name || '-' },
-          { key: 'so_order_number', label: 'อ้างอิง', render: (iv) => iv.so_order_number || iv.dn_number || '-' },
+          { key: 'invoice_number', label: 'เลขที่', filterable: true },
+          { key: 'customer_name', label: 'ลูกค้า', filterable: true, render: (iv) => iv.customer_name || '-' },
+          { key: 'so_order_number', label: 'อ้างอิง', filterable: true, render: (iv) => iv.so_order_number || iv.dn_number || '-' },
           { key: 'total_amount', label: 'ยอดรวม', render: (iv) => `฿${Number(iv.total_amount).toLocaleString()}` },
           { key: 'due_date', label: 'ครบกำหนด', render: (iv) => (
             <span className={isOverdue(iv) ? 'text-red-600 font-semibold' : ''}>{iv.due_date?.slice(0, 10) || '-'}</span>
           )},
-          { key: 'status', label: 'สถานะ', render: (iv) => {
+          { key: 'status', label: 'สถานะ', filterable: true, render: (iv) => {
             const s = effectiveStatus(iv);
             const cfg2 = statusCfg[s] ?? statusCfg.draft;
             return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg2.color}`}>{cfg2.label}</span>;

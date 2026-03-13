@@ -282,11 +282,11 @@ export default function PaymentPage() {
       <DataTable
         columns={[
           { key: 'id', label: 'รหัส' },
-          { key: 'invoice_number', label: 'ใบแจ้งหนี้' },
-          { key: 'customer_name', label: 'ลูกค้า' },
+          { key: 'invoice_number', label: 'ใบแจ้งหนี้', filterable: true },
+          { key: 'customer_name', label: 'ลูกค้า', filterable: true },
           { key: 'amount', label: 'จำนวนเงิน', render: (p) => `฿${(Number(p.amount) || 0).toLocaleString()}` },
           { key: 'method', label: 'วิธีชำระ', render: (p) => methodLabels[p.method] ?? p.method },
-          { key: 'reference', label: 'อ้างอิง' },
+          { key: 'reference', label: 'อ้างอิง', filterable: true },
           { key: 'invoice_status', label: 'สถานะ IV', render: (p) => (
             <span className={`px-2 py-0.5 rounded-full text-xs ${p.invoice_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
               {p.invoice_status === 'paid' ? 'ชำระครบ' : 'ยังไม่ครบ'}

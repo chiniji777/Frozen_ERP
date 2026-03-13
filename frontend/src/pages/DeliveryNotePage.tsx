@@ -416,12 +416,12 @@ export default function DeliveryNotePage() {
       <h1 className="text-2xl font-bold text-gray-800 mb-4">📦 ใบส่งของ (Delivery Note)</h1>
       <DataTable
         columns={[
-          { key: 'dn_number', label: 'เลขที่' },
-          { key: 'so_order_number', label: 'อ้างอิง SO' },
-          { key: 'customer_name', label: 'ลูกค้า' },
+          { key: 'dn_number', label: 'เลขที่', filterable: true },
+          { key: 'so_order_number', label: 'อ้างอิง SO', filterable: true },
+          { key: 'customer_name', label: 'ลูกค้า', filterable: true },
           { key: 'delivery_date', label: 'วันจัดส่ง', render: (d) => d.delivery_date?.slice(0, 10) || '-' },
           { key: 'items', label: 'รายการ', render: (d) => `${d.items?.length ?? 0} รายการ` },
-          { key: 'status', label: 'สถานะ', render: (d) => {
+          { key: 'status', label: 'สถานะ', filterable: true, render: (d) => {
             const c = statusCfg[d.status] ?? statusCfg.draft;
             return <span className={`px-2 py-0.5 rounded-full text-xs ${c.color}`}>{c.label}</span>;
           }},

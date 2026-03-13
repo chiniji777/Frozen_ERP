@@ -348,16 +348,16 @@ export default function ExpensePage() {
         columns={[
           { key: 'id', label: 'รหัส' },
           { key: 'date', label: 'วันที่', render: (e: Expense) => e.date?.slice(0, 10) || '-' },
-          { key: 'category', label: 'หมวด', render: (e: Expense) => (
+          { key: 'category', label: 'หมวด', filterable: true, render: (e: Expense) => (
             <span className="flex items-center gap-1.5">
               {e.category}
               {e.recurringExpenseId && <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-600 font-medium">ประจำ</span>}
             </span>
           )},
-          { key: 'description', label: 'รายละเอียด' },
+          { key: 'description', label: 'รายละเอียด', filterable: true },
           { key: 'amount', label: 'จำนวนเงิน', render: (e: Expense) => `${Number(e.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}` },
           { key: 'slipImage', label: 'สลิป', render: (e: Expense) => e.slipImage ? <span className="text-green-600 text-xs">มีสลิป</span> : <span className="text-gray-400 text-xs">-</span> },
-          { key: 'status', label: 'สถานะ', render: (e: Expense) => {
+          { key: 'status', label: 'สถานะ', filterable: true, render: (e: Expense) => {
             const st = (e.status || 'pending') as ExpenseStatus;
             const cfg = statusConfig[st] || statusConfig.pending;
             const canToggle = st === 'pending' || st === 'overdue' || (st === 'paid' && !e.recurringExpenseId);

@@ -270,8 +270,8 @@ export default function SupplierPage() {
 
       <DataTable
         columns={[
-          { key: 'code', label: 'รหัส' },
-          { key: 'name', label: 'ชื่อผู้ขาย' },
+          { key: 'code', label: 'รหัส', filterable: true },
+          { key: 'name', label: 'ชื่อผู้ขาย', filterable: true },
           { key: 'supplierType', label: 'ประเภท', render: (s) => <TypeBadge type={(s as Supplier).supplierType || 'Company'} /> },
           { key: 'phone', label: 'โทรศัพท์' },
           { key: 'email', label: 'อีเมล' },

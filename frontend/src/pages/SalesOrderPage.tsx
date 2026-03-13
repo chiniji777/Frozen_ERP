@@ -636,11 +636,11 @@ export default function SalesOrderPage() {
         <h1 className="text-2xl font-bold text-gray-800 mb-4">Sales Order</h1>
         <DataTable
           columns={[
-            { key: 'orderNumber', label: 'SO#' },
-            { key: 'customer', label: 'Customer', render: (o) => (o as SalesOrder).customer?.name || '-' },
+            { key: 'orderNumber', label: 'SO#', filterable: true },
+            { key: 'customer', label: 'Customer', filterable: true, render: (o) => (o as SalesOrder).customer?.name || '-' },
             { key: 'date', label: 'Date', render: (o) => (o as SalesOrder).date || '-' },
             { key: 'totalAmount', label: 'Grand Total', render: (o) => `฿${Number((o as SalesOrder).totalAmount).toLocaleString()}` },
-            { key: 'status', label: 'Status', render: (o) => {
+            { key: 'status', label: 'Status', filterable: true, render: (o) => {
               const cfg2 = statusCfg[(o as SalesOrder).status] ?? statusCfg.draft;
               return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg2.color}`}>{cfg2.label}</span>;
             }},
