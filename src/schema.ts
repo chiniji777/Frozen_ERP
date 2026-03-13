@@ -364,6 +364,40 @@ export const deliveryConfirmations = sqliteTable("delivery_confirmations", {
   createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
 
+// ===== Recurring Expenses =====
+
+export const recurringExpenses = sqliteTable("recurring_expenses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  amount: real("amount").notNull(),
+  dueDay: integer("due_day"),
+  payTo: text("pay_to"),
+  paymentMethod: text("payment_method"),
+  totalDebt: real("total_debt").default(0),
+  totalPaid: real("total_paid").default(0),
+  remainingDebt: real("remaining_debt").default(0),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  isActive: integer("is_active").default(1),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const recurringExpensePayments = sqliteTable("recurring_expense_payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  recurringExpenseId: integer("recurring_expense_id").notNull(),
+  expenseId: integer("expense_id"),
+  month: text("month").notNull(),
+  amount: real("amount").notNull(),
+  paidAt: text("paid_at"),
+  status: text("status").default("pending"),
+  slipImage: text("slip_image"),
+  paymentMethod: text("payment_method"),
+  notes: text("notes"),
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
 export const poItems = sqliteTable("po_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   purchaseOrderId: integer("purchase_order_id").notNull(),
