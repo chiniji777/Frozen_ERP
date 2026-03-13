@@ -557,9 +557,22 @@ export default function ExpensePage() {
                     <span className="text-sm text-gray-800">{log.description || log.docType}</span>
                     {log.refNumber && <span className="ml-2 text-xs text-gray-400">({log.refNumber})</span>}
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {new Date(log.printedAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">
+                      {new Date(log.printedAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {printLogs.length > 1 && (
+                      <button onClick={async () => {
+                        if (!confirm('ต้องการลบประวัติการปริ้นนี้?')) return;
+                        try {
+                          await api.del(`/expenses/print-logs/${log.id}`);
+                          setPrintLogs(prev => prev.filter(l => l.id !== log.id));
+                        } catch (e: any) {
+                          alert(e?.response?.data?.error || 'ลบไม่สำเร็จ');
+                        }
+                      }} className="text-xs text-red-400 hover:text-red-600" title="ลบประวัติ">✕</button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

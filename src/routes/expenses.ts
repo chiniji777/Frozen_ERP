@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
 import { expenses, suppliers, printLogs, recurringExpenses } from "../schema.js";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
 import { generateRunningNumber } from "../utils.js";
@@ -608,6 +608,24 @@ expensesRoute.get("/print-logs/all", async (c) => {
     logs = logs.filter(l => l.printedAt.startsWith(month));
   }
   return c.json(logs);
+});
+
+// DELETE /print-logs/:logId — delete a print log (ต้องเหลืออย่างน้อย 1 รายการ)
+expensesRoute.delete("/print-logs/:logId", async (c) => {
+  const logId = Number(c.req.param("logId"));
+  const log = await db.select().from(printLogs).where(eq(printLogs.id, logId)).get();
+  if (!log) return c.json({ error: "Print log not found" }, 404);
+
+  // นับจำนวน log ของ expense เดียวกัน
+  const count = await db.select({ count: sql<number>`count(*)` }).from(printLogs)
+    .where(and(eq(printLogs.docType, log.docType), eq(printLogs.refId, log.refId))).get();
+
+  if ((count?.count || 0) <= 1) {
+    return c.json({ error: "ลบไม่ได้ ต้องเหลือประวัติอย่างน้อย 1 รายการ" }, 400);
+  }
+
+  await db.delete(printLogs).where(eq(printLogs.id, logId)).run();
+  return c.json({ ok: true });
 });
 
 export { expensesRoute };
