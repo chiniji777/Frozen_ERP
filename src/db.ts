@@ -304,6 +304,7 @@ export async function initDB() {
   await migrateDeliveryNotes();
   await migrateInvoices();
   await migrateCancelSupport();
+  await migrateExpenseFlow();
   await migrateRecurringExpenses();
   await migrateProductCategories();
   await seedAdminUser();
@@ -641,6 +642,26 @@ async function migrateProducts() {
       // column already exists — skip
     }
   }
+}
+
+async function migrateExpenseFlow() {
+  const client = getClient();
+  const newCols: [string, string][] = [
+    ["due_date", "TEXT"],
+    ["paid_at", "TEXT"],
+    ["slip_image", "TEXT"],
+    ["payment_method", "TEXT"],
+    ["recurring_expense_id", "INTEGER"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE expenses ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists
+    }
+  }
+  // Migrate status: active → pending (for existing rows)
+  await client.execute("UPDATE expenses SET status = 'pending' WHERE status = 'active'");
 }
 
 async function migrateRecurringExpenses() {
