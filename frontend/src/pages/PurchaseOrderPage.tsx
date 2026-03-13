@@ -168,13 +168,13 @@ export default function PurchaseOrderPage() {
     const { po, action } = actionTarget;
     try {
       if (action === 'confirm') {
-        await api.patch(`/purchase-orders/${po.id}/confirm`, {});
+        await api.post(`/purchase-orders/${po.id}/confirm`, {});
         setToast('ยืนยัน PO สำเร็จ');
       } else if (action === 'receive') {
         await api.post(`/purchase-orders/${po.id}/receive`, {});
         setToast('รับของสำเร็จ — stock วัตถุดิบอัปเดตแล้ว');
       } else if (action === 'pay') {
-        await api.patch(`/purchase-orders/${po.id}/pay`, { paidAt: new Date().toISOString().slice(0, 10) });
+        await api.post(`/purchase-orders/${po.id}/pay`, { paidAt: new Date().toISOString().slice(0, 10) });
         setToast('บันทึกจ่ายเงินสำเร็จ');
       } else if (action === 'delete') {
         await api.del(`/purchase-orders/${po.id}`);
