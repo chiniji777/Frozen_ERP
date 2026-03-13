@@ -141,7 +141,9 @@ export default function ExpensePage() {
   const [imageZoom, setImageZoom] = useState(false);
   const [filterCat, setFilterCat] = useState(urlCategory);
   const [filterStatus, setFilterStatus] = useState<ExpenseStatus | ''>('');
-  const [filterMonth, setFilterMonth] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterMonthNum, setFilterMonthNum] = useState('');
+  const filterMonth = filterYear && filterMonthNum ? `${filterYear}-${filterMonthNum}` : '';
   const [categories, setCategories] = useState<string[]>([]);
   const [toast, setToast] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -579,21 +581,30 @@ export default function ExpensePage() {
 
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">เดือน</label>
-          <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
+          <label className="block text-xs text-gray-500 mb-1">ปี</label>
+          <select value={filterYear} onChange={(e) => { setFilterYear(e.target.value); if (!e.target.value) setFilterMonthNum(''); }}
             className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
             <option value="">ทั้งหมด</option>
             {(() => {
-              const months: string[] = [];
               const now = new Date();
-              for (let i = 11; i >= 0; i--) {
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-              }
-              return months.reverse().map((m) => (
-                <option key={m} value={m}>{new Date(m + '-01').toLocaleDateString('th-TH', { year: 'numeric', month: 'long' })}</option>
+              const years: number[] = [];
+              for (let i = 0; i < 3; i++) years.push(now.getFullYear() - i);
+              return years.map((y) => (
+                <option key={y} value={y}>{y + 543}</option>
               ));
             })()}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">เดือน</label>
+          <select value={filterMonthNum} onChange={(e) => { setFilterMonthNum(e.target.value); if (e.target.value && !filterYear) setFilterYear(String(new Date().getFullYear())); }}
+            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            <option value="">ทั้งหมด</option>
+            {[...Array(12)].map((_, i) => {
+              const m = String(i + 1).padStart(2, '0');
+              const label = new Date(2024, i, 1).toLocaleDateString('th-TH', { month: 'long' });
+              return <option key={m} value={m}>{label}</option>;
+            })}
           </select>
         </div>
         <div>
