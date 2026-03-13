@@ -339,7 +339,7 @@ invoicesRoute.get("/:id/print", async (c) => {
   return c.html(wrapHtml(`Invoice ${iv.invoiceNumber}`, "inv", body));
 });
 
-// === Print Receipt from Invoice (for customers who need Invoice + Receipt together) ===
+// === Print Receipt from Invoice (full receipt with product items — works even before payment) ===
 invoicesRoute.get("/:id/print-receipt", async (c) => {
   const id = Number(c.req.param("id"));
   const companyId = c.req.query("companyId") ? Number(c.req.query("companyId")) : undefined;
@@ -354,21 +354,30 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
     ? await db.select().from(customers).where(eq(customers.id, so.customerId)).get()
     : null;
 
-  // Get payments for this invoice
+  // Get invoice items (product details)
+  const items = await db.select({
+    id: invoiceItems.id, productId: invoiceItems.productId, quantity: invoiceItems.quantity,
+    unitPrice: invoiceItems.unitPrice, amount: invoiceItems.amount,
+    productName: products.name, sku: products.sku, unit: products.unit,
+  }).from(invoiceItems)
+    .leftJoin(products, eq(invoiceItems.productId, products.id))
+    .where(eq(invoiceItems.invoiceId, id)).all();
+
+  // Get payment info (if any)
   const paymentRows = await db.select().from(payments).where(eq(payments.invoiceId, id)).all();
   const totalPaid = paymentRows.reduce((s, p) => s + p.amount, 0);
+  const isPaid = totalPaid >= iv.totalAmount;
 
   const sig = await getSignatureInfo(iv.confirmedBy);
   if (sig && iv.confirmedAt) sig.date = iv.confirmedAt;
 
-  const meta = `
-    <span>วันที่: ${escapeHtml(new Date().toISOString().slice(0, 10))}</span>
-    <span>อ้างอิง INV: ${escapeHtml(iv.invoiceNumber)}</span>
-    ${so?.poNumber ? `<span>PO#: ${escapeHtml(so.poNumber)}</span>` : ""}`;
+  const receiptNumber = `RCP-${iv.invoiceNumber.replace("IV", "")}`;
 
-  const receiptNumber = paymentRows[0]
-    ? `RCP-${iv.invoiceNumber.replace("IV", "")}`
-    : `RCP-${iv.invoiceNumber.replace("IV", "")}`;
+  const meta = `
+    <span>วันที่ออก: ${escapeHtml(new Date().toISOString().slice(0, 10))}</span>
+    <span>อ้างอิง INV: ${escapeHtml(iv.invoiceNumber)}</span>
+    ${so?.orderNumber ? `<span>อ้างอิง SO: ${escapeHtml(so.orderNumber)}</span>` : ""}
+    ${so?.poNumber ? `<span>PO#: ${escapeHtml(so.poNumber)}</span>` : ""}`;
 
   let body = `
   ${companyHeader(company, "receipt", receiptNumber, meta)}
@@ -383,34 +392,36 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
       <h4>อ้างอิง / Reference</h4>
       <p>เลขที่ใบแจ้งหนี้: ${escapeHtml(iv.invoiceNumber)}</p>
       ${so ? `<p>เลขที่ใบสั่งขาย: ${escapeHtml(so.orderNumber)}</p>` : ""}
-      <p>ยอดในใบแจ้งหนี้: ${fmtBaht(iv.totalAmount)}</p>
+      <p>วันที่สร้าง: ${escapeHtml(iv.createdAt?.slice(0, 10) || "-")}</p>
+      ${iv.dueDate ? `<p>ครบกำหนดชำระ: ${escapeHtml(iv.dueDate.slice(0, 10))}</p>` : ""}
     </div>
   </div>
   <table class="items-table">
     <thead><tr>
-      <th class="text-center">#</th><th>เลขที่การชำระ</th><th>วิธีชำระ</th><th>วันที่ชำระ</th>
-      <th class="text-right">จำนวนเงิน</th>
+      <th class="text-center">#</th><th>สินค้า / Description</th>
+      <th class="text-right">จำนวน</th><th>หน่วย</th><th class="text-right">ราคา/หน่วย</th><th class="text-right">จำนวนเงิน</th>
     </tr></thead>
-    <tbody>${paymentRows.length > 0 ? paymentRows.map((p, i) => `<tr>
-      <td class="text-center">${i + 1}</td>
-      <td>${escapeHtml(p.paymentNumber)}</td>
-      <td>${escapeHtml(p.method === "transfer" ? "โอนเงิน" : p.method === "cash" ? "เงินสด" : "เช็ค")}</td>
-      <td>${escapeHtml(p.paymentDate || p.paidAt?.slice(0, 10) || "-")}</td>
-      <td class="text-right">${fmtBaht(p.amount)}</td>
-    </tr>`).join("") : `<tr><td colspan="5" class="text-center" style="padding:20px;color:#94a3b8">ยังไม่มีรายการชำระเงิน</td></tr>`}</tbody>
+    <tbody>${items.map((it, i) => `<tr>
+      <td class="text-center">${i + 1}</td><td>${escapeHtml(it.productName) || escapeHtml(it.sku) || "-"}</td>
+      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td>
+      <td class="text-right">${fmtBaht(it.unitPrice)}</td><td class="text-right">${fmtBaht(it.amount)}</td>
+    </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
-    <div class="totals-row"><span>ยอดใบแจ้งหนี้</span><span>${fmtBaht(iv.totalAmount)}</span></div>
-    <div class="totals-row"><span>ชำระแล้ว</span><span>${fmtBaht(totalPaid)}</span></div>
-    <div class="totals-row grand"><span>ยอดรับทั้งสิ้น</span><span>${fmtBaht(totalPaid)}</span></div>
+    <div class="totals-row"><span>ยอดก่อน VAT</span><span>${fmtBaht(iv.subtotal)}</span></div>
+    <div class="totals-row"><span>VAT ${iv.vatRate}%</span><span>${fmtBaht(iv.vatAmount)}</span></div>
+    <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>${fmtBaht(iv.totalAmount)}</span></div>
+    ${paymentRows.length > 0 ? `<div class="totals-row" style="margin-top:8px;padding-top:8px;border-top:1px dashed #cbd5e1"><span>ชำระแล้ว</span><span>${fmtBaht(totalPaid)}</span></div>
+    <div class="totals-row"><span>คงเหลือ</span><span>${fmtBaht(iv.totalAmount - totalPaid)}</span></div>` : ""}
   </div></div>
+  ${iv.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(iv.notes)}</div>` : ""}
   ${signatureSection("ผู้ชำระเงิน / Payer", "ผู้รับเงิน / Receiver", sig)}`;
 
   // Add QR code for receipt
   const rcptBaseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
   body += await qrSection(`${rcptBaseUrl}/api/invoices/${id}/print-receipt${companyId ? `?companyId=${companyId}` : ""}`, "สแกนเพื่อดูใบเสร็จ / Scan to view Receipt");
 
-  return c.html(wrapHtml(`Receipt for ${iv.invoiceNumber}`, "receipt", body));
+  return c.html(wrapHtml(`Receipt ${receiptNumber}`, "receipt", body, isPaid ? undefined : "UNPAID"));
 });
 
 // === Print COA (Certificate of Analysis) from Invoice ===
