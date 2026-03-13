@@ -915,6 +915,8 @@ async function migrateWithholdingTax() {
     ["raw_material_id", "INTEGER"],
     ["product_id", "INTEGER"],
     ["item_type", "TEXT"],
+    ["item_qty", "REAL"],
+    ["item_price_per_unit", "REAL"],
   ];
   for (const [col, def] of itemCols) {
     try { await client.execute(`ALTER TABLE expenses ADD COLUMN ${col} ${def}`); } catch (_) { /* exists */ }

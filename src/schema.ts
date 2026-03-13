@@ -305,6 +305,8 @@ export const expenses = sqliteTable("expenses", {
   rawMaterialId: integer("raw_material_id"),
   productId: integer("product_id"),
   itemType: text("item_type"), // 'raw_material' | 'product' | null
+  itemQty: real("item_qty"),
+  itemPricePerUnit: real("item_price_per_unit"),
   hasWithholdingTax: integer("has_withholding_tax").default(0),
   whtFormType: text("wht_form_type"),
   whtIncomeType: text("wht_income_type"),

@@ -106,6 +106,8 @@ interface ExpenseForm {
   itemType: string; // 'raw_material' | 'product' | ''
   rawMaterialId: string;
   productId: string;
+  itemQty: string;
+  itemPricePerUnit: string;
   hasWithholdingTax: boolean;
   whtFormType: string;
   whtIncomeType: string;
@@ -127,7 +129,7 @@ interface RecurringMonthlyItem {
   paymentMethod: string;
 }
 
-const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '', supplierId: '', itemType: '', rawMaterialId: '', productId: '', hasWithholdingTax: false, whtFormType: 'pnd3', whtIncomeType: '', whtRate: '' };
+const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '', supplierId: '', itemType: '', rawMaterialId: '', productId: '', itemQty: '', itemPricePerUnit: '', hasWithholdingTax: false, whtFormType: 'pnd3', whtIncomeType: '', whtRate: '' };
 
 const statusConfig: Record<ExpenseStatus, { label: string; bg: string; text: string }> = {
   pending: { label: 'รอจ่าย', bg: 'bg-amber-100', text: 'text-amber-700' },
@@ -343,6 +345,8 @@ export default function ExpensePage() {
       itemType: e.itemType || '',
       rawMaterialId: e.rawMaterialId ? String(e.rawMaterialId) : '',
       productId: e.productId ? String(e.productId) : '',
+      itemQty: (e as any).itemQty ? String((e as any).itemQty) : '',
+      itemPricePerUnit: (e as any).itemPricePerUnit ? String((e as any).itemPricePerUnit) : '',
       hasWithholdingTax: !!e.hasWithholdingTax,
       whtFormType: e.whtFormType || 'pnd3',
       whtIncomeType: e.whtIncomeType || '',
@@ -428,6 +432,8 @@ export default function ExpensePage() {
       itemType: form.itemType || null,
       rawMaterialId: form.rawMaterialId ? Number(form.rawMaterialId) : null,
       productId: form.productId ? Number(form.productId) : null,
+      itemQty: form.itemQty ? Number(form.itemQty) : null,
+      itemPricePerUnit: form.itemPricePerUnit ? Number(form.itemPricePerUnit) : null,
       hasWithholdingTax: form.hasWithholdingTax,
       whtFormType: form.hasWithholdingTax ? form.whtFormType : null,
       whtIncomeType: form.hasWithholdingTax ? form.whtIncomeType : null,
@@ -781,23 +787,23 @@ export default function ExpensePage() {
 
           {/* Raw Material / Product Selector — show when category is วัตถุดิบ related or page is ซื้อวัตถุดิบ */}
           {(form.category === 'ค่าวัตถุดิบ' || urlCategory === 'ซื้อวัตถุดิบ' || form.category === 'ซื้อวัตถุดิบ') && (
-            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/50">
-              <label className="block text-sm font-medium text-gray-700 mb-2">เลือกวัตถุดิบ/สินค้า</label>
-              <div className="flex gap-3 mb-3">
+            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/50 flex flex-col gap-3">
+              <label className="block text-sm font-medium text-gray-700">เลือกวัตถุดิบ/สินค้า</label>
+              <div className="flex gap-3">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="itemType" value="raw_material" checked={form.itemType === 'raw_material'}
-                    onChange={() => setForm({ ...form, itemType: 'raw_material', productId: '', rawMaterialId: '' })}
+                    onChange={() => setForm({ ...form, itemType: 'raw_material', productId: '', rawMaterialId: '', itemQty: '', itemPricePerUnit: '' })}
                     className="text-indigo-600 focus:ring-indigo-500" />
                   <span className="text-sm">วัตถุดิบ</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" name="itemType" value="product" checked={form.itemType === 'product'}
-                    onChange={() => setForm({ ...form, itemType: 'product', rawMaterialId: '', productId: '' })}
+                    onChange={() => setForm({ ...form, itemType: 'product', rawMaterialId: '', productId: '', itemQty: '', itemPricePerUnit: '' })}
                     className="text-indigo-600 focus:ring-indigo-500" />
                   <span className="text-sm">สินค้า</span>
                 </label>
                 {form.itemType && (
-                  <button type="button" onClick={() => setForm({ ...form, itemType: '', rawMaterialId: '', productId: '' })}
+                  <button type="button" onClick={() => setForm({ ...form, itemType: '', rawMaterialId: '', productId: '', itemQty: '', itemPricePerUnit: '' })}
                     className="text-xs text-gray-400 hover:text-gray-600 ml-auto">ล้าง</button>
                 )}
               </div>
@@ -807,10 +813,15 @@ export default function ExpensePage() {
                   onChange={(e) => {
                     const rmId = e.target.value;
                     const rm = rawMaterialList.find(r => String(r.id) === rmId);
+                    const ppu = rm ? String(rm.pricePerUnit) : '';
+                    const qty = form.itemQty || '';
+                    const total = qty && ppu ? String(Math.round(Number(qty) * Number(ppu) * 100) / 100) : '';
                     setForm({
                       ...form,
                       rawMaterialId: rmId,
                       productId: '',
+                      itemPricePerUnit: ppu,
+                      amount: total || form.amount,
                       description: rm ? `${rm.code ? rm.code + ' - ' : ''}${rm.name}` : form.description,
                     });
                   }}
@@ -828,10 +839,15 @@ export default function ExpensePage() {
                   onChange={(e) => {
                     const pId = e.target.value;
                     const p = productList.find(pr => String(pr.id) === pId);
+                    const ppu = p ? String(p.salePrice) : '';
+                    const qty = form.itemQty || '';
+                    const total = qty && ppu ? String(Math.round(Number(qty) * Number(ppu) * 100) / 100) : '';
                     setForm({
                       ...form,
                       productId: pId,
                       rawMaterialId: '',
+                      itemPricePerUnit: ppu,
+                      amount: total || form.amount,
                       description: p ? `${p.sku ? p.sku + ' - ' : ''}${p.name}` : form.description,
                     });
                   }}
@@ -842,6 +858,43 @@ export default function ExpensePage() {
                     <option key={p.id} value={p.id}>{p.sku ? `${p.sku} - ` : ''}{p.name} ({p.unit})</option>
                   ))}
                 </select>
+              )}
+              {/* Quantity + Price per unit + Total */}
+              {form.itemType && (form.rawMaterialId || form.productId) && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">จำนวน {(() => {
+                      if (form.itemType === 'raw_material') { const rm = rawMaterialList.find(r => String(r.id) === form.rawMaterialId); return rm ? `(${rm.unit})` : ''; }
+                      if (form.itemType === 'product') { const p = productList.find(pr => String(pr.id) === form.productId); return p ? `(${p.unit})` : ''; }
+                      return '';
+                    })()}</label>
+                    <input type="number" step="0.001" value={form.itemQty}
+                      onChange={(e) => {
+                        const qty = e.target.value;
+                        const total = qty && form.itemPricePerUnit ? String(Math.round(Number(qty) * Number(form.itemPricePerUnit) * 100) / 100) : '';
+                        setForm({ ...form, itemQty: qty, amount: total || form.amount });
+                      }}
+                      placeholder="0"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">ราคา/หน่วย (฿)</label>
+                    <input type="number" step="0.01" value={form.itemPricePerUnit}
+                      onChange={(e) => {
+                        const ppu = e.target.value;
+                        const total = form.itemQty && ppu ? String(Math.round(Number(form.itemQty) * Number(ppu) * 100) / 100) : '';
+                        setForm({ ...form, itemPricePerUnit: ppu, amount: total || form.amount });
+                      }}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">ราคารวม (฿)</label>
+                    <div className="px-3 py-2 bg-indigo-50 rounded-lg text-sm font-bold text-indigo-700">
+                      ฿{form.itemQty && form.itemPricePerUnit ? (Math.round(Number(form.itemQty) * Number(form.itemPricePerUnit) * 100) / 100).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '0.00'}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
