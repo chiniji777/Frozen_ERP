@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { expenses } from "../schema.js";
+import { expenses, suppliers } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
@@ -52,26 +52,63 @@ expensesRoute.put("/categories", async (c) => {
   return c.json({ ok: true, categories: cats });
 });
 
-// GET / — list expenses (with status + month filter)
+// GET / — list expenses (with status + month filter), join supplier payment info
 expensesRoute.get("/", async (c) => {
   const category = c.req.query("category")?.trim();
   const status = c.req.query("status")?.trim();
   const from = c.req.query("from")?.trim();
   const to = c.req.query("to")?.trim();
-  let rows = await db.select().from(expenses).all();
-  if (category) rows = rows.filter(r => r.category === category);
-  if (status) rows = rows.filter(r => r.status === status);
-  if (from) rows = rows.filter(r => r.date >= from);
-  if (to) rows = rows.filter(r => r.date <= to);
 
-  // Compute overdue display status
+  let rows = await db.select({
+    expense: expenses,
+    supplier: {
+      id: suppliers.id,
+      name: suppliers.name,
+      bankName: suppliers.bankName,
+      bankAccountNumber: suppliers.bankAccountNumber,
+      bankAccountName: suppliers.bankAccountName,
+      promptPayId: suppliers.promptPayId,
+    },
+  }).from(expenses).leftJoin(suppliers, eq(expenses.supplierId, suppliers.id)).all();
+
+  if (category) rows = rows.filter(r => r.expense.category === category);
+  if (status) rows = rows.filter(r => r.expense.status === status);
+  if (from) rows = rows.filter(r => r.expense.date >= from);
+  if (to) rows = rows.filter(r => r.expense.date <= to);
+
   const now = new Date().toISOString().slice(0, 10);
   const result = rows.map(r => ({
-    ...r,
-    displayStatus: r.status === "pending" && r.dueDate && r.dueDate < now ? "overdue" : r.status,
+    ...r.expense,
+    displayStatus: r.expense.status === "pending" && r.expense.dueDate && r.expense.dueDate < now ? "overdue" : r.expense.status,
+    supplier: r.supplier || null,
   }));
 
   return c.json(result);
+});
+
+// GET /:id — single expense with supplier payment info
+expensesRoute.get("/:id{[0-9]+}", async (c) => {
+  const id = Number(c.req.param("id"));
+  const row = await db.select({
+    expense: expenses,
+    supplier: {
+      id: suppliers.id,
+      name: suppliers.name,
+      bankName: suppliers.bankName,
+      bankAccountNumber: suppliers.bankAccountNumber,
+      bankAccountName: suppliers.bankAccountName,
+      promptPayId: suppliers.promptPayId,
+    },
+  }).from(expenses).leftJoin(suppliers, eq(expenses.supplierId, suppliers.id)).where(eq(expenses.id, id)).get();
+
+  if (!row) return c.json({ error: "Expense not found" }, 404);
+
+  const now = new Date().toISOString().slice(0, 10);
+  return c.json({
+    ...row.expense,
+    displayStatus: row.expense.status === "pending" && row.expense.dueDate && row.expense.dueDate < now ? "overdue" : row.expense.status,
+    supplier: row.supplier || null,
+  });
 });
 
 // POST / — create expense (status: pending by default)
@@ -93,6 +130,7 @@ expensesRoute.post("/", async (c) => {
     dueDate: body.dueDate || null,
     paymentMethod: body.paymentMethod || null,
     recurringExpenseId: body.recurringExpenseId || null,
+    supplierId: body.supplierId || null,
     slipImage: body.slipImage || null,
     notes: body.notes || null,
     status: body.status || "pending",
@@ -113,6 +151,7 @@ expensesRoute.put("/:id", async (c) => {
     date: body.date ?? existing.date,
     dueDate: body.dueDate !== undefined ? body.dueDate : existing.dueDate,
     paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
+    supplierId: body.supplierId !== undefined ? body.supplierId : existing.supplierId,
     slipImage: body.slipImage !== undefined ? body.slipImage : existing.slipImage,
     notes: body.notes ?? existing.notes,
     updatedAt: sql`datetime('now')`,

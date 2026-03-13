@@ -314,6 +314,7 @@ export async function initDB() {
   await migrateSupplierPayment();
   await migrateShortTermLoans();
   await migrateExpenseNumber();
+  await migrateExpenseSupplier();
   await seedAdminUser();
 }
 
@@ -792,6 +793,18 @@ async function migrateCancelSupport() {
       }
     }
   }
+}
+
+async function migrateExpenseSupplier() {
+  const client = getClient();
+  try {
+    await client.execute("ALTER TABLE expenses ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id)");
+  } catch {
+    // column already exists
+  }
+  await client.executeMultiple(`
+    CREATE INDEX IF NOT EXISTS idx_expenses_supplier ON expenses(supplier_id);
+  `);
 }
 
 async function migrateShortTermLoans() {

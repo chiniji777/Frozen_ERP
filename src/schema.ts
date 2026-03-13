@@ -301,6 +301,7 @@ export const expenses = sqliteTable("expenses", {
   slipImage: text("slip_image"),
   paymentMethod: text("payment_method"),
   recurringExpenseId: integer("recurring_expense_id"),
+  supplierId: integer("supplier_id"),
   notes: text("notes"),
   status: text("status").default("pending"),
   cancelledAt: text("cancelled_at"),
