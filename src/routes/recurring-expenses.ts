@@ -7,6 +7,22 @@ import { join } from "path";
 
 const recurringExpensesRoute = new Hono();
 
+// Map Thai recurring categories → English expense enum
+const CATEGORY_TO_EXPENSE: Record<string, "material" | "labor" | "rent" | "utilities" | "other"> = {
+  "ค่าเช่า": "rent",
+  "สาธารณูปโภค": "utilities",
+  "ค่าแรงงาน": "labor",
+  "ผ่อนชำระ": "other",
+  "ประกัน": "other",
+  "บริการ": "other",
+  "อื่นๆ": "other",
+  "ค่าวัตถุดิบ": "material",
+};
+
+function mapToExpenseCategory(thaiCategory: string): "material" | "labor" | "rent" | "utilities" | "other" {
+  return CATEGORY_TO_EXPENSE[thaiCategory] || "other";
+}
+
 const CATEGORIES_FILE = join(process.cwd(), "data", "recurring-expense-categories.json");
 
 const DEFAULT_CATEGORIES = [
@@ -130,6 +146,7 @@ recurringExpensesRoute.get("/monthly", async (c) => {
     }
 
     result.push({
+      id: payment.id,
       paymentId: payment.id,
       recurringExpenseId: item.id,
       name: item.name,
@@ -261,9 +278,9 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
     return c.json({ error: "Already paid for this month" }, 400);
   }
 
-  // Create expense record
+  // Create expense record (map Thai category → English enum)
   const expenseResult = await db.insert(expenses).values({
-    category: recurring.category as "material" | "labor" | "rent" | "utilities" | "other",
+    category: mapToExpenseCategory(recurring.category),
     description: `${recurring.name} (${body.month})`,
     amount,
     date: body.paidAt || new Date().toISOString().slice(0, 10),
