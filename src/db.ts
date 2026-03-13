@@ -716,6 +716,8 @@ async function migrateRecurringExpenses() {
     ["bank_account", "TEXT"],
     ["bank_name", "TEXT"],
     ["account_name", "TEXT"],
+    ["total_amount", "REAL"],
+    ["principal_amount", "REAL"],
   ];
   for (const [col, type] of newCols) {
     try {
