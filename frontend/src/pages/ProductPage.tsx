@@ -22,7 +22,7 @@ interface Product {
 }
 
 const emptyForm = {
-  name: '', category: '', salePrice: '', unit: 'ชิ้น',
+  name: '', category: '', salePrice: '', unit: 'KG',
   imageUrl: '', description: '', hasVat: '1',
   packingWeight: '', packingUnit: 'kg',
 };
@@ -39,6 +39,7 @@ export default function ProductPage() {
   const [imagePreview, setImagePreview] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [categoryList, setCategoryList] = useState<{ id: number; name: string }[]>([]);
+  const [weightUoms, setWeightUoms] = useState<{ id: number; code: string; name: string }[]>([]);
 
   const load = () => {
     setLoading(true);
@@ -54,7 +55,13 @@ export default function ProductPage() {
       .catch(() => setCategoryList([]));
   };
 
-  useEffect(() => { load(); loadCategories(); }, []);
+  const loadWeightUoms = () => {
+    api.get<{ id: number; code: string; name: string; category?: string }[]>('/uoms')
+      .then((uoms) => setWeightUoms(uoms.filter((u) => u.category === 'weight' || u.category === 'น้ำหนัก')))
+      .catch(() => setWeightUoms([]));
+  };
+
+  useEffect(() => { load(); loadCategories(); loadWeightUoms(); }, []);
 
   const categories = categoryList.length > 0
     ? categoryList.map((c) => c.name)
@@ -250,8 +257,17 @@ export default function ProductPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">หน่วย</label>
-              <input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+              <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                {weightUoms.length > 0 ? weightUoms.map((u) => (
+                  <option key={u.id} value={u.code.toUpperCase()}>{u.code.toUpperCase()} ({u.name})</option>
+                )) : (
+                  <>
+                    <option value="KG">KG (กิโลกรัม)</option>
+                    <option value="G">G (กรัม)</option>
+                  </>
+                )}
+              </select>
             </div>
           </div>
           <div>
@@ -319,9 +335,14 @@ export default function ProductPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">หน่วยน้ำหนัก</label>
               <select value={form.packingUnit} onChange={(e) => setForm({ ...form, packingUnit: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
-                <option value="kg">kg (กิโลกรัม)</option>
-                <option value="g">g (กรัม)</option>
-                <option value="lb">lb (ปอนด์)</option>
+                {weightUoms.length > 0 ? weightUoms.map((u) => (
+                  <option key={u.id} value={u.code.toLowerCase()}>{u.code.toLowerCase()} ({u.name})</option>
+                )) : (
+                  <>
+                    <option value="kg">kg (กิโลกรัม)</option>
+                    <option value="g">g (กรัม)</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
