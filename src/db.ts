@@ -304,6 +304,7 @@ export async function initDB() {
   await migrateDeliveryNotes();
   await migrateInvoices();
   await migrateCancelSupport();
+  await migrateRecurringExpenses();
   await seedAdminUser();
 }
 
@@ -639,6 +640,48 @@ async function migrateProducts() {
       // column already exists — skip
     }
   }
+}
+
+async function migrateRecurringExpenses() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS recurring_expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      amount REAL NOT NULL,
+      due_day INTEGER,
+      pay_to TEXT,
+      payment_method TEXT,
+      total_debt REAL DEFAULT 0,
+      total_paid REAL DEFAULT 0,
+      remaining_debt REAL DEFAULT 0,
+      start_date TEXT,
+      end_date TEXT,
+      is_active INTEGER DEFAULT 1,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS recurring_expense_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recurring_expense_id INTEGER NOT NULL,
+      expense_id INTEGER,
+      month TEXT NOT NULL,
+      amount REAL NOT NULL,
+      paid_at TEXT,
+      status TEXT DEFAULT 'pending',
+      slip_image TEXT,
+      payment_method TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_recurring_expenses_active ON recurring_expenses(is_active);
+    CREATE INDEX IF NOT EXISTS idx_recurring_expenses_category ON recurring_expenses(category);
+    CREATE INDEX IF NOT EXISTS idx_rec_payments_recurring ON recurring_expense_payments(recurring_expense_id);
+    CREATE INDEX IF NOT EXISTS idx_rec_payments_month ON recurring_expense_payments(month);
+    CREATE INDEX IF NOT EXISTS idx_rec_payments_status ON recurring_expense_payments(status);
+  `);
 }
 
 async function migrateCancelSupport() {
