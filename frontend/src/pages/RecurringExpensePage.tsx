@@ -187,7 +187,7 @@ export default function RecurringExpensePage() {
           bankName: tmpl.bankName || '', bankAccount: tmpl.bankAccount || '', accountName: tmpl.accountName || '',
           imageUrl: tmpl.imageUrl || '',
         });
-        setTemplateImagePreview(tmpl.imageUrl ? `/api/data/${tmpl.imageUrl}` : '');
+        setTemplateImagePreview(tmpl.imageUrl ? `/api/${tmpl.imageUrl}` : '');
         setTemplateModalOpen(true);
       }
     }).catch(() => setToast('ไม่สามารถโหลดข้อมูลได้'));
@@ -207,7 +207,7 @@ export default function RecurringExpensePage() {
       if (!res.ok) throw new Error('Upload failed');
       const json = await res.json() as { imageUrl: string };
       setTemplateForm((f) => ({ ...f, imageUrl: json.imageUrl }));
-      setTemplateImagePreview(`/api/data/${json.imageUrl}`);
+      setTemplateImagePreview(`/api/${json.imageUrl}`);
       setToast('อัปโหลดรูปสำเร็จ');
     } catch {
       setToast('อัปโหลดรูปไม่สำเร็จ');
@@ -278,7 +278,7 @@ export default function RecurringExpensePage() {
       if (!res.ok) throw new Error('Upload failed');
       const json = await res.json() as { slipImage: string };
       setPayForm((f) => ({ ...f, slipImage: json.slipImage }));
-      setSlipPreview(`/api/data/${json.slipImage}`);
+      setSlipPreview(`/api/${json.slipImage}`);
       setToast('อัปโหลดสลิปสำเร็จ');
     } catch {
       setToast('อัปโหลดสลิปไม่สำเร็จ');
@@ -625,7 +625,7 @@ export default function RecurringExpensePage() {
           <div className="flex flex-col gap-3 text-sm">
             {detailItem.imageUrl && (
               <div className="flex justify-center">
-                <img src={`/api/data/${detailItem.imageUrl}`} alt="รูปแนบ" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
+                <img src={`/api/${detailItem.imageUrl}`} alt="รูปแนบ" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
@@ -657,7 +657,7 @@ export default function RecurringExpensePage() {
                 {detailMonthly.slipImage && (
                   <div className="mt-2">
                     <p className="text-gray-500 mb-1">สลิป/ใบเสร็จ:</p>
-                    <img src={`/api/data/${detailMonthly.slipImage}`} alt="สลิป" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
+                    <img src={`/api/${detailMonthly.slipImage}`} alt="สลิป" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
                   </div>
                 )}
               </div>

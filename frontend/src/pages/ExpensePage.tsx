@@ -286,7 +286,7 @@ export default function ExpensePage() {
       whtIncomeType: e.whtIncomeType || '',
       whtRate: e.whtRate ? String(e.whtRate) : '',
     });
-    setSlipPreview(e.slipImage ? `/api/data/${e.slipImage}` : '');
+    setSlipPreview(e.slipImage ? `/api/${e.slipImage}` : '');
     setModalOpen(true);
   };
 
@@ -304,7 +304,7 @@ export default function ExpensePage() {
       if (!res.ok) throw new Error('Upload failed');
       const json = await res.json() as { slipImage: string };
       setForm((f) => ({ ...f, slipImage: json.slipImage }));
-      setSlipPreview(`/api/data/${json.slipImage}`);
+      setSlipPreview(`/api/${json.slipImage}`);
       setToast('อัปโหลดสลิปสำเร็จ');
       return json.slipImage;
     } catch {
@@ -323,7 +323,7 @@ export default function ExpensePage() {
     setOcrLoading(true);
     try {
       const fd = new FormData();
-      const imgRes = await fetch(`/api/data/${form.slipImage}`);
+      const imgRes = await fetch(`/api/${form.slipImage}`);
       const blob = await imgRes.blob();
       fd.append('slip', blob, 'slip.jpg');
       const token = localStorage.getItem('token');
@@ -433,6 +433,9 @@ export default function ExpensePage() {
             {st === 'pending' && !exp.recurringExpenseId && (
               <button onClick={() => setCancelTarget(exp)} className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
             )}
+            {!!exp.hasWithholdingTax && (
+              <button onClick={() => window.open(`/api/expenses/${exp.id}/print-wht`, '_blank')} className="px-4 py-2 text-sm border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50">🖨️ ใบหัก ณ ที่จ่าย</button>
+            )}
           </div>
         </div>
 
@@ -496,7 +499,7 @@ export default function ExpensePage() {
           <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
             <h2 className="text-sm font-semibold text-gray-600 mb-3">สลิป/ใบเสร็จ</h2>
             <div className="flex justify-center">
-              <img src={`/api/data/${exp.slipImage}`} alt="slip"
+              <img src={`/api/${exp.slipImage}`} alt="slip"
                 className={`rounded-lg border border-gray-200 object-contain cursor-pointer transition-all ${imageZoom ? 'max-h-[80vh] max-w-full' : 'max-h-64'}`}
                 onClick={() => setImageZoom(!imageZoom)} />
             </div>

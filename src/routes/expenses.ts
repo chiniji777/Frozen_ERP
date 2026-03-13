@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
 import { generateRunningNumber } from "../utils.js";
+import { escapeHtml, fmt, getCompanyInfo } from "../print-utils.js";
 
 const expensesRoute = new Hono();
 
@@ -144,7 +145,7 @@ expensesRoute.post("/", async (c) => {
     whtRate: body.whtRate ?? null,
     whtAmount: body.whtAmount ?? null,
     whtNetAmount: body.whtNetAmount ?? null,
-    whtDocNumber: body.whtDocNumber || null,
+    whtDocNumber: body.hasWithholdingTax ? (body.whtDocNumber || await generateRunningNumber("WT", "expenses", "wht_doc_number")) : null,
     slipImage: body.slipImage || null,
     notes: body.notes || null,
     status: body.status || "pending",
@@ -271,6 +272,160 @@ expensesRoute.get("/slip/:filename", async (c) => {
   } catch {
     return c.json({ error: "File not found" }, 404);
   }
+});
+
+// GET /:id/print-wht — print withholding tax certificate (ภ.ง.ด. 3/53)
+expensesRoute.get("/:id/print-wht", async (c) => {
+  const id = Number(c.req.param("id"));
+  const row = await db.select({
+    expense: expenses,
+    supplier: {
+      id: suppliers.id, name: suppliers.name, fullName: suppliers.fullName,
+      taxId: suppliers.taxId, address: suppliers.address, supplierType: suppliers.supplierType,
+    },
+  }).from(expenses).leftJoin(suppliers, eq(expenses.supplierId, suppliers.id)).where(eq(expenses.id, id)).get();
+
+  if (!row) return c.json({ error: "Expense not found" }, 404);
+  const exp = row.expense;
+  if (!exp.hasWithholdingTax) return c.json({ error: "This expense has no withholding tax" }, 400);
+
+  const company = await getCompanyInfo();
+  const sup = row.supplier;
+  const isPnd3 = exp.whtFormType === "pnd3";
+  const formTitle = isPnd3 ? "ภ.ง.ด. 3" : "ภ.ง.ด. 53";
+  const formSubtitle = isPnd3 ? "หนังสือรับรองการหักภาษี ณ ที่จ่าย (บุคคลธรรมดา)" : "หนังสือรับรองการหักภาษี ณ ที่จ่าย (นิติบุคคล)";
+
+  // Thai date
+  const thaiMonths = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+  const d = new Date(exp.date);
+  const thaiDate = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+
+  // Income type description
+  const incomeDesc = escapeHtml(exp.whtIncomeDescription || exp.whtIncomeType || "-");
+
+  const html = `<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>${formTitle} - ${escapeHtml(exp.whtDocNumber || "")}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @page { size: A4; margin: 10mm 12mm; }
+  body { font-family: 'Sarabun', 'Noto Sans Thai', sans-serif; font-size: 13px; color: #000; line-height: 1.6; }
+  .page { max-width: 210mm; margin: 0 auto; padding: 15px; }
+  .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+  .header h1 { font-size: 18px; font-weight: bold; }
+  .header h2 { font-size: 14px; font-weight: normal; color: #333; }
+  .header .doc-no { font-size: 12px; margin-top: 5px; color: #555; }
+  .section { margin-bottom: 12px; }
+  .section-title { font-size: 12px; font-weight: bold; background: #f0f0f0; padding: 4px 8px; margin-bottom: 8px; border-left: 3px solid #333; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .info-box { border: 1px solid #ddd; border-radius: 4px; padding: 10px; }
+  .info-box h4 { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+  .info-box .name { font-size: 14px; font-weight: bold; }
+  .info-box p { font-size: 11px; color: #444; }
+  table.wht-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  table.wht-table th, table.wht-table td { border: 1px solid #999; padding: 6px 10px; font-size: 12px; }
+  table.wht-table th { background: #e8e8e8; font-weight: bold; text-align: center; font-size: 11px; }
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+  .summary { margin-top: 15px; border: 2px solid #333; border-radius: 6px; padding: 15px; }
+  .summary-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+  .summary-row.total { font-size: 16px; font-weight: bold; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 5px; }
+  .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 40px; text-align: center; }
+  .sig-box { padding-top: 50px; border-top: 1px dotted #999; font-size: 11px; }
+  .checkbox { display: inline-block; width: 14px; height: 14px; border: 1.5px solid #333; margin-right: 5px; vertical-align: middle; text-align: center; font-size: 11px; line-height: 14px; }
+  .checkbox.checked::after { content: "✓"; font-weight: bold; }
+  .form-type { margin: 8px 0; font-size: 12px; }
+  .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 8px; }
+  @media print { .no-print { display: none; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <h1>${formTitle}</h1>
+    <h2>${formSubtitle}</h2>
+    <div class="doc-no">เลขที่ ${escapeHtml(exp.whtDocNumber || "-")} &nbsp;&nbsp; วันที่ ${thaiDate}</div>
+  </div>
+
+  <div class="form-type">
+    <span class="checkbox ${isPnd3 ? "checked" : ""}"></span> ภ.ง.ด. 3 (บุคคลธรรมดา)
+    &nbsp;&nbsp;&nbsp;
+    <span class="checkbox ${!isPnd3 ? "checked" : ""}"></span> ภ.ง.ด. 53 (นิติบุคคล)
+  </div>
+
+  <div class="section">
+    <div class="info-grid">
+      <div class="info-box">
+        <h4>ผู้จ่ายเงิน (ผู้หักภาษี ณ ที่จ่าย)</h4>
+        <p class="name">${escapeHtml(company.companyName)}</p>
+        <p>${escapeHtml(company.address)}</p>
+        <p>เลขประจำตัวผู้เสียภาษี: <strong>${escapeHtml(company.taxId || "-")}</strong></p>
+        <p>สาขา: ${escapeHtml(company.branch)}</p>
+      </div>
+      <div class="info-box">
+        <h4>ผู้รับเงิน (ผู้ถูกหักภาษี ณ ที่จ่าย)</h4>
+        <p class="name">${escapeHtml(sup?.fullName || sup?.name || "-")}</p>
+        <p>${escapeHtml(sup?.address || "-")}</p>
+        <p>เลขประจำตัวผู้เสียภาษี: <strong>${escapeHtml(sup?.taxId || "-")}</strong></p>
+        <p>ประเภท: ${escapeHtml(sup?.supplierType === "Individual" ? "บุคคลธรรมดา" : "นิติบุคคล")}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">รายละเอียดการจ่ายเงิน</div>
+    <table class="wht-table">
+      <thead>
+        <tr>
+          <th style="width:40%">ประเภทเงินได้ที่จ่าย</th>
+          <th style="width:15%">มาตรา</th>
+          <th style="width:15%">จำนวนเงินที่จ่าย</th>
+          <th style="width:15%">อัตราภาษี</th>
+          <th style="width:15%">ภาษีที่หักไว้</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>${incomeDesc}</td>
+          <td class="text-center">${escapeHtml(exp.whtIncomeDescription?.match(/\d+\([^)]*\)(\([^)]*\))?/)?.[0] || "-")}</td>
+          <td class="text-right">${fmt(exp.amount)}</td>
+          <td class="text-center">${exp.whtRate || 0}%</td>
+          <td class="text-right">${fmt(exp.whtAmount)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="summary">
+    <div class="summary-row"><span>ยอดเงินที่จ่ายทั้งสิ้น</span><span>${fmt(exp.amount)} บาท</span></div>
+    <div class="summary-row"><span>ภาษีที่หัก ณ ที่จ่าย (${exp.whtRate || 0}%)</span><span style="color:red">${fmt(exp.whtAmount)} บาท</span></div>
+    <div class="summary-row total"><span>ยอดจ่ายจริง (สุทธิ)</span><span style="color:green">${fmt(exp.whtNetAmount)} บาท</span></div>
+  </div>
+
+  <div class="signatures">
+    <div>
+      <div class="sig-box">ผู้จ่ายเงิน (ลงชื่อ)</div>
+      <p style="margin-top:5px;font-size:11px">${escapeHtml(company.companyName)}</p>
+      <p style="font-size:10px;color:#666">วันที่ ${thaiDate}</p>
+    </div>
+    <div>
+      <div class="sig-box">ผู้รับเงิน (ลงชื่อ)</div>
+      <p style="margin-top:5px;font-size:11px">${escapeHtml(sup?.fullName || sup?.name || "-")}</p>
+      <p style="font-size:10px;color:#666">วันที่ ....../....../......</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    เอกสารนี้ออกโดยระบบ Nut Office ERP &mdash; ${formTitle} เลขที่ ${escapeHtml(exp.whtDocNumber || "-")}
+  </div>
+</div>
+<script>window.onload=()=>window.print()</script>
+</body>
+</html>`;
+
+  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 });
 
 export { expensesRoute };

@@ -254,7 +254,7 @@ export default function LoanPage() {
         {/* Image Zoom Modal */}
         {imageZoom && (
           <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setImageZoom(null)}>
-            <img src={`/api/data/${imageZoom}`} alt="slip" className="max-h-[85vh] max-w-full rounded-lg shadow-xl" />
+            <img src={`/api/${imageZoom}`} alt="slip" className="max-h-[85vh] max-w-full rounded-lg shadow-xl" />
           </div>
         )}
 
