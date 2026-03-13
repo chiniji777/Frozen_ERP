@@ -23,6 +23,7 @@ import { uomRoute } from "./routes/uom.js";
 import { productCategoriesRoute } from "./routes/product-categories.js";
 import { ocrSlipRoute } from "./routes/ocr-slip.js";
 import { trackingRoute } from "./routes/delivery-tracking.js";
+import { stockRoute } from "./routes/stock.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
