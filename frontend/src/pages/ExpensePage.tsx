@@ -127,6 +127,31 @@ export default function ExpensePage() {
     }
   };
 
+  const handleMarkExpenseUnpaid = async (expense: Expense) => {
+    try {
+      await api.patch(`/expenses/${expense.id}/unpay`, {});
+      setToast(`เปลี่ยน "${expense.description}" เป็นรอจ่าย`);
+      load();
+    } catch {
+      setToast('เปลี่ยนสถานะไม่สำเร็จ');
+    }
+  };
+
+  const handleToggleStatus = (expense: Expense) => {
+    const st = expense.status || 'pending';
+    if (st === 'paid') {
+      if (expense.recurringExpenseId) return;
+      handleMarkExpenseUnpaid(expense);
+    } else if (st === 'pending' || st === 'overdue') {
+      if (expense.recurringExpenseId) {
+        const ri = recurringItems.find((r) => r.recurringExpenseId === expense.recurringExpenseId && r.status === 'pending');
+        if (ri) handleMarkRecurringPaid(ri);
+      } else {
+        handleMarkExpensePaid(expense);
+      }
+    }
+  };
+
   useEffect(() => { load(); loadCategories(); loadRecurring(); }, [filterMonth]);
 
   useEffect(() => {
@@ -332,25 +357,26 @@ export default function ExpensePage() {
           { key: 'description', label: 'รายละเอียด' },
           { key: 'amount', label: 'จำนวนเงิน', render: (e: Expense) => `${Number(e.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}` },
           { key: 'slipImage', label: 'สลิป', render: (e: Expense) => e.slipImage ? <span className="text-green-600 text-xs">มีสลิป</span> : <span className="text-gray-400 text-xs">-</span> },
-          { key: 'status', label: 'สถานะ', render: renderStatusBadge },
-          { key: 'actions', label: '', render: (e: Expense) => {
-            const st = e.status || 'pending';
-            if (st !== 'pending') return null;
-            if (e.recurringExpenseId) {
-              const ri = recurringItems.find((r) => r.recurringExpenseId === e.recurringExpenseId && r.status === 'pending');
-              if (!ri) return null;
-              return (
-                <button onClick={(ev) => { ev.stopPropagation(); handleMarkRecurringPaid(ri); }}
-                  className="px-2.5 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700 whitespace-nowrap">
-                  จ่ายแล้ว
-                </button>
-              );
-            }
+          { key: 'status', label: 'สถานะ', render: (e: Expense) => {
+            const st = (e.status || 'pending') as ExpenseStatus;
+            const cfg = statusConfig[st] || statusConfig.pending;
+            const canToggle = st === 'pending' || st === 'overdue' || (st === 'paid' && !e.recurringExpenseId);
+            const isPaid = st === 'paid';
             return (
-              <button onClick={(ev) => { ev.stopPropagation(); handleMarkExpensePaid(e); }}
-                className="px-2.5 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700 whitespace-nowrap">
-                จ่ายแล้ว
-              </button>
+              <div className="flex items-center gap-2">
+                {canToggle && (
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); handleToggleStatus(e); }}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 ${isPaid ? 'bg-green-500' : 'bg-gray-300'}`}
+                    title={isPaid ? 'กดเพื่อเปลี่ยนเป็นรอจ่าย' : 'กดเพื่อชำระ'}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${isPaid ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                )}
+                <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.bg} ${cfg.text}`}>
+                  {cfg.label}
+                </span>
+              </div>
             );
           }},
         ]}
