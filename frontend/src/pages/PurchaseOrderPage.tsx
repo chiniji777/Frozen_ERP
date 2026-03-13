@@ -21,9 +21,12 @@ interface PurchaseOrder {
 const statusCfg: Record<string, { label: string; color: string }> = {
   draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700' },
   confirmed: { label: 'ยืนยันแล้ว', color: 'bg-blue-100 text-blue-700' },
-  received: { label: 'รับของแล้ว', color: 'bg-green-100 text-green-700' },
+  received: { label: 'รับของแล้ว', color: 'bg-emerald-100 text-emerald-700' },
+  paid: { label: 'จ่ายแล้ว', color: 'bg-green-100 text-green-700' },
   cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' },
 };
+
+const STATUS_FLOW = ['draft', 'confirmed', 'received', 'paid'];
 
 const InputField = ({ label, value, onChange, type = 'text', disabled = false, placeholder = '' }: {
   label: string; value: string | number; onChange: (v: string) => void; type?: string; disabled?: boolean; placeholder?: string;
@@ -164,9 +167,22 @@ export default function PurchaseOrderPage() {
     if (!actionTarget) return;
     const { po, action } = actionTarget;
     try {
-      if (action === 'receive') {
+      if (action === 'confirm') {
+        await api.patch(`/purchase-orders/${po.id}/confirm`, {});
+        setToast('ยืนยัน PO สำเร็จ');
+      } else if (action === 'receive') {
         await api.post(`/purchase-orders/${po.id}/receive`, {});
         setToast('รับของสำเร็จ — stock วัตถุดิบอัปเดตแล้ว');
+      } else if (action === 'pay') {
+        await api.patch(`/purchase-orders/${po.id}/pay`, { paidAt: new Date().toISOString().slice(0, 10) });
+        setToast('บันทึกจ่ายเงินสำเร็จ');
+      } else if (action === 'delete') {
+        await api.del(`/purchase-orders/${po.id}`);
+        setToast('ลบ PO สำเร็จ');
+        setDetailPO(null);
+        setActionTarget(null);
+        load();
+        return;
       } else if (action === 'cancel') {
         await api.patch(`/purchase-orders/${po.id}/cancel`, {});
         setToast('ยกเลิก PO แล้ว');
@@ -180,6 +196,18 @@ export default function PurchaseOrderPage() {
       setToast('ไม่สามารถดำเนินการได้');
     }
     setActionTarget(null);
+  };
+
+  const getConfirmMessage = () => {
+    if (!actionTarget) return '';
+    const pn = actionTarget.po.poNumber;
+    switch (actionTarget.action) {
+      case 'confirm': return `ยืนยัน PO "${pn}"?`;
+      case 'receive': return `ยืนยันรับของ "${pn}"? (stock วัตถุดิบจะเพิ่มอัตโนมัติ)`;
+      case 'pay': return `ยืนยันจ่ายเงิน "${pn}"?`;
+      case 'delete': return `ลบ PO "${pn}"? (ลบถาวร)`;
+      default: return `ยกเลิก "${pn}"?`;
+    }
   };
 
   const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
@@ -205,15 +233,33 @@ export default function PurchaseOrderPage() {
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
           </div>
           <div className="flex gap-2">
-            {(po.status === 'draft' || po.status === 'confirmed') && (
+            {po.status === 'draft' && (
+              <button onClick={() => setActionTarget({ po, action: 'confirm' })}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                ✓ ยืนยัน
+              </button>
+            )}
+            {po.status === 'confirmed' && (
               <button onClick={() => setActionTarget({ po, action: 'receive' })}
-                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+                className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
                 📦 รับของ
               </button>
             )}
-            {po.status !== 'received' && po.status !== 'cancelled' && (
-              <button onClick={() => setActionTarget({ po, action: 'cancel' })}
+            {po.status === 'received' && (
+              <button onClick={() => setActionTarget({ po, action: 'pay' })}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+                💰 จ่ายเงิน
+              </button>
+            )}
+            {po.status === 'draft' && (
+              <button onClick={() => setActionTarget({ po, action: 'delete' })}
                 className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                🗑 ลบ
+              </button>
+            )}
+            {po.status !== 'received' && po.status !== 'paid' && po.status !== 'cancelled' && (
+              <button onClick={() => setActionTarget({ po, action: 'cancel' })}
+                className="px-4 py-2 text-sm border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50">
                 ✕ ยกเลิก
               </button>
             )}
@@ -223,10 +269,10 @@ export default function PurchaseOrderPage() {
         {/* Status Flow */}
         <div className="bg-white rounded-xl shadow-sm border p-4 mb-4">
           <div className="flex items-center justify-center gap-2 text-sm">
-            {['draft', 'confirmed', 'received'].map((s, i) => {
+            {STATUS_FLOW.map((s, i) => {
               const sc = statusCfg[s]!;
               const isActive = s === po.status;
-              const isPast = ['draft', 'confirmed', 'received'].indexOf(po.status) > i;
+              const isPast = STATUS_FLOW.indexOf(po.status) > i;
               return (
                 <div key={s} className="flex items-center gap-2">
                   {i > 0 && <div className={`w-8 h-0.5 ${isPast ? 'bg-green-400' : 'bg-gray-200'}`} />}
@@ -276,10 +322,7 @@ export default function PurchaseOrderPage() {
 
         {po.notes && <Section title="หมายเหตุ"><p className="text-sm text-gray-700 whitespace-pre-wrap">{po.notes}</p></Section>}
 
-        <ConfirmDialog open={!!actionTarget}
-          message={actionTarget?.action === 'receive'
-            ? `ยืนยันรับของ "${actionTarget?.po.poNumber}"? (stock วัตถุดิบจะเพิ่มอัตโนมัติ)`
-            : `ยกเลิก "${actionTarget?.po.poNumber}"?`}
+        <ConfirmDialog open={!!actionTarget} message={getConfirmMessage()}
           onConfirm={handleAction} onCancel={() => setActionTarget(null)} />
         {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
       </div>
@@ -404,12 +447,40 @@ export default function PurchaseOrderPage() {
         onAdd={openAdd}
         onRowClick={(po) => openDetail(po)}
         extraActions={(po) => (
-          <button onClick={(e) => { e.stopPropagation(); openDetail(po); }}
-            className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">
-            Detail
-          </button>
+          <div className="flex gap-1">
+            {po.status === 'draft' && (
+              <button onClick={(e) => { e.stopPropagation(); setActionTarget({ po, action: 'confirm' }); }}
+                className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">
+                ยืนยัน
+              </button>
+            )}
+            {po.status === 'confirmed' && (
+              <button onClick={(e) => { e.stopPropagation(); setActionTarget({ po, action: 'receive' }); }}
+                className="px-2 py-1 text-xs bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100">
+                รับของ
+              </button>
+            )}
+            {po.status === 'received' && (
+              <button onClick={(e) => { e.stopPropagation(); setActionTarget({ po, action: 'pay' }); }}
+                className="px-2 py-1 text-xs bg-green-50 text-green-600 rounded hover:bg-green-100">
+                จ่ายเงิน
+              </button>
+            )}
+            {po.status === 'draft' && (
+              <button onClick={(e) => { e.stopPropagation(); setActionTarget({ po, action: 'delete' }); }}
+                className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">
+                ลบ
+              </button>
+            )}
+            <button onClick={(e) => { e.stopPropagation(); openDetail(po); }}
+              className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">
+              Detail
+            </button>
+          </div>
         )}
       />
+      <ConfirmDialog open={!!actionTarget} message={getConfirmMessage()}
+        onConfirm={handleAction} onCancel={() => setActionTarget(null)} />
       {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
     </div>
   );
