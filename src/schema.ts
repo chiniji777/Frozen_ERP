@@ -463,6 +463,16 @@ export const shortTermLoans = sqliteTable("short_term_loans", {
   ...timestamps,
 });
 
+export const printLogs = sqliteTable("print_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  docType: text("doc_type").notNull(), // wht, invoice, receipt, po, etc.
+  refId: integer("ref_id").notNull(), // expense id, PO id, etc.
+  refNumber: text("ref_number"), // EXP-2026-001, WT-2026-001, etc.
+  description: text("description"), // รายละเอียดสั้นๆ
+  printedBy: text("printed_by"),
+  printedAt: text("printed_at").default(sql`(datetime('now'))`).notNull(),
+});
+
 export const loanRepayments = sqliteTable("loan_repayments", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   loanId: integer("loan_id").notNull(),

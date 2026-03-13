@@ -51,6 +51,17 @@ interface Expense {
   whtAmount?: number | null;
   whtNetAmount?: number | null;
   whtDocNumber?: string | null;
+  expenseNumber?: string | null;
+}
+
+interface PrintLog {
+  id: number;
+  docType: string;
+  refId: number;
+  refNumber: string | null;
+  description: string | null;
+  printedBy: string | null;
+  printedAt: string;
 }
 
 interface ExpenseForm {
@@ -132,6 +143,7 @@ export default function ExpensePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [recurringItems, setRecurringItems] = useState<RecurringMonthlyItem[]>([]);
   const [supplierList, setSupplierList] = useState<Supplier[]>([]);
+  const [printLogs, setPrintLogs] = useState<PrintLog[]>([]);
 
   const loadSuppliers = () => {
     api.get<Supplier[]>('/suppliers').then(setSupplierList).catch(() => setSupplierList([]));
@@ -265,6 +277,8 @@ export default function ExpensePage() {
   const openDetail = (e: Expense) => {
     setDetailExp(e);
     setImageZoom(false);
+    setPrintLogs([]);
+    api.get<PrintLog[]>(`/expenses/${e.id}/print-logs`).then(setPrintLogs).catch(() => setPrintLogs([]));
   };
 
   const openEditFromDetail = () => {
@@ -434,7 +448,7 @@ export default function ExpensePage() {
               <button onClick={() => setCancelTarget(exp)} className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
             )}
             {!!exp.hasWithholdingTax && (
-              <button onClick={() => window.open(`/api/expenses/${exp.id}/print-wht`, '_blank')} className="px-4 py-2 text-sm border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50">🖨️ ใบหัก ณ ที่จ่าย</button>
+              <button onClick={() => { window.open(`/api/expenses/${exp.id}/print-wht`, '_blank'); setTimeout(() => api.get<PrintLog[]>(`/expenses/${exp.id}/print-logs`).then(setPrintLogs).catch(() => {}), 1000); }} className="px-4 py-2 text-sm border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50">🖨️ ใบหัก ณ ที่จ่าย</button>
             )}
           </div>
         </div>
@@ -504,6 +518,25 @@ export default function ExpensePage() {
                 onClick={() => setImageZoom(!imageZoom)} />
             </div>
             {!imageZoom && <p className="text-xs text-gray-400 text-center mt-2">คลิกเพื่อขยาย</p>}
+          </div>
+        )}
+
+        {printLogs.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border p-5 mb-4">
+            <h2 className="text-sm font-semibold text-gray-600 mb-3">ประวัติการปริ้นเอกสาร</h2>
+            <div className="divide-y divide-gray-100">
+              {printLogs.map((log) => (
+                <div key={log.id} className="flex items-center justify-between py-2">
+                  <div>
+                    <span className="text-sm text-gray-800">{log.description || log.docType}</span>
+                    {log.refNumber && <span className="ml-2 text-xs text-gray-400">({log.refNumber})</span>}
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {new Date(log.printedAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

@@ -316,6 +316,7 @@ export async function initDB() {
   await migrateExpenseNumber();
   await migrateExpenseSupplier();
   await migrateWithholdingTax();
+  await migratePrintLogs();
   await seedAdminUser();
 }
 
@@ -868,6 +869,23 @@ async function migrateExpenseNumber() {
     const expenseNumber = `${prefix}-${dateStr}-${String(seq).padStart(3, "0")}`;
     await client.execute({ sql: "UPDATE expenses SET expense_number = ? WHERE id = ?", args: [expenseNumber, id] });
   }
+}
+
+async function migratePrintLogs() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS print_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      doc_type TEXT NOT NULL,
+      ref_id INTEGER NOT NULL,
+      ref_number TEXT,
+      description TEXT,
+      printed_by TEXT,
+      printed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_print_logs_ref ON print_logs(doc_type, ref_id);
+    CREATE INDEX IF NOT EXISTS idx_print_logs_date ON print_logs(printed_at);
+  `);
 }
 
 async function migrateWithholdingTax() {

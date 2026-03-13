@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { expenses, suppliers } from "../schema.js";
-import { eq, sql } from "drizzle-orm";
+import { expenses, suppliers, printLogs } from "../schema.js";
+import { eq, sql, desc } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
 import { generateRunningNumber } from "../utils.js";
@@ -425,7 +425,36 @@ expensesRoute.get("/:id/print-wht", async (c) => {
 </body>
 </html>`;
 
+  // Log the print
+  await db.insert(printLogs).values({
+    docType: "wht",
+    refId: id,
+    refNumber: exp.whtDocNumber || exp.expenseNumber || `EXP-${id}`,
+    description: `ใบหัก ณ ที่จ่าย ${formTitle} — ${escapeHtml(exp.description)}`,
+    printedBy: null,
+  }).run();
+
   return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+});
+
+// GET /:id/print-logs — get print history for an expense
+expensesRoute.get("/:id/print-logs", async (c) => {
+  const id = Number(c.req.param("id"));
+  const logs = await db.select().from(printLogs)
+    .where(eq(printLogs.refId, id))
+    .orderBy(desc(printLogs.printedAt))
+    .all();
+  return c.json(logs);
+});
+
+// GET /print-logs/all — get all print logs (for summary page)
+expensesRoute.get("/print-logs/all", async (c) => {
+  const month = c.req.query("month");
+  let logs = await db.select().from(printLogs).orderBy(desc(printLogs.printedAt)).all();
+  if (month) {
+    logs = logs.filter(l => l.printedAt.startsWith(month));
+  }
+  return c.json(logs);
 });
 
 export { expensesRoute };
