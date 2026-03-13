@@ -4,6 +4,7 @@ import { recurringExpenses, recurringExpensePayments, expenses } from "../schema
 import { eq, and, sql } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
+import { generateRunningNumber } from "../utils.js";
 
 const recurringExpensesRoute = new Hono();
 
@@ -90,7 +91,9 @@ recurringExpensesRoute.post("/generate", async (c) => {
 
     const expenseDate = `${month}-01`;
     const dueDate = item.dueDay ? `${month}-${String(item.dueDay).padStart(2, "0")}` : null;
+    const expenseNumber = await generateRunningNumber("REC", "expenses", "expense_number");
     const expenseResult = await db.insert(expenses).values({
+      expenseNumber,
       category: item.category,
       description: `${item.name} (${month})`,
       amount: item.amount,
@@ -399,7 +402,9 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
 
   // Create expense record (category is now plain text, no enum)
   const paidDate = body.paidAt || new Date().toISOString().slice(0, 10);
+  const expenseNumber = await generateRunningNumber("REC", "expenses", "expense_number");
   const expenseResult = await db.insert(expenses).values({
+    expenseNumber,
     category: recurring.category,
     description: `${recurring.name} (${body.month})`,
     amount,

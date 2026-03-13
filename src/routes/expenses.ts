@@ -4,6 +4,7 @@ import { expenses } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
+import { generateRunningNumber } from "../utils.js";
 
 const expensesRoute = new Hono();
 
@@ -80,7 +81,11 @@ expensesRoute.post("/", async (c) => {
     return c.json({ error: "category, description, amount, date required" }, 400);
   }
   if (body.amount <= 0) return c.json({ error: "amount must be > 0" }, 400);
+  // Auto-generate expense number: REC for recurring, EXP for regular
+  const prefix = body.recurringExpenseId ? "REC" : "EXP";
+  const expenseNumber = await generateRunningNumber(prefix, "expenses", "expense_number");
   const result = await db.insert(expenses).values({
+    expenseNumber,
     category: body.category,
     description: body.description,
     amount: body.amount,
@@ -92,7 +97,7 @@ expensesRoute.post("/", async (c) => {
     notes: body.notes || null,
     status: body.status || "pending",
   }).run();
-  return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
+  return c.json({ ok: true, id: Number(result.lastInsertRowid), expenseNumber }, 201);
 });
 
 // PUT /:id — update expense

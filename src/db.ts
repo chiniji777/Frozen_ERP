@@ -313,6 +313,7 @@ export async function initDB() {
   await migrateProductCategories();
   await migrateSupplierPayment();
   await migrateShortTermLoans();
+  await migrateExpenseNumber();
   await seedAdminUser();
 }
 
@@ -820,4 +821,37 @@ async function migrateShortTermLoans() {
     CREATE INDEX IF NOT EXISTS idx_loans_status ON short_term_loans(status);
     CREATE INDEX IF NOT EXISTS idx_loan_repayments_loan ON loan_repayments(loan_id);
   `);
+}
+
+async function migrateExpenseNumber() {
+  const client = getClient();
+  // Add expense_number column
+  try {
+    await client.execute("ALTER TABLE expenses ADD COLUMN expense_number TEXT");
+  } catch {
+    // column already exists
+  }
+  // Create unique index
+  try {
+    await client.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_expenses_number ON expenses(expense_number)");
+  } catch {
+    // index already exists
+  }
+  // Backfill existing expenses that don't have a number yet
+  const rows = await client.execute("SELECT id, recurring_expense_id, date FROM expenses WHERE expense_number IS NULL ORDER BY id ASC");
+  for (const row of rows.rows) {
+    const id = row.id as number;
+    const isRecurring = row.recurring_expense_id != null;
+    const prefix = isRecurring ? "REC" : "EXP";
+    const dateStr = ((row.date as string) || new Date().toISOString().slice(0, 10)).replace(/-/g, "");
+    const pattern = `${prefix}-${dateStr}-%`;
+    const last = await client.execute({ sql: "SELECT expense_number FROM expenses WHERE expense_number LIKE ? ORDER BY expense_number DESC LIMIT 1", args: [pattern] });
+    let seq = 1;
+    if (last.rows.length > 0 && last.rows[0].expense_number) {
+      const lastNum = (last.rows[0].expense_number as string).split("-").pop() || "0";
+      seq = parseInt(lastNum, 10) + 1;
+    }
+    const expenseNumber = `${prefix}-${dateStr}-${String(seq).padStart(3, "0")}`;
+    await client.execute({ sql: "UPDATE expenses SET expense_number = ? WHERE id = ?", args: [expenseNumber, id] });
+  }
 }
