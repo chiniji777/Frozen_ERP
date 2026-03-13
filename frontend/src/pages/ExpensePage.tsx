@@ -94,6 +94,11 @@ export default function ExpensePage() {
   const [slipPreview, setSlipPreview] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [recurringItems, setRecurringItems] = useState<RecurringMonthlyItem[]>([]);
+  const [supplierList, setSupplierList] = useState<Supplier[]>([]);
+
+  const loadSuppliers = () => {
+    api.get<Supplier[]>('/suppliers').then(setSupplierList).catch(() => setSupplierList([]));
+  };
 
   const load = () => {
     setLoading(true);
@@ -173,7 +178,7 @@ export default function ExpensePage() {
     }
   };
 
-  useEffect(() => { load(); loadCategories(); loadRecurring(); }, [filterMonth]);
+  useEffect(() => { load(); loadCategories(); loadRecurring(); loadSuppliers(); }, [filterMonth]);
 
   useEffect(() => {
     if (!toast) return;
@@ -238,6 +243,7 @@ export default function ExpensePage() {
       category: e.category, description: e.description, amount: String(e.amount),
       date: e.date?.slice(0, 10) || '', notes: e.notes || '', slipImage: e.slipImage || '',
       dueDate: e.dueDate?.slice(0, 10) || '', paymentMethod: e.paymentMethod || '',
+      supplierId: e.supplierId ? String(e.supplierId) : '',
     });
     setSlipPreview(e.slipImage ? `/api/data/${e.slipImage}` : '');
     setModalOpen(true);
@@ -307,7 +313,7 @@ export default function ExpensePage() {
 
   const handleSubmit = async (ev: FormEvent) => {
     ev.preventDefault();
-    const body = { ...form, amount: Number(form.amount) };
+    const body = { ...form, amount: Number(form.amount), supplierId: form.supplierId ? Number(form.supplierId) : null };
     if (editing) {
       await api.put(`/expenses/${editing.id}`, body);
     } else {
@@ -392,6 +398,26 @@ export default function ExpensePage() {
             <InfoRow label="วิธีชำระ" value={exp.paymentMethod ? (paymentMethodLabel[exp.paymentMethod] || exp.paymentMethod) : undefined} />
             <InfoRow label="วันที่ชำระ" value={exp.paidAt?.slice(0, 10)} />
           </div>
+          {exp.supplier && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <h3 className="text-xs font-semibold text-gray-500 mb-2">ข้อมูลชำระเงิน Supplier: {exp.supplier.name}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                <InfoRow label="ธนาคาร" value={exp.supplier.bankName} />
+                <InfoRow label="เลขบัญชี" value={exp.supplier.bankAccountNumber} />
+                <InfoRow label="ชื่อบัญชี" value={exp.supplier.bankAccountName} />
+                <InfoRow label="PromptPay" value={exp.supplier.promptPayId} />
+              </div>
+              {exp.supplier.promptPayId && (
+                <div className="mt-3 flex justify-center">
+                  <img
+                    src={`https://promptpay.io/${exp.supplier.promptPayId}/${exp.amount}.png`}
+                    alt="PromptPay QR"
+                    className="w-48 h-48 border rounded-lg"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {exp.slipImage && (
@@ -550,6 +576,34 @@ export default function ExpensePage() {
               <option value="">เลือกหมวด...</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+          </div>
+
+          {/* Supplier dropdown */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Supplier (ผู้ขาย)</label>
+            <select
+              value={form.supplierId}
+              onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+            >
+              <option value="">ไม่ระบุ</option>
+              {supplierList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            {(() => {
+              const sel = supplierList.find(s => String(s.id) === form.supplierId);
+              if (!sel) return null;
+              const hasPayInfo = sel.bankName || sel.bankAccountNumber || sel.promptPayId;
+              if (!hasPayInfo) return null;
+              return (
+                <div className="mt-2 p-3 bg-blue-50 rounded-lg text-sm">
+                  <p className="text-xs font-semibold text-blue-600 mb-1">ข้อมูลชำระเงิน</p>
+                  {sel.bankName && <p className="text-gray-700">ธนาคาร: {sel.bankName}</p>}
+                  {sel.bankAccountNumber && <p className="text-gray-700">เลขบัญชี: {sel.bankAccountNumber}</p>}
+                  {sel.bankAccountName && <p className="text-gray-700">ชื่อบัญชี: {sel.bankAccountName}</p>}
+                  {sel.promptPayId && <p className="text-gray-700">PromptPay: {sel.promptPayId}</p>}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Description */}
