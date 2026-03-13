@@ -329,4 +329,25 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
   return c.json({ ok: true, expenseId, paidAt });
 });
 
+
+const UPLOAD_DIR = join(process.cwd(), "data", "uploads", "recurring-expenses");
+const ALLOWED_EXTS = new Set(["jpg", "jpeg", "png", "webp"]);
+const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+recurringExpensesRoute.post("/upload-image", async (c) => {
+  const formData = await c.req.formData();
+  const file = formData.get("image") as File | null;
+  if (!file) return c.json({ error: "image file required" }, 400);
+  if (!ALLOWED_MIME.has(file.type)) return c.json({ error: `Invalid type: ${file.type}` }, 400);
+  if (file.size > MAX_FILE_SIZE) return c.json({ error: "Max 10MB" }, 400);
+  let ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  if (!ALLOWED_EXTS.has(ext)) ext = "jpg";
+  const filename = `recurring_${Date.now()}.${ext}`;
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(join(UPLOAD_DIR, filename), buffer);
+  return c.json({ ok: true, imageUrl: `recurring-expenses/image/${filename}` });
+});
+
 export { recurringExpensesRoute };

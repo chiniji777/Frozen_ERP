@@ -381,6 +381,7 @@ export const recurringExpenses = sqliteTable("recurring_expenses", {
   endDate: text("end_date"),
   isActive: integer("is_active").default(1),
   notes: text("notes"),
+  imageUrl: text("image_url"),
   ...timestamps,
 });
 

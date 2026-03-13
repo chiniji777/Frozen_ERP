@@ -112,6 +112,19 @@ app.get("/api/products/image/:filename", async (c) => {
   } catch { return c.json({ error: "Not found" }, 404); }
 });
 
+// Serve recurring expense images (public)
+app.get("/api/recurring-expenses/image/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  if (filename.includes("..") || filename.includes("/") || filename.includes("\0")) return c.json({ error: "Invalid" }, 400);
+  const ext = filename.split(".").pop()?.toLowerCase();
+  const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+  if (!ext || !mimeMap[ext]) return c.json({ error: "Invalid file type" }, 400);
+  try {
+    const data = await readFile(join(process.cwd(), "data", "uploads", "recurring-expenses", filename));
+    return new Response(data, { headers: { "Content-Type": mimeMap[ext], "Cache-Control": "public, max-age=86400" } });
+  } catch { return c.json({ error: "Not found" }, 404); }
+});
+
 // Protected routes
 app.use("/api/customers/*", authMiddleware);
 app.use("/api/products/*", authMiddleware);
