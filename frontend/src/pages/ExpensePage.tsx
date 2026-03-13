@@ -44,6 +44,9 @@ interface Expense {
   recurringExpenseId?: number;
   supplierId?: number | null;
   supplier?: Supplier | null;
+  itemType?: string | null;
+  rawMaterialId?: number | null;
+  productId?: number | null;
   hasWithholdingTax?: number;
   whtFormType?: string | null;
   whtIncomeType?: string | null;
@@ -72,6 +75,24 @@ interface PrintLog {
   printedAt: string;
 }
 
+interface RawMaterial {
+  id: number;
+  code: string | null;
+  name: string;
+  pricePerUnit: number;
+  unit: string;
+  supplier: string | null;
+}
+
+interface Product {
+  id: number;
+  name: string;
+  sku: string | null;
+  salePrice: number;
+  unit: string;
+  category: string | null;
+}
+
 interface ExpenseForm {
   category: string;
   description: string;
@@ -82,6 +103,9 @@ interface ExpenseForm {
   dueDate: string;
   paymentMethod: string;
   supplierId: string;
+  itemType: string; // 'raw_material' | 'product' | ''
+  rawMaterialId: string;
+  productId: string;
   hasWithholdingTax: boolean;
   whtFormType: string;
   whtIncomeType: string;
@@ -103,7 +127,7 @@ interface RecurringMonthlyItem {
   paymentMethod: string;
 }
 
-const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '', supplierId: '', hasWithholdingTax: false, whtFormType: 'pnd3', whtIncomeType: '', whtRate: '' };
+const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '', supplierId: '', itemType: '', rawMaterialId: '', productId: '', hasWithholdingTax: false, whtFormType: 'pnd3', whtIncomeType: '', whtRate: '' };
 
 const statusConfig: Record<ExpenseStatus, { label: string; bg: string; text: string }> = {
   pending: { label: 'รอจ่าย', bg: 'bg-amber-100', text: 'text-amber-700' },
@@ -152,10 +176,20 @@ export default function ExpensePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [recurringItems, setRecurringItems] = useState<RecurringMonthlyItem[]>([]);
   const [supplierList, setSupplierList] = useState<Supplier[]>([]);
+  const [rawMaterialList, setRawMaterialList] = useState<RawMaterial[]>([]);
+  const [productList, setProductList] = useState<Product[]>([]);
   const [printLogs, setPrintLogs] = useState<PrintLog[]>([]);
 
   const loadSuppliers = () => {
     api.get<Supplier[]>('/suppliers').then(setSupplierList).catch(() => setSupplierList([]));
+  };
+
+  const loadRawMaterials = () => {
+    api.get<RawMaterial[]>('/raw-materials').then(setRawMaterialList).catch(() => setRawMaterialList([]));
+  };
+
+  const loadProducts = () => {
+    api.get<Product[]>('/products').then(setProductList).catch(() => setProductList([]));
   };
 
   const load = () => {
@@ -236,7 +270,7 @@ export default function ExpensePage() {
     }
   };
 
-  useEffect(() => { load(); loadCategories(); loadRecurring(); loadSuppliers(); }, [filterMonth]);
+  useEffect(() => { load(); loadCategories(); loadRecurring(); loadSuppliers(); loadRawMaterials(); loadProducts(); }, [filterMonth]);
   useEffect(() => { setFilterCat(urlCategory); }, [urlCategory]);
 
   useEffect(() => {
@@ -306,6 +340,9 @@ export default function ExpensePage() {
       date: e.date?.slice(0, 10) || '', notes: e.notes || '', slipImage: e.slipImage || '',
       dueDate: e.dueDate?.slice(0, 10) || '', paymentMethod: e.paymentMethod || '',
       supplierId: e.supplierId ? String(e.supplierId) : '',
+      itemType: e.itemType || '',
+      rawMaterialId: e.rawMaterialId ? String(e.rawMaterialId) : '',
+      productId: e.productId ? String(e.productId) : '',
       hasWithholdingTax: !!e.hasWithholdingTax,
       whtFormType: e.whtFormType || 'pnd3',
       whtIncomeType: e.whtIncomeType || '',
@@ -388,6 +425,9 @@ export default function ExpensePage() {
       ...form,
       amount: amt,
       supplierId: form.supplierId ? Number(form.supplierId) : null,
+      itemType: form.itemType || null,
+      rawMaterialId: form.rawMaterialId ? Number(form.rawMaterialId) : null,
+      productId: form.productId ? Number(form.productId) : null,
       hasWithholdingTax: form.hasWithholdingTax,
       whtFormType: form.hasWithholdingTax ? form.whtFormType : null,
       whtIncomeType: form.hasWithholdingTax ? form.whtIncomeType : null,
@@ -732,6 +772,73 @@ export default function ExpensePage() {
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+
+          {/* Raw Material / Product Selector — show when category is วัตถุดิบ related or page is ซื้อวัตถุดิบ */}
+          {(form.category === 'ค่าวัตถุดิบ' || urlCategory === 'ซื้อวัตถุดิบ' || form.category === 'ซื้อวัตถุดิบ') && (
+            <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/50">
+              <label className="block text-sm font-medium text-gray-700 mb-2">เลือกวัตถุดิบ/สินค้า</label>
+              <div className="flex gap-3 mb-3">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="itemType" value="raw_material" checked={form.itemType === 'raw_material'}
+                    onChange={() => setForm({ ...form, itemType: 'raw_material', productId: '', rawMaterialId: '' })}
+                    className="text-indigo-600 focus:ring-indigo-500" />
+                  <span className="text-sm">วัตถุดิบ</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="itemType" value="product" checked={form.itemType === 'product'}
+                    onChange={() => setForm({ ...form, itemType: 'product', rawMaterialId: '', productId: '' })}
+                    className="text-indigo-600 focus:ring-indigo-500" />
+                  <span className="text-sm">สินค้า</span>
+                </label>
+                {form.itemType && (
+                  <button type="button" onClick={() => setForm({ ...form, itemType: '', rawMaterialId: '', productId: '' })}
+                    className="text-xs text-gray-400 hover:text-gray-600 ml-auto">ล้าง</button>
+                )}
+              </div>
+              {form.itemType === 'raw_material' && (
+                <select
+                  value={form.rawMaterialId}
+                  onChange={(e) => {
+                    const rmId = e.target.value;
+                    const rm = rawMaterialList.find(r => String(r.id) === rmId);
+                    setForm({
+                      ...form,
+                      rawMaterialId: rmId,
+                      productId: '',
+                      description: rm ? `${rm.code ? rm.code + ' - ' : ''}${rm.name}` : form.description,
+                    });
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                >
+                  <option value="">เลือกวัตถุดิบ...</option>
+                  {rawMaterialList.map((rm) => (
+                    <option key={rm.id} value={rm.id}>{rm.code ? `${rm.code} - ` : ''}{rm.name} ({rm.unit})</option>
+                  ))}
+                </select>
+              )}
+              {form.itemType === 'product' && (
+                <select
+                  value={form.productId}
+                  onChange={(e) => {
+                    const pId = e.target.value;
+                    const p = productList.find(pr => String(pr.id) === pId);
+                    setForm({
+                      ...form,
+                      productId: pId,
+                      rawMaterialId: '',
+                      description: p ? `${p.sku ? p.sku + ' - ' : ''}${p.name}` : form.description,
+                    });
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                >
+                  <option value="">เลือกสินค้า...</option>
+                  {productList.map((p) => (
+                    <option key={p.id} value={p.id}>{p.sku ? `${p.sku} - ` : ''}{p.name} ({p.unit})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           {/* Supplier dropdown */}
           <div>

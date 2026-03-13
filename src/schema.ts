@@ -302,6 +302,9 @@ export const expenses = sqliteTable("expenses", {
   paymentMethod: text("payment_method"),
   recurringExpenseId: integer("recurring_expense_id"),
   supplierId: integer("supplier_id"),
+  rawMaterialId: integer("raw_material_id"),
+  productId: integer("product_id"),
+  itemType: text("item_type"), // 'raw_material' | 'product' | null
   hasWithholdingTax: integer("has_withholding_tax").default(0),
   whtFormType: text("wht_form_type"),
   whtIncomeType: text("wht_income_type"),

@@ -909,4 +909,14 @@ async function migrateWithholdingTax() {
   for (const [col, def] of whtCols) {
     try { await client.execute(`ALTER TABLE expenses ADD COLUMN ${col} ${def}`); } catch (_) { /* exists */ }
   }
+
+  // --- Add raw_material_id, product_id, item_type to expenses ---
+  const itemCols: [string, string][] = [
+    ["raw_material_id", "INTEGER"],
+    ["product_id", "INTEGER"],
+    ["item_type", "TEXT"],
+  ];
+  for (const [col, def] of itemCols) {
+    try { await client.execute(`ALTER TABLE expenses ADD COLUMN ${col} ${def}`); } catch (_) { /* exists */ }
+  }
 }
