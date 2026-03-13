@@ -395,7 +395,6 @@ salesOrdersRoute.get("/:id/print", async (c) => {
       ${o.shippingAddress ? `<p>${escapeHtml(o.shippingAddress)}</p>` : ""}
       ${o.deliveryStartDate ? `<p>เริ่ม: ${escapeHtml(o.deliveryStartDate)}</p>` : ""}
       ${o.deliveryEndDate ? `<p>สิ้นสุด: ${escapeHtml(o.deliveryEndDate)}</p>` : ""}
-      <p>คลัง: ${escapeHtml(o.warehouse) || "Ladprao 43 - FFP"}</p>
     </div>
   </div>
   <table class="items-table">
@@ -422,12 +421,6 @@ salesOrdersRoute.get("/:id/print", async (c) => {
       <h4>เงื่อนไขการชำระ / Payment Terms</h4>
       <p>${escapeHtml(o.paymentTermsTemplate) || "-"}</p>
       ${paymentTermsRows.length ? `<table class="items-table" style="margin-top:5px"><thead><tr><th>งวด</th><th>คำอธิบาย</th><th>กำหนด</th><th class="text-right">%</th><th class="text-right">จำนวน</th></tr></thead><tbody>${paymentTermsRows.map(pt => `<tr><td>${escapeHtml(pt.paymentTerm) || "-"}</td><td>${escapeHtml(pt.description) || "-"}</td><td>${escapeHtml(pt.dueDate) || "-"}</td><td class="text-right">${pt.invoicePortion || 0}</td><td class="text-right">${fmt(pt.paymentAmount || 0)}</td></tr>`).join("")}</tbody></table>` : ""}
-    </div>
-    <div class="footer-card">
-      <h4>ค่าคอมมิชชั่น / Commission</h4>
-      <p>Sales Partner: ${escapeHtml(o.salesPartner) || "-"}</p>
-      <p>Commission Rate: ${o.commissionRate || 0}%</p>
-      <p>Total Commission: ${fmt(o.totalCommission || 0)}</p>
     </div>
   </div>
   ${o.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(o.notes)}</div>` : ""}
