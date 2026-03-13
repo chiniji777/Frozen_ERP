@@ -291,6 +291,7 @@ export const companySettings = sqliteTable("company_settings", {
 
 export const expenses = sqliteTable("expenses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  expenseNumber: text("expense_number").unique(),
   category: text("category").notNull(),
   description: text("description").notNull(),
   amount: real("amount").notNull(),
