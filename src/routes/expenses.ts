@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { expenses, suppliers, printLogs, recurringExpenses } from "../schema.js";
+import { expenses, suppliers, printLogs, recurringExpenses, recurringExpensePayments } from "../schema.js";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, basename } from "path";
@@ -264,6 +264,16 @@ expensesRoute.delete("/:id", async (c) => {
   const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
   if (!existing) return c.json({ error: "Expense not found" }, 404);
   if (existing.status === "paid") return c.json({ error: "ลบรายการที่จ่ายแล้วไม่ได้" }, 400);
+
+  // ถ้าเป็น expense จาก recurring → reset payment กลับ pending
+  if (existing.recurringExpenseId) {
+    await db.update(recurringExpensePayments).set({
+      status: "pending",
+      expenseId: null,
+      paidAt: null,
+      slipImage: null,
+    }).where(eq(recurringExpensePayments.expenseId, id)).run();
+  }
 
   await db.delete(expenses).where(eq(expenses.id, id)).run();
   return c.json({ ok: true, message: "ลบรายการเรียบร้อย" });
