@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -90,12 +90,16 @@ export default function InvoicePage() {
   const [editDueDate, setEditDueDate] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Reset to list view when sidebar re-navigates to this page
   useEffect(() => {
     setDetailInv(null);
     setFormOpen(false);
   }, [location.key]);
+
+  // Auto-open form when navigated from DN with ?fromDN=id
+  const [fromDNHandled, setFromDNHandled] = useState(false);
 
   const [formSource, setFormSource] = useState<InvoiceSource>('so');
   const [formSOId, setFormSOId] = useState<number | ''>('');
@@ -121,6 +125,35 @@ export default function InvoicePage() {
 
   useEffect(() => { load(); }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
+
+  // Handle ?fromDN= param: auto-open create form with DN pre-selected
+  useEffect(() => {
+    if (loading || fromDNHandled) return;
+    const params = new URLSearchParams(location.search);
+    const fromDN = params.get('fromDN');
+    if (!fromDN) return;
+    setFromDNHandled(true);
+    const dnId = Number(fromDN);
+    // Fetch DN detail to get SO items
+    (async () => {
+      try {
+        const dnDetail = await api.get<{ id: number; sales_order_id?: number; so_order_number?: string; customer_name?: string }>(`/delivery-notes/${dnId}`);
+        setFormSource('dn');
+        setFormDNId(dnId);
+        setFormDueDate('');
+        setFormNotes('');
+        setDetailInv(null);
+        setFormOpen(true);
+        // Load items from linked SO
+        if (dnDetail.sales_order_id) {
+          const items = await loadSOItems(dnDetail.sales_order_id);
+          setFormItems(items);
+        }
+      } catch { /* ignore */ }
+      // Clear the query param so it doesn't re-trigger
+      navigate('/invoices', { replace: true });
+    })();
+  }, [loading, fromDNHandled, location.search]);
 
   const isOverdue = (iv: Invoice) => iv.status !== 'paid' && iv.status !== 'cancelled' && iv.due_date && new Date(iv.due_date) < new Date();
   const effectiveStatus = (iv: Invoice) => isOverdue(iv) ? 'overdue' : iv.status;
@@ -148,9 +181,18 @@ export default function InvoicePage() {
     }
   };
 
-  const onDNChange = (dnId: number) => {
+  const onDNChange = async (dnId: number) => {
     setFormDNId(dnId);
     setFormItems([]);
+    if (dnId) {
+      try {
+        const dnDetail = await api.get<{ sales_order_id?: number }>(`/delivery-notes/${dnId}`);
+        if (dnDetail.sales_order_id) {
+          const items = await loadSOItems(dnDetail.sales_order_id);
+          setFormItems(items);
+        }
+      } catch { /* ignore */ }
+    }
   };
 
   const toggleMultiSO = async (soId: number) => {

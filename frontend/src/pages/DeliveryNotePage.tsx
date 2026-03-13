@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -80,6 +80,7 @@ export default function DeliveryNotePage() {
   const [actionTarget, setActionTarget] = useState<{ dn: DeliveryNote; action: string } | null>(null);
   const [toast, setToast] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Reset to list view when sidebar re-navigates to this page
   useEffect(() => {
@@ -201,6 +202,10 @@ export default function DeliveryNotePage() {
             {dn.status === 'draft' && (
               <button onClick={() => setActionTarget({ dn, action: 'cancel' })}
                 className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
+            )}
+            {dn.status === 'delivered' && (
+              <button onClick={() => navigate(`/invoices?fromDN=${dn.id}`)}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">📄 สร้างใบแจ้งหนี้</button>
             )}
             <PrintMenu options={getPrintOptions(dn.id)} />
           </div>
