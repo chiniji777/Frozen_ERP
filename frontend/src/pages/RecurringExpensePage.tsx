@@ -148,6 +148,7 @@ export default function RecurringExpensePage() {
   const [templateImagePreview, setTemplateImagePreview] = useState('');
   const [templateImageUploading, setTemplateImageUploading] = useState(false);
   const templateImageRef = useRef<HTMLInputElement>(null);
+  const [sendingAll, setSendingAll] = useState(false);
   const [detailItem, setDetailItem] = useState<RecurringExpense | null>(null);
   const [detailMonthly, setDetailMonthly] = useState<MonthlyItem | null>(null);
   const [editingMonthly, setEditingMonthly] = useState(false);
@@ -339,6 +340,20 @@ export default function RecurringExpensePage() {
     loadMonthly();
   };
 
+  const handleSendAll = async () => {
+    if (!confirm(`ส่งทุกรายการของเดือน ${selectedMonth} ไปค่าใช้จ่ายทั้งหมด?`)) return;
+    setSendingAll(true);
+    try {
+      const res = await api.post<{ sent: number; skipped: number }>('/recurring-expenses/payments/send-all', { month: selectedMonth });
+      setToast(`ส่งไปค่าใช้จ่ายแล้ว ${res.sent} รายการ (ข้าม ${res.skipped})`);
+      loadMonthly();
+    } catch {
+      setToast('ส่งไม่สำเร็จ');
+    } finally {
+      setSendingAll(false);
+    }
+  };
+
   // ซ่อนรายการที่ส่งไปค่าใช้จ่ายแล้ว (แสดงเฉพาะที่ยังไม่ส่ง หรือ expense ถูกยกเลิก)
   const filteredItems = monthlyItems.filter(item => !item.sentToExpense);
 
@@ -383,6 +398,19 @@ export default function RecurringExpensePage() {
           <p className="text-xl font-bold text-indigo-700">{summary.totalRemainingDebt.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
+
+      {/* Send All Button */}
+      {filteredItems.length > 0 && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={handleSendAll}
+            disabled={sendingAll}
+            className="px-4 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 font-medium"
+          >
+            {sendingAll ? 'กำลังส่ง...' : `ส่งไปค่าใช้จ่ายทั้งหมด (${filteredItems.length})`}
+          </button>
+        </div>
+      )}
 
       {/* Data Table */}
       <DataTable

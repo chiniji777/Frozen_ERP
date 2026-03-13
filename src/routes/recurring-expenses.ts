@@ -437,7 +437,26 @@ recurringExpensesRoute.put("/:id", async (c) => {
     updatedAt: sql`datetime('now')`,
   }).where(eq(recurringExpenses.id, id)).run();
 
-  return c.json({ ok: true });
+  // Propagate changes to future pending payments (not yet sent to expenses)
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const futurePayments = await db.select().from(recurringExpensePayments)
+    .where(eq(recurringExpensePayments.recurringExpenseId, id)).all();
+
+  const updatedAmount = body.amount ?? existing.amount;
+  const updatedPaymentMethod = body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod;
+
+  let propagated = 0;
+  for (const p of futurePayments) {
+    if (p.month >= currentMonth && p.status === "pending" && !p.expenseId) {
+      await db.update(recurringExpensePayments).set({
+        amount: updatedAmount,
+        paymentMethod: updatedPaymentMethod,
+      }).where(eq(recurringExpensePayments.id, p.id)).run();
+      propagated++;
+    }
+  }
+
+  return c.json({ ok: true, propagated });
 });
 
 // PATCH /:id/deactivate — ปิดรายการ
@@ -584,6 +603,74 @@ recurringExpensesRoute.post("/upload-image", async (c) => {
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(join(UPLOAD_DIR, filename), buffer);
   return c.json({ ok: true, imageUrl: `recurring-expenses/image/${filename}` });
+});
+
+// POST /payments/send-all — ส่งทุกรายการ pending ของเดือนนั้นไปค่าใช้จ่าย
+recurringExpensesRoute.post("/payments/send-all", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const month = body.month;
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return c.json({ error: "month required (YYYY-MM)" }, 400);
+  }
+
+  const allPayments = await db.select().from(recurringExpensePayments)
+    .where(eq(recurringExpensePayments.month, month)).all();
+
+  const sent: { paymentId: number; expenseId: number; name: string }[] = [];
+  const skipped: { paymentId: number; name: string; reason: string }[] = [];
+
+  for (const payment of allPayments) {
+    // Skip if already sent and not cancelled
+    if (payment.expenseId) {
+      const existingExp = await db.select({ status: expenses.status }).from(expenses)
+        .where(eq(expenses.id, payment.expenseId)).get();
+      if (existingExp && existingExp.status !== "cancelled") {
+        skipped.push({ paymentId: payment.id, name: "", reason: "already sent" });
+        continue;
+      }
+    }
+
+    const item = await db.select().from(recurringExpenses)
+      .where(eq(recurringExpenses.id, payment.recurringExpenseId)).get();
+    if (!item) {
+      skipped.push({ paymentId: payment.id, name: "", reason: "template not found" });
+      continue;
+    }
+
+    const expenseDate = `${payment.month}-01`;
+    const dueDate = item.dueDay ? `${payment.month}-${String(item.dueDay).padStart(2, "0")}` : null;
+    const expenseNumber = await generateRunningNumber("REC", "expenses", "expense_number");
+    const whtAmount = item.hasWithholdingTax && item.whtRate ? payment.amount * item.whtRate / 100 : null;
+    const whtNetAmount = whtAmount ? payment.amount - whtAmount : null;
+
+    const expenseResult = await db.insert(expenses).values({
+      expenseNumber,
+      category: item.category,
+      description: `${item.name} (${payment.month})`,
+      amount: payment.amount,
+      date: expenseDate,
+      dueDate,
+      paymentMethod: payment.paymentMethod || item.paymentMethod || null,
+      recurringExpenseId: item.id,
+      supplierId: item.supplierId || null,
+      notes: item.notes || `ค่าใช้จ่ายประจำ: ${item.name}`,
+      status: "pending",
+      hasWithholdingTax: item.hasWithholdingTax || 0,
+      whtFormType: item.hasWithholdingTax ? item.whtFormType : null,
+      whtIncomeType: item.hasWithholdingTax ? item.whtIncomeType : null,
+      whtIncomeDescription: item.hasWithholdingTax ? item.whtIncomeDescription : null,
+      whtRate: item.hasWithholdingTax ? item.whtRate : null,
+      whtAmount,
+      whtNetAmount,
+    }).run();
+    const expenseId = Number(expenseResult.lastInsertRowid);
+
+    await db.update(recurringExpensePayments).set({ expenseId }).where(eq(recurringExpensePayments.id, payment.id)).run();
+
+    sent.push({ paymentId: payment.id, expenseId, name: item.name });
+  }
+
+  return c.json({ ok: true, month, sent: sent.length, skipped: skipped.length, details: { sent, skipped } });
 });
 
 // DELETE /payments/cleanup — ลบ recurring_expense_payments ที่ยังไม่จ่าย สำหรับเดือนที่ระบุหรือก่อนหน้า
