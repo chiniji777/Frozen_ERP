@@ -662,23 +662,11 @@ export default function ExpensePage() {
             const st = (e.status || 'pending') as ExpenseStatus;
             const cfg = statusConfig[st] || statusConfig.pending;
             return (
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.bg} ${cfg.text}`}>
-                  {cfg.label}
-                </span>
-                {(st === 'pending' || st === 'overdue') && (
-                  <button onClick={(ev) => { ev.stopPropagation(); handleToggleStatus(e); }}
-                    className="px-2.5 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700 whitespace-nowrap">
-                    จ่ายแล้ว
-                  </button>
-                )}
-                {st === 'paid' && !e.recurringExpenseId && (
-                  <button onClick={(ev) => { ev.stopPropagation(); handleToggleStatus(e); }}
-                    className="px-2.5 py-1 text-xs rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 whitespace-nowrap">
-                    รอจ่าย
-                  </button>
-                )}
-              </div>
+              <span onClick={(ev) => { ev.stopPropagation(); if (st === 'cancelled') return; if (st === 'paid' && e.recurringExpenseId) return; handleToggleStatus(e); }}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text} ${st !== 'cancelled' ? 'cursor-pointer hover:opacity-80' : ''}`}
+                title={st === 'pending' || st === 'overdue' ? 'คลิกเพื่อเปลี่ยนเป็นจ่ายแล้ว' : st === 'paid' ? 'คลิกเพื่อเปลี่ยนเป็นรอจ่าย' : ''}>
+                {cfg.label}
+              </span>
             );
           }},
         ]}
