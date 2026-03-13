@@ -51,19 +51,29 @@ expensesRoute.put("/categories", async (c) => {
   return c.json({ ok: true, categories: cats });
 });
 
-// GET / — list expenses
+// GET / — list expenses (with status + month filter)
 expensesRoute.get("/", async (c) => {
   const category = c.req.query("category")?.trim();
+  const status = c.req.query("status")?.trim();
   const from = c.req.query("from")?.trim();
   const to = c.req.query("to")?.trim();
   let rows = await db.select().from(expenses).all();
   if (category) rows = rows.filter(r => r.category === category);
+  if (status) rows = rows.filter(r => r.status === status);
   if (from) rows = rows.filter(r => r.date >= from);
   if (to) rows = rows.filter(r => r.date <= to);
-  return c.json(rows);
+
+  // Compute overdue display status
+  const now = new Date().toISOString().slice(0, 10);
+  const result = rows.map(r => ({
+    ...r,
+    displayStatus: r.status === "pending" && r.dueDate && r.dueDate < now ? "overdue" : r.status,
+  }));
+
+  return c.json(result);
 });
 
-// POST / — create expense
+// POST / — create expense (status: pending by default)
 expensesRoute.post("/", async (c) => {
   const body = await c.req.json();
   if (!body.category || !body.description || body.amount == null || !body.date) {
@@ -71,9 +81,16 @@ expensesRoute.post("/", async (c) => {
   }
   if (body.amount <= 0) return c.json({ error: "amount must be > 0" }, 400);
   const result = await db.insert(expenses).values({
-    category: body.category, description: body.description,
-    amount: body.amount, date: body.date, notes: body.notes || null,
+    category: body.category,
+    description: body.description,
+    amount: body.amount,
+    date: body.date,
+    dueDate: body.dueDate || null,
+    paymentMethod: body.paymentMethod || null,
+    recurringExpenseId: body.recurringExpenseId || null,
     slipImage: body.slipImage || null,
+    notes: body.notes || null,
+    status: body.status || "pending",
   }).run();
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 });
@@ -89,17 +106,59 @@ expensesRoute.put("/:id", async (c) => {
     description: body.description ?? existing.description,
     amount: body.amount ?? existing.amount,
     date: body.date ?? existing.date,
-    notes: body.notes ?? existing.notes,
+    dueDate: body.dueDate !== undefined ? body.dueDate : existing.dueDate,
+    paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
     slipImage: body.slipImage !== undefined ? body.slipImage : existing.slipImage,
+    notes: body.notes ?? existing.notes,
     updatedAt: sql`datetime('now')`,
   }).where(eq(expenses.id, id)).run();
   return c.json({ ok: true });
 });
 
+// PATCH /:id/pay — mark expense as paid
+expensesRoute.patch("/:id/pay", async (c) => {
+  const id = Number(c.req.param("id"));
+  const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
+  if (!existing) return c.json({ error: "Expense not found" }, 404);
+  if (existing.status === "paid") return c.json({ error: "Already paid" }, 400);
+  if (existing.status === "cancelled") return c.json({ error: "Cannot pay cancelled expense" }, 400);
+
+  const body = await c.req.json().catch(() => ({}));
+  const paidAt = body.paidAt || new Date().toISOString();
+
+  await db.update(expenses).set({
+    status: "paid",
+    paidAt,
+    slipImage: body.slipImage !== undefined ? body.slipImage : existing.slipImage,
+    paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(expenses.id, id)).run();
+
+  return c.json({ ok: true, status: "paid", paidAt });
+});
+
 // PATCH /:id/cancel — cancel expense (no delete)
 expensesRoute.patch("/:id/cancel", async (c) => {
   const id = Number(c.req.param("id"));
-  const user = c.get("user");
+  const user = c.get("user") as { userId?: number } | undefined;
+  const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
+  if (!existing) return c.json({ error: "Expense not found" }, 404);
+  if (existing.status === "cancelled") return c.json({ error: "Already cancelled" }, 400);
+
+  await db.update(expenses).set({
+    status: "cancelled",
+    cancelledAt: sql`datetime('now')`,
+    cancelledBy: user?.userId ?? null,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(expenses.id, id)).run();
+
+  return c.json({ ok: true, status: "cancelled" });
+});
+
+// PUT /:id/cancel — cancel expense (PUT alias for frontend compat)
+expensesRoute.put("/:id/cancel", async (c) => {
+  const id = Number(c.req.param("id"));
+  const user = c.get("user") as { userId?: number } | undefined;
   const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
   if (!existing) return c.json({ error: "Expense not found" }, 404);
   if (existing.status === "cancelled") return c.json({ error: "Already cancelled" }, 400);
