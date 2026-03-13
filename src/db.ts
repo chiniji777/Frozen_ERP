@@ -311,7 +311,26 @@ export async function initDB() {
   await migrateExpenseFlow();
   await migrateRecurringExpenses();
   await migrateProductCategories();
+  await migrateSupplierPayment();
   await seedAdminUser();
+}
+
+async function migrateSupplierPayment() {
+  const client = getClient();
+  const newCols: [string, string][] = [
+    ["bank_name", "TEXT"],
+    ["bank_account_number", "TEXT"],
+    ["bank_account_name", "TEXT"],
+    ["prompt_pay_id", "TEXT"],
+    ["payment_notes", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE suppliers ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists
+    }
+  }
 }
 
 async function migrateUsers() {
