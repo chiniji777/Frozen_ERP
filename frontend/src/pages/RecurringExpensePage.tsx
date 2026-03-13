@@ -471,6 +471,42 @@ export default function RecurringExpensePage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ธนาคาร</label>
+              <input value={templateForm.bankName} onChange={(e) => setTemplateForm({ ...templateForm, bankName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="เช่น กสิกร, กรุงเทพ" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">เลขบัญชี</label>
+              <input value={templateForm.bankAccount} onChange={(e) => setTemplateForm({ ...templateForm, bankAccount: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="xxx-x-xxxxx-x" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อบัญชี</label>
+              <input value={templateForm.accountName} onChange={(e) => setTemplateForm({ ...templateForm, accountName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="ชื่อเจ้าของบัญชี" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">อ้างอิง 1</label>
+              <input value={templateForm.ref1} onChange={(e) => setTemplateForm({ ...templateForm, ref1: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="เลขสัญญา, เลขอ้างอิง" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">อ้างอิง 2</label>
+              <input value={templateForm.ref2} onChange={(e) => setTemplateForm({ ...templateForm, ref2: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="เลขอ้างอิงเพิ่มเติม" />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
             <textarea value={templateForm.notes} onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
