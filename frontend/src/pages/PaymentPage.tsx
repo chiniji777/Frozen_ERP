@@ -287,7 +287,7 @@ export default function PaymentPage() {
           { key: 'amount', label: 'จำนวนเงิน', render: (p) => `฿${(Number(p.amount) || 0).toLocaleString()}` },
           { key: 'method', label: 'วิธีชำระ', render: (p) => methodLabels[p.method] ?? p.method },
           { key: 'reference', label: 'อ้างอิง', filterable: true },
-          { key: 'invoice_status', label: 'สถานะ IV', render: (p) => (
+          { key: 'invoice_status', label: 'สถานะ IV', filterable: true, render: (p) => (
             <span className={`px-2 py-0.5 rounded-full text-xs ${p.invoice_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
               {p.invoice_status === 'paid' ? 'ชำระครบ' : 'ยังไม่ครบ'}
             </span>
