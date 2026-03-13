@@ -472,6 +472,12 @@ export default function PurchaseOrderPage() {
                 ลบ
               </button>
             )}
+            {(po.status === 'draft' || po.status === 'confirmed') && (
+              <button onClick={(e) => { e.stopPropagation(); setActionTarget({ po, action: 'cancel' }); }}
+                className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">
+                ยกเลิก
+              </button>
+            )}
             <button onClick={(e) => { e.stopPropagation(); openDetail(po); }}
               className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">
               Detail
