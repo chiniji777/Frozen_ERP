@@ -247,6 +247,7 @@ recurringExpensesRoute.post("/", async (c) => {
     bankAccount: body.bankAccount || null,
     bankName: body.bankName || null,
     accountName: body.accountName || null,
+    imageUrl: body.imageUrl || null,
   }).run();
 
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
@@ -283,6 +284,7 @@ recurringExpensesRoute.put("/:id", async (c) => {
     bankAccount: body.bankAccount !== undefined ? body.bankAccount : existing.bankAccount,
     bankName: body.bankName !== undefined ? body.bankName : existing.bankName,
     accountName: body.accountName !== undefined ? body.accountName : existing.accountName,
+    imageUrl: body.imageUrl !== undefined ? body.imageUrl : existing.imageUrl,
     updatedAt: sql`datetime('now')`,
   }).where(eq(recurringExpenses.id, id)).run();
 
