@@ -457,7 +457,7 @@ export default function ExpensePage() {
               <button onClick={() => setCancelTarget(exp)} className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
             )}
             {!!exp.hasWithholdingTax && (
-              <button onClick={() => { window.open(`/api/expenses/${exp.id}/print-wht`, '_blank'); setTimeout(() => api.get<PrintLog[]>(`/expenses/${exp.id}/print-logs`).then(setPrintLogs).catch(() => {}), 1000); }} className="px-4 py-2 text-sm border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50">🖨️ ใบหัก ณ ที่จ่าย</button>
+              <button onClick={() => { const t = localStorage.getItem('token'); window.open(`/api/expenses/${exp.id}/print-wht${t ? '?token=' + t : ''}`, '_blank'); setTimeout(() => api.get<PrintLog[]>(`/expenses/${exp.id}/print-logs`).then(setPrintLogs).catch(() => {}), 1000); }} className="px-4 py-2 text-sm border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50">🖨️ ใบหัก ณ ที่จ่าย</button>
             )}
           </div>
         </div>
