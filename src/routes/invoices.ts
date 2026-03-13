@@ -429,7 +429,7 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
   const rcptBaseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
   body += await qrSection(`${rcptBaseUrl}/api/invoices/${id}/print-receipt${companyId ? `?companyId=${companyId}` : ""}`, "สแกนเพื่อดูใบเสร็จ / Scan to view Receipt");
 
-  return c.html(wrapHtml(`Receipt ${receiptNumber}`, "receipt", body, isPaid ? undefined : "UNPAID"));
+  return c.html(wrapHtml(`Receipt ${receiptNumber}`, "receipt", body));
 });
 
 // === Print COA (Certificate of Analysis) from Invoice ===
