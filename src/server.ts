@@ -24,6 +24,7 @@ import { productCategoriesRoute } from "./routes/product-categories.js";
 import { ocrSlipRoute } from "./routes/ocr-slip.js";
 import { trackingRoute } from "./routes/delivery-tracking.js";
 import { stockRoute } from "./routes/stock.js";
+import { loansRoute } from "./routes/loans.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
@@ -171,6 +172,8 @@ app.use("/api/dbd/lookup/*", rateLimit({ max: 5, windowMs: 1000, keyPrefix: "dbd
 app.route("/api/dbd", dbdRoute);
 app.use("/api/stock/*", authMiddleware);
 app.route("/api/stock", stockRoute);
+app.use("/api/loans/*", authMiddleware);
+app.route("/api/loans", loansRoute);
 
 // Serve attachment files
 app.use("/api/attachments/*", authMiddleware);

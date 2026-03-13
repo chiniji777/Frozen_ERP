@@ -439,3 +439,26 @@ export const poItems = sqliteTable("po_items", {
   amount: real("amount").notNull().default(0),
   createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
+
+// ===== Short-Term Loans =====
+
+export const shortTermLoans = sqliteTable("short_term_loans", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  borrowerName: text("borrower_name").notNull(),
+  amount: real("amount").notNull(),
+  date: text("date").notNull(),
+  notes: text("notes"),
+  status: text("status", { enum: ["active", "closed"] }).notNull().default("active"),
+  imageUrl: text("image_url"),
+  ...timestamps,
+});
+
+export const loanRepayments = sqliteTable("loan_repayments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  loanId: integer("loan_id").notNull(),
+  amount: real("amount").notNull(),
+  date: text("date").notNull(),
+  notes: text("notes"),
+  imageUrl: text("image_url"),
+  ...timestamps,
+});

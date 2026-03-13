@@ -312,6 +312,7 @@ export async function initDB() {
   await migrateRecurringExpenses();
   await migrateProductCategories();
   await migrateSupplierPayment();
+  await migrateShortTermLoans();
   await seedAdminUser();
 }
 
@@ -790,4 +791,33 @@ async function migrateCancelSupport() {
       }
     }
   }
+}
+
+async function migrateShortTermLoans() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS short_term_loans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      borrower_name TEXT NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      image_url TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS loan_repayments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      loan_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      notes TEXT,
+      image_url TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_loans_status ON short_term_loans(status);
+    CREATE INDEX IF NOT EXISTS idx_loan_repayments_loan ON loan_repayments(loan_id);
+  `);
 }
