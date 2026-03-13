@@ -328,6 +328,9 @@ expensesRoute.get("/:id/print-wht", async (c) => {
   };
   const incomeInfo = incomeTypeMap[exp.whtIncomeType || ""] || { section: "-", desc: incomeDesc };
 
+  // Supplier tax ID digits for box display
+  const supplierTaxDigits = (sup?.taxId || "").replace(/[^0-9]/g, "").padEnd(13, " ").split("");
+
   const html = `<!DOCTYPE html>
 <html lang="th">
 <head>
@@ -335,127 +338,187 @@ expensesRoute.get("/:id/print-wht", async (c) => {
 <title>${formTitle} - ${escapeHtml(exp.whtDocNumber || "")}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  @page { size: A4; margin: 8mm 10mm; }
-  body { font-family: 'Sarabun', 'Noto Sans Thai', 'TH SarabunPSK', sans-serif; font-size: 14px; color: #000; line-height: 1.5; }
-  .page { max-width: 210mm; margin: 0 auto; padding: 10px; border: 2px solid #4a7c59; }
-  .header { text-align: center; margin-bottom: 10px; }
-  .header .form-name { font-size: 28px; font-weight: bold; color: #4a7c59; float: right; margin-top: -5px; }
-  .header .title { font-size: 14px; font-weight: bold; }
-  .header .subtitle { font-size: 12px; color: #333; }
-  .taxid-row { margin: 8px 0; }
-  .taxid-label { font-size: 12px; font-weight: bold; }
-  .taxid-box { display: inline-block; width: 20px; height: 22px; border: 1px solid #000; text-align: center; font-size: 14px; font-weight: bold; line-height: 22px; margin: 0 1px; }
-  .taxid-dash { display: inline-block; width: 8px; text-align: center; font-size: 14px; }
-  .branch-box { display: inline-block; width: 20px; height: 22px; border: 1px solid #000; text-align: center; font-size: 12px; line-height: 22px; margin: 0 1px; }
-  .info-section { margin: 6px 0; font-size: 13px; }
-  .info-section .label { font-weight: bold; }
-  .dotted-line { border-bottom: 1px dotted #000; display: inline-block; min-width: 200px; padding: 0 5px; }
-  .dotted-line-short { border-bottom: 1px dotted #000; display: inline-block; min-width: 80px; padding: 0 5px; }
-  .checkbox-section { margin: 8px 0; padding: 6px 0; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; }
-  .cb { display: inline-block; width: 16px; height: 16px; border: 1.5px solid #000; vertical-align: middle; text-align: center; font-size: 12px; line-height: 16px; margin-right: 3px; }
-  .cb.checked { background: #e8f5e9; }
-  .cb.checked::after { content: "✓"; font-weight: bold; color: #2e7d32; }
-  .right-section { float: right; margin-top: -80px; }
-  .month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 15px; font-size: 12px; margin: 5px 0; }
+  @page { size: A4; margin: 10mm 12mm; }
+  body { font-family: 'TH SarabunPSK', 'Sarabun', 'Noto Sans Thai', sans-serif; font-size: 15px; color: #000; line-height: 1.4; }
+  .page { max-width: 210mm; margin: 0 auto; padding: 12px 16px; }
+
+  /* Header */
+  .header { position: relative; text-align: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #2d8a6e; }
+  .header .form-name { position: absolute; right: 0; top: 0; font-size: 36px; font-weight: bold; color: #2d8a6e; }
+  .header .title { font-size: 16px; font-weight: bold; margin-top: 4px; }
+  .header .subtitle { font-size: 13px; color: #333; }
+
+  /* Tax ID boxes */
+  .taxid-section { margin: 6px 0; }
+  .taxid-label { font-size: 13px; font-weight: bold; }
+  .tid-box { display: inline-block; width: 20px; height: 22px; border: 1.5px solid #2d8a6e; text-align: center; font-size: 15px; font-weight: bold; line-height: 22px; margin: 0 0.5px; background: #f0faf6; }
+  .tid-dash { display: inline-block; width: 6px; text-align: center; font-size: 14px; font-weight: bold; }
+  .branch-box { display: inline-block; width: 20px; height: 22px; border: 1.5px solid #2d8a6e; text-align: center; font-size: 14px; line-height: 22px; margin: 0 0.5px; background: #f0faf6; }
+
+  /* Two-column layout */
+  .two-col { display: flex; gap: 12px; margin: 8px 0; }
+  .col-left { flex: 1; }
+  .col-right { width: 320px; }
+
+  /* Info fields */
+  .info-row { margin: 4px 0; font-size: 13px; }
+  .info-row .label { font-weight: bold; }
+  .dotted { border-bottom: 1px dotted #000; display: inline-block; min-width: 100px; padding: 0 4px; font-size: 14px; }
+  .dotted-long { border-bottom: 1px dotted #000; display: inline-block; width: 100%; padding: 0 4px; font-size: 14px; }
+  .addr-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2px 8px; font-size: 12px; margin: 4px 0; }
+  .addr-grid .item { display: flex; align-items: baseline; gap: 2px; }
+  .addr-grid .item .val { border-bottom: 1px dotted #000; flex: 1; padding: 0 3px; font-size: 13px; min-height: 18px; }
+
+  /* Checkboxes */
+  .cb { display: inline-block; width: 15px; height: 15px; border: 1.5px solid #000; vertical-align: middle; text-align: center; font-size: 11px; line-height: 15px; margin-right: 2px; }
+  .cb.checked { background: #d4edda; }
+  .cb.checked::after { content: "✓"; font-weight: bold; color: #1b5e20; }
+  .tax-law { font-size: 13px; margin: 3px 0; }
+  .tax-law.indent { margin-left: 18px; }
+  .filing-row { margin-top: 6px; font-size: 13px; display: flex; gap: 20px; }
+
+  /* Month grid */
+  .month-section { margin: 8px 0; padding: 8px; border: 1.5px solid #2d8a6e; background: #fafffe; }
+  .month-title { font-size: 13px; margin-bottom: 4px; }
+  .month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 12px; font-size: 13px; }
   .month-item { display: flex; align-items: center; gap: 3px; }
-  .tax-law { font-size: 12px; margin: 4px 0; }
-  .summary-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-  .summary-table td { border: 1px solid #000; padding: 5px 10px; font-size: 13px; }
-  .summary-table .label-col { width: 70%; }
-  .summary-table .amount-col { width: 30%; text-align: right; font-weight: bold; }
-  .summary-header { background: #e8e8e8; font-weight: bold; text-align: center; }
-  .detail-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-  .detail-table th, .detail-table td { border: 1px solid #000; padding: 4px 8px; font-size: 12px; }
-  .detail-table th { background: #f0f0f0; font-weight: bold; text-align: center; }
+
+  /* ใบแนบ section */
+  .attach-section { margin: 8px 0; padding: 6px 10px; border: 1px solid #aaa; font-size: 13px; background: #fafafa; }
+
+  /* Detail table (ใบแนบ) */
+  .detail-header { font-size: 13px; font-weight: bold; background: #2d8a6e; color: #fff; padding: 4px 10px; }
+  .detail-table { width: 100%; border-collapse: collapse; }
+  .detail-table th, .detail-table td { border: 1px solid #000; padding: 4px 6px; font-size: 12px; }
+  .detail-table th { background: #e8f5e9; font-weight: bold; text-align: center; font-size: 11px; }
   .text-right { text-align: right; }
   .text-center { text-align: center; }
-  .signature-section { margin-top: 15px; text-align: center; font-size: 13px; }
-  .sig-line { margin-top: 40px; }
-  .sig-dotted { border-bottom: 1px dotted #000; display: inline-block; width: 250px; }
-  .stamp-box { float: right; width: 100px; height: 80px; border: 1px solid #999; text-align: center; font-size: 10px; color: #999; line-height: 80px; margin-top: -60px; }
-  .footer { margin-top: 10px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #ddd; padding-top: 5px; }
+
+  /* Summary table */
+  .summary-section { margin: 10px 0; }
+  .summary-table { width: 60%; margin-left: auto; border-collapse: collapse; }
+  .summary-table td { border: 1.5px solid #2d8a6e; padding: 4px 10px; font-size: 13px; }
+  .summary-table .header-row td { background: #2d8a6e; color: #fff; font-weight: bold; text-align: center; }
+  .summary-table .label-col { width: 70%; }
+  .summary-table .amount-col { width: 30%; text-align: right; }
+  .amount-box { border: 1.5px solid #2d8a6e; padding: 2px 8px; text-align: right; font-weight: bold; min-width: 120px; display: inline-block; }
+
+  /* Signature */
+  .signature-section { margin-top: 14px; text-align: center; font-size: 14px; position: relative; }
+  .sig-line { margin-top: 30px; }
+  .sig-dotted { border-bottom: 1px dotted #000; display: inline-block; width: 280px; }
+  .stamp-box { position: absolute; right: 20px; top: 20px; width: 90px; height: 70px; border: 1.5px solid #999; text-align: center; font-size: 10px; color: #666; display: flex; align-items: center; justify-content: center; line-height: 1.3; }
+
+  /* Footer */
+  .footer { margin-top: 10px; padding-top: 6px; border-top: 2px solid #2d8a6e; display: flex; justify-content: space-between; font-size: 11px; color: #555; }
+  .footer .rd-info { color: #2d8a6e; font-weight: bold; }
+
   .clearfix::after { content: ""; display: table; clear: both; }
-  @media print { .no-print { display: none; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  @media print {
+    .no-print { display: none; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 0; }
+  }
 </style>
 </head>
 <body>
 <div class="page">
-  <!-- Header -->
-  <div class="header clearfix">
-    <div style="text-align:center">
-      <div class="title">แบบยื่นรายการภาษีเงินได้หัก ณ ที่จ่าย</div>
-      <div class="subtitle">ตามมาตรา 3 เตรส และมาตรา 69 ทวิ</div>
-      <div class="subtitle">และการเสียภาษีตามมาตรา 65 จัตวา แห่งประมวลรัษฎากร</div>
-    </div>
-    <div class="form-name">${formTitle}</div>
+  <!-- ===== HEADER ===== -->
+  <div class="header">
+    <div class="form-name">${formTitle.replace("ภ.ง.ด. ", "ภ.ง.ด.")}</div>
+    <div class="title">แบบยื่นรายการภาษีเงินได้หัก ณ ที่จ่าย</div>
+    <div class="subtitle">ตามมาตรา 3 เตรส และมาตรา 69 ทวิ</div>
+    <div class="subtitle">และการเสียภาษีตามมาตรา 65 จัตวา แห่งประมวลรัษฎากร</div>
   </div>
 
-  <!-- Tax ID -->
-  <div class="taxid-row">
-    <span class="taxid-label">เลขประจำตัวผู้เสียภาษีอากร (ของผู้มีหน้าที่หักภาษี ณ ที่จ่าย)</span><br>
-    ${companyTaxDigits.map((d, i) => `<span class="taxid-box">${d.trim() ? d : "&nbsp;"}</span>${i === 0 || i === 4 || i === 9 || i === 11 ? '<span class="taxid-dash">-</span>' : ""}`).join("")}
-    &nbsp;&nbsp; สาขาที่ <span class="branch-box">0</span><span class="branch-box">0</span><span class="branch-box">0</span><span class="branch-box">0</span>
-  </div>
+  <!-- ===== TAX ID + นำส่งภาษีตาม (two columns) ===== -->
+  <div class="two-col">
+    <div class="col-left">
+      <!-- Tax ID -->
+      <div class="taxid-section">
+        <div class="taxid-label">เลขประจำตัวผู้เสียภาษีอากร<br><small>(ของผู้มีหน้าที่หักภาษี ณ ที่จ่าย)</small></div>
+        <div style="margin-top:3px">
+          ${companyTaxDigits.map((digit, i) => {
+            const box = '<span class="tid-box">' + (digit.trim() ? digit : "&nbsp;") + "</span>";
+            const dash = (i === 0 || i === 4 || i === 9 || i === 11) ? '<span class="tid-dash">-</span>' : "";
+            return box + dash;
+          }).join("")}
+        </div>
+      </div>
 
-  <!-- Company Info -->
-  <div class="info-section">
-    <span class="label">ชื่อผู้มีหน้าที่หักภาษี ณ ที่จ่าย (หน่วยงาน) :</span>
-    <span class="dotted-line" style="min-width:350px">${escapeHtml(company.companyName)}</span>
-  </div>
-  <div class="info-section">
-    <span class="label">ที่อยู่ :</span>
-    <span class="dotted-line" style="min-width:500px">${escapeHtml(company.address)}</span>
-  </div>
+      <!-- Company name + branch -->
+      <div class="info-row" style="margin-top:6px">
+        <span class="label">ชื่อผู้มีหน้าที่หักภาษี ณ ที่จ่าย (หน่วยงาน) :</span>
+        <span class="dotted" style="min-width:250px">${escapeHtml(company.companyName)}</span>
+        &nbsp; สาขาที่
+        <span class="branch-box">0</span><span class="branch-box">0</span><span class="branch-box">0</span><span class="branch-box">0</span>
+      </div>
 
-  <!-- Tax Law Section (right side) + Filing Type -->
-  <div class="checkbox-section clearfix">
-    <div style="float:right; font-size:12px; width:45%;">
-      <div class="tax-law"><span class="cb checked"></span> นำส่งภาษีตาม</div>
-      <div class="tax-law" style="margin-left:20px"><span class="cb checked"></span> (1) มาตรา 3 เตรส แห่งประมวลรัษฎากร</div>
-      <div class="tax-law" style="margin-left:20px"><span class="cb"></span> (2) มาตรา 65 จัตวา แห่งประมวลรัษฎากร</div>
-      <div class="tax-law" style="margin-left:20px"><span class="cb"></span> (3) มาตรา 69 ทวิ แห่งประมวลรัษฎากร</div>
-      <div style="margin-top:5px">
-        <span class="cb checked"></span> ยื่นปกติ &nbsp;&nbsp;
-        <span class="cb"></span> ยื่นเพิ่มเติมครั้งที่ ......
+      <!-- Address -->
+      <div class="info-row">
+        <span class="label">ที่อยู่ :</span>
+        <span class="dotted" style="min-width:450px">${escapeHtml(company.address)}</span>
+      </div>
+
+      <!-- Filing type -->
+      <div class="filing-row">
+        <span><span class="cb checked"></span> ยื่นปกติ</span>
+        <span><span class="cb"></span> ยื่นเพิ่มเติมครั้งที่ ........</span>
       </div>
     </div>
-    <div style="width:50%;">
-      <div style="font-size:12px; margin-bottom:3px;">
-        <strong>เดือนที่จ่ายเงินได้พึงประเมิน</strong> (ให้ทำเครื่องหมาย "✓" ลงใน "☐" หน้าชื่อเดือน) พ.ศ. <strong>${thaiYear}</strong>
-      </div>
-      <div class="month-grid">
-        ${thaiMonths.map((m, i) => `<div class="month-item"><span class="cb${i === monthIndex ? " checked" : ""}"></span> (${i + 1}) ${m}</div>`).join("\n        ")}
-      </div>
+
+    <div class="col-right">
+      <!-- นำส่งภาษีตาม -->
+      <div style="font-size:13px; font-weight:bold; margin-bottom:4px; color:#2d8a6e;">นำส่งภาษีตาม</div>
+      <div class="tax-law indent"><span class="cb checked"></span> (1) มาตรา 3 เตรส แห่งประมวลรัษฎากร</div>
+      <div class="tax-law indent"><span class="cb"></span> (2) มาตรา 65 จัตวา แห่งประมวลรัษฎากร</div>
+      <div class="tax-law indent"><span class="cb"></span> (3) มาตรา 69 ทวิ แห่งประมวลรัษฎากร</div>
     </div>
   </div>
 
-  <!-- ใบแนบ reference -->
-  <div style="margin:8px 0; font-size:12px; padding:5px; border:1px solid #ddd; background:#fafafa;">
-    <span class="cb checked"></span> <strong>ใบแนบ ${formTitle}</strong> ที่แนบมาพร้อมนี้ : จำนวน <strong>1</strong> ราย จำนวน <strong>1</strong> แผ่น
+  <!-- ===== MONTH GRID ===== -->
+  <div class="month-section">
+    <div class="month-title">
+      <strong>เดือนที่จ่ายเงินได้พึงประเมิน</strong>
+      <small>(ให้ทำเครื่องหมาย "✓" ลงใน "☐" หน้าชื่อเดือน)</small>
+      พ.ศ. <strong>${thaiYear}</strong>
+    </div>
+    <div class="month-grid">
+      ${thaiMonths.map((m, i) => `<div class="month-item"><span class="cb${i === monthIndex ? " checked" : ""}"></span> (${i + 1}) ${m}</div>`).join("\n      ")}
+    </div>
   </div>
 
-  <!-- Detail Table (ใบแนบ inline) -->
+  <!-- ===== ใบแนบ reference ===== -->
+  <div class="attach-section">
+    <span class="cb checked"></span> <strong>ใบแนบ ${formTitle}</strong> ที่แนบมาพร้อมนี้ :
+    จำนวน <strong>1</strong> ราย &nbsp; จำนวน <strong>1</strong> แผ่น
+    <div style="margin-top:4px; font-size:12px; color:#555;">
+      มีรายละเอียดการหักเป็นรายผู้มีเงินได้ ปรากฏตามใบแนบ ${formTitle}
+    </div>
+  </div>
+
+  <!-- ===== DETAIL TABLE (ใบแนบ inline) ===== -->
   <div style="margin:8px 0;">
-    <div style="font-size:12px; font-weight:bold; margin-bottom:4px; background:#e8e8e8; padding:3px 8px; border:1px solid #000; border-bottom:none;">
+    <div class="detail-header">
       รายละเอียดการหักเป็นรายผู้มีเงินได้ (ใบแนบ ${formTitle})
     </div>
     <table class="detail-table">
       <thead>
         <tr>
-          <th style="width:5%">ลำดับ</th>
-          <th style="width:15%">เลขประจำตัวผู้เสียภาษี</th>
-          <th style="width:25%">ชื่อผู้มีเงินได้</th>
-          <th style="width:15%">ที่อยู่</th>
-          <th style="width:10%">วันเดือนปีที่จ่าย</th>
-          <th style="width:10%">ประเภทเงินได้</th>
-          <th style="width:10%">จำนวนเงินที่จ่าย</th>
-          <th style="width:10%">จำนวนเงินภาษีที่หัก</th>
+          <th style="width:4%">ลำดับ</th>
+          <th style="width:14%">เลขประจำตัว<br>ผู้เสียภาษีอากร</th>
+          <th style="width:20%">ชื่อผู้มีเงินได้</th>
+          <th style="width:18%">ที่อยู่ผู้มีเงินได้</th>
+          <th style="width:10%">วันเดือนปี<br>ที่จ่าย</th>
+          <th style="width:14%">ประเภทเงินได้<br>พึงประเมิน</th>
+          <th style="width:10%">จำนวนเงิน<br>ที่จ่าย</th>
+          <th style="width:10%">จำนวนเงิน<br>ภาษีที่หัก</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td class="text-center">1</td>
-          <td class="text-center">${escapeHtml(sup?.taxId || "-")}</td>
+          <td class="text-center" style="font-size:11px">${escapeHtml(sup?.taxId || "-")}</td>
           <td>${escapeHtml(sup?.fullName || sup?.name || "-")}</td>
           <td style="font-size:11px">${escapeHtml(sup?.address || "-")}</td>
           <td class="text-center">${thaiDate}</td>
@@ -467,31 +530,33 @@ expensesRoute.get("/:id/print-wht", async (c) => {
     </table>
   </div>
 
-  <!-- Summary Table -->
-  <div style="margin:10px 0;">
+  <!-- ===== SUMMARY TABLE ===== -->
+  <div class="summary-section">
     <table class="summary-table">
-      <tr><td class="summary-header" colspan="2">สรุปรายการภาษีที่นำส่ง</td><td class="summary-header">จำนวนเงิน</td></tr>
-      <tr><td class="label-col" colspan="2">1. รวมยอดเงินได้ทั้งสิ้น</td><td class="amount-col">${fmt(exp.amount)}</td></tr>
-      <tr><td class="label-col" colspan="2">2. รวมยอดภาษีที่นำส่งทั้งสิ้น</td><td class="amount-col">${fmt(exp.whtAmount)}</td></tr>
-      <tr><td class="label-col" colspan="2">3. เงินเพิ่ม (ถ้ามี)</td><td class="amount-col">-</td></tr>
-      <tr><td class="label-col" colspan="2"><strong>4. รวมยอดภาษีที่นำส่งทั้งสิ้น และเงินเพิ่ม (2. + 3.)</strong></td><td class="amount-col"><strong>${fmt(exp.whtAmount)}</strong></td></tr>
+      <tr class="header-row"><td class="label-col">สรุปรายการภาษีที่นำส่ง</td><td class="amount-col">จำนวนเงิน</td></tr>
+      <tr><td>1. รวมยอดเงินได้ทั้งสิ้น</td><td class="amount-col">${fmt(exp.amount)}</td></tr>
+      <tr><td><strong>2. รวมยอดภาษีที่นำส่งทั้งสิ้น</strong></td><td class="amount-col"><strong>${fmt(exp.whtAmount)}</strong></td></tr>
+      <tr><td>3. เงินเพิ่ม (ถ้ามี)</td><td class="amount-col">-</td></tr>
+      <tr><td><strong>4. รวมยอดภาษีที่นำส่งทั้งสิ้น และเงินเพิ่ม (2. + 3.)</strong></td><td class="amount-col"><strong>${fmt(exp.whtAmount)}</strong></td></tr>
     </table>
   </div>
 
-  <!-- Signature -->
+  <!-- ===== SIGNATURE ===== -->
   <div class="signature-section">
     <p>ข้าพเจ้าขอรับรองว่า รายการที่แจ้งไว้ข้างต้นนี้ เป็นรายการที่ถูกต้องและครบถ้วนทุกประการ</p>
+    <div class="stamp-box">ประทับตรา<br>นิติบุคคล<br>(ถ้ามี)</div>
     <div class="sig-line">
       ลงชื่อ <span class="sig-dotted"></span> ผู้จ่ายเงิน
-      <div class="stamp-box">ประทับตรา<br>นิติบุคคล<br>(ถ้ามี)</div>
     </div>
-    <div style="margin-top:5px">( <span class="sig-dotted"></span> )</div>
-    <div style="margin-top:5px">ตำแหน่ง <span class="sig-dotted"></span></div>
-    <div style="margin-top:5px">ยื่นวันที่ ${d.getDate()} เดือน ${thaiMonths[d.getMonth()]} พ.ศ. ${thaiYear}</div>
+    <div style="margin-top:4px">( <span class="sig-dotted"></span> )</div>
+    <div style="margin-top:4px">ตำแหน่ง <span class="sig-dotted"></span></div>
+    <div style="margin-top:4px">ยื่นวันที่ <span class="dotted" style="min-width:30px">${d.getDate()}</span> เดือน <span class="dotted" style="min-width:100px">${thaiMonths[d.getMonth()]}</span> พ.ศ. <span class="dotted" style="min-width:60px">${thaiYear}</span></div>
   </div>
 
+  <!-- ===== FOOTER ===== -->
   <div class="footer">
-    เลขที่เอกสาร: ${escapeHtml(exp.whtDocNumber || "-")} | ${escapeHtml(company.companyName)} | ออกโดยระบบ Frozen ERP
+    <div>เลขที่เอกสาร: ${escapeHtml(exp.whtDocNumber || "-")} | ${escapeHtml(company.companyName)} | ออกโดยระบบ Frozen ERP</div>
+    <div class="rd-info">สอบถามข้อมูลเพิ่มเติมได้ที่ศูนย์สารนิเทศสรรพากร RD Intelligence Center โทร. 1161</div>
   </div>
 </div>
 <script>window.onload=()=>window.print()</script>
