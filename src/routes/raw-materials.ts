@@ -43,7 +43,7 @@ rawMaterialsRoute.post("/", async (c) => {
     name: body.name,
     pricePerUnit: body.pricePerUnit ?? 0,
     unit: body.unit || "kg",
-    stock: body.stock ?? 0,
+    stock: 0,
     supplier: body.supplier || null,
     notes: body.notes || null,
   }).run();

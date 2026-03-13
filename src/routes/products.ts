@@ -90,7 +90,7 @@ productsRoute.post("/", async (c) => {
     category: body.category || null,
     salePrice: body.salePrice ?? 0,
     unit: body.unit || "piece",
-    stock: body.stock ?? 0,
+    stock: 0,
     imageUrl: body.imageUrl || null,
     rawMaterial: body.rawMaterial || null,
     rawMaterialYield: body.rawMaterialYield ?? null,
