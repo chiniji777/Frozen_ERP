@@ -3,7 +3,7 @@ import { db } from "../db.js";
 import { receipts, payments, invoices, customers, salesOrders, companySettings } from "../schema.js";
 import { eq } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
-import { escapeHtml, fmt, getCompanyInfo, companyHeader, signatureSection, wrapHtml } from "../print-utils.js";
+import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml } from "../print-utils.js";
 
 const receiptsRoute = new Hono();
 
@@ -95,6 +95,9 @@ receiptsRoute.get("/:id/print", async (c) => {
     }
   }
 
+  const sig = await getSignatureInfo(invoice?.confirmedBy);
+  if (sig && invoice?.confirmedAt) sig.date = invoice.confirmedAt;
+
   const methodTh = payment.method === "transfer" ? "โอนเงิน" : payment.method === "cash" ? "เงินสด" : "เช็ค";
 
   const meta = `
@@ -133,7 +136,7 @@ receiptsRoute.get("/:id/print", async (c) => {
   <div class="totals-section"><div class="totals-box">
     <div class="totals-row grand"><span>ยอดรับทั้งสิ้น</span><span>฿${fmt(r.amount)}</span></div>
   </div></div>
-  ${signatureSection("ผู้ชำระเงิน / Payer", "ผู้รับเงิน / Receiver")}`;
+  ${signatureSection("ผู้ชำระเงิน / Payer", "ผู้รับเงิน / Receiver", sig)}`;
 
   return c.html(wrapHtml(`Receipt ${r.receiptNumber}`, "receipt", body));
 });
