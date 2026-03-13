@@ -3,7 +3,7 @@ import { db } from "../db.js";
 import { invoices, invoiceItems, salesOrders, soItems, customers, products, payments, receipts, deliveryNotes, dnItems } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
-import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
+import { escapeHtml, fmt, fmtBaht, calcDueDate, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
 import { getOrCreateToken } from "./delivery-tracking.js";
 
 const invoicesRoute = new Hono();
@@ -281,10 +281,12 @@ invoicesRoute.get("/:id/print", async (c) => {
   const sig = await getSignatureInfo(iv.confirmedBy);
   if (sig && iv.confirmedAt) sig.date = iv.confirmedAt;
 
+  const dueDate = iv.dueDate || calcDueDate(iv.createdAt?.slice(0, 10), customer?.paymentTerms);
   const meta = `
     <span>วันที่: ${escapeHtml(iv.createdAt?.slice(0, 10))}</span>
-    <span>สถานะ: ${escapeHtml(iv.status)}</span>
-    ${so ? `<span>อ้างอิง SO: ${escapeHtml(so.orderNumber)}</span>` : ""}`;
+    ${dueDate ? `<span>ครบกำหนด: ${escapeHtml(dueDate)}</span>` : ""}
+    ${so ? `<span>อ้างอิง SO: ${escapeHtml(so.orderNumber)}</span>` : ""}
+    ${so?.poNumber ? `<span>PO#: ${escapeHtml(so.poNumber)}</span>` : ""}`;
 
   let body = `
   ${companyHeader(company, "inv", iv.invoiceNumber, meta)}
@@ -298,7 +300,8 @@ invoicesRoute.get("/:id/print", async (c) => {
     </div>
     <div class="info-card">
       <h4>การชำระเงิน / Payment</h4>
-      <p>ครบกำหนดชำระ: ${escapeHtml(iv.dueDate) || "ไม่ระบุ"}</p>
+      <p>ครบกำหนดชำระ: ${escapeHtml(dueDate) || "ไม่ระบุ"}</p>
+      ${customer?.paymentTerms ? `<p>เงื่อนไข: ${escapeHtml(customer.paymentTerms)}</p>` : ""}
       ${iv.notes ? `<p>หมายเหตุ: ${escapeHtml(iv.notes)}</p>` : ""}
     </div>
   </div>
@@ -309,14 +312,14 @@ invoicesRoute.get("/:id/print", async (c) => {
     </tr></thead>
     <tbody>${items.map((it, i) => `<tr>
       <td class="text-center">${i + 1}</td><td>${escapeHtml(it.productName) || "-"}</td>
-      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td><td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.quantity * it.unitPrice)}</td>
+      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td><td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmtBaht(it.quantity * it.unitPrice)}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
     <div class="totals-row"><span>จำนวนรวม</span><span>${fmt(items.reduce((s, it) => s + it.quantity, 0))}</span></div>
-    <div class="totals-row"><span>ยอดก่อน VAT</span><span>฿${fmt(iv.subtotal)}</span></div>
-    <div class="totals-row"><span>VAT ${iv.vatRate}%</span><span>฿${fmt(iv.vatAmount)}</span></div>
-    <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>฿${fmt(iv.totalAmount)}</span></div>
+    <div class="totals-row"><span>ยอดก่อน VAT</span><span>${fmtBaht(iv.subtotal)}</span></div>
+    <div class="totals-row"><span>VAT ${iv.vatRate}%</span><span>${fmtBaht(iv.vatAmount)}</span></div>
+    <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>${fmtBaht(iv.totalAmount)}</span></div>
   </div></div>
   ${iv.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(iv.notes)}</div>` : ""}
   ${signatureSection("ผู้รับบริการ / Customer", "ผู้อนุมัติ / Authorized", sig)}`;
@@ -360,7 +363,8 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
 
   const meta = `
     <span>วันที่: ${escapeHtml(new Date().toISOString().slice(0, 10))}</span>
-    <span>อ้างอิง INV: ${escapeHtml(iv.invoiceNumber)}</span>`;
+    <span>อ้างอิง INV: ${escapeHtml(iv.invoiceNumber)}</span>
+    ${so?.poNumber ? `<span>PO#: ${escapeHtml(so.poNumber)}</span>` : ""}`;
 
   const receiptNumber = paymentRows[0]
     ? `RCP-${iv.invoiceNumber.replace("IV", "")}`
@@ -379,7 +383,7 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
       <h4>อ้างอิง / Reference</h4>
       <p>เลขที่ใบแจ้งหนี้: ${escapeHtml(iv.invoiceNumber)}</p>
       ${so ? `<p>เลขที่ใบสั่งขาย: ${escapeHtml(so.orderNumber)}</p>` : ""}
-      <p>ยอดในใบแจ้งหนี้: ฿${fmt(iv.totalAmount)}</p>
+      <p>ยอดในใบแจ้งหนี้: ${fmtBaht(iv.totalAmount)}</p>
     </div>
   </div>
   <table class="items-table">
@@ -392,13 +396,13 @@ invoicesRoute.get("/:id/print-receipt", async (c) => {
       <td>${escapeHtml(p.paymentNumber)}</td>
       <td>${escapeHtml(p.method === "transfer" ? "โอนเงิน" : p.method === "cash" ? "เงินสด" : "เช็ค")}</td>
       <td>${escapeHtml(p.paymentDate || p.paidAt?.slice(0, 10) || "-")}</td>
-      <td class="text-right">${fmt(p.amount)}</td>
+      <td class="text-right">${fmtBaht(p.amount)}</td>
     </tr>`).join("") : `<tr><td colspan="5" class="text-center" style="padding:20px;color:#94a3b8">ยังไม่มีรายการชำระเงิน</td></tr>`}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
-    <div class="totals-row"><span>ยอดใบแจ้งหนี้</span><span>฿${fmt(iv.totalAmount)}</span></div>
-    <div class="totals-row"><span>ชำระแล้ว</span><span>฿${fmt(totalPaid)}</span></div>
-    <div class="totals-row grand"><span>ยอดรับทั้งสิ้น</span><span>฿${fmt(totalPaid)}</span></div>
+    <div class="totals-row"><span>ยอดใบแจ้งหนี้</span><span>${fmtBaht(iv.totalAmount)}</span></div>
+    <div class="totals-row"><span>ชำระแล้ว</span><span>${fmtBaht(totalPaid)}</span></div>
+    <div class="totals-row grand"><span>ยอดรับทั้งสิ้น</span><span>${fmtBaht(totalPaid)}</span></div>
   </div></div>
   ${signatureSection("ผู้ชำระเงิน / Payer", "ผู้รับเงิน / Receiver", sig)}`;
 

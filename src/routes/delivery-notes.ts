@@ -3,7 +3,7 @@ import { db } from "../db.js";
 import { deliveryNotes, dnItems, salesOrders, soItems, products, customers, deliveryPhotos, deliveryConfirmations } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
-import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
+import { escapeHtml, fmt, fmtBaht, calcDueDate, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
 import { getOrCreateToken } from "./delivery-tracking.js";
 
 const deliveryNotesRoute = new Hono();
@@ -176,10 +176,12 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
   let customerName = "";
   let customerInfo = "";
   let soOrderNumber = "";
+  let soPoNumber = "";
   if (dn.salesOrderId) {
     const so = await db.select().from(salesOrders).where(eq(salesOrders.id, dn.salesOrderId)).get();
     if (so) {
       soOrderNumber = so.orderNumber;
+      soPoNumber = so.poNumber || "";
       const cust = await db.select().from(customers).where(eq(customers.id, so.customerId)).get();
       if (cust) {
         customerName = cust.name;
@@ -198,8 +200,8 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
 
   const meta = `
     <span>วันที่: ${escapeHtml(dn.createdAt?.slice(0, 10))}</span>
-    <span>สถานะ: ${escapeHtml(dn.status)}</span>
-    <span>อ้างอิง SO: ${escapeHtml(soOrderNumber)}</span>`;
+    <span>อ้างอิง SO: ${escapeHtml(soOrderNumber)}</span>
+    ${soPoNumber ? `<span>PO#: ${escapeHtml(soPoNumber)}</span>` : ""}`;
 
   let body = `
   ${companyHeader(company, "dn", dn.dnNumber, meta)}

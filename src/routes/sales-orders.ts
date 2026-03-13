@@ -5,7 +5,7 @@ import { eq, like, sql, and, ne } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
 import { join, basename } from "path";
 import { mkdir, unlink } from "fs/promises";
-import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection, qrCodeImg } from "../print-utils.js";
+import { escapeHtml, fmt, fmtBaht, calcDueDate, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection, qrCodeImg } from "../print-utils.js";
 import { getOrCreateToken } from "./delivery-tracking.js";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -371,9 +371,10 @@ salesOrdersRoute.get("/:id/print", async (c) => {
   const sig = await getSignatureInfo(o.confirmedBy);
   if (sig && o.confirmedAt) sig.date = o.confirmedAt;
 
+  const dueDate = calcDueDate(o.date, customer?.paymentTerms);
   const meta = `
     <span>วันที่: ${escapeHtml(o.date) || "-"}</span>
-    <span>สถานะ: ${escapeHtml(o.status)}</span>
+    ${dueDate ? `<span>ครบกำหนด: ${escapeHtml(dueDate)}</span>` : ""}
     ${o.poNumber ? `<span>PO#: ${escapeHtml(o.poNumber)}</span>` : ""}
     ${o.poDate ? `<span>PO Date: ${escapeHtml(o.poDate)}</span>` : ""}`;
 
@@ -384,7 +385,7 @@ salesOrdersRoute.get("/:id/print", async (c) => {
       <h4>ลูกค้า / Customer</h4>
       <p class="name">${escapeHtml(customer?.name) || "-"}</p>
       ${customer?.fullName ? `<p>${escapeHtml(customer.fullName)}</p>` : ""}
-      ${o.customerAddress ? `<p>${escapeHtml(o.customerAddress)}</p>` : ""}
+      ${o.customerAddress ? `<p>${escapeHtml(o.customerAddress)}</p>` : (customer?.address ? `<p>${escapeHtml(customer.address)}</p>` : "")}
       ${o.contactPerson ? `<p>ติดต่อ: ${escapeHtml(o.contactPerson)}</p>` : ""}
       ${o.contact ? `<p>โทร: ${escapeHtml(o.contact)}</p>` : ""}
       ${customer?.taxId ? `<p>เลขประจำตัวผู้เสียภาษี: ${escapeHtml(customer.taxId)}</p>` : ""}
@@ -406,15 +407,15 @@ salesOrdersRoute.get("/:id/print", async (c) => {
     <tbody>${items.map((it, i) => `<tr>
       <td class="text-center">${i + 1}</td><td>${escapeHtml(it.itemCode) || "-"}</td><td>${escapeHtml(it.productName) || "-"}</td><td>${escapeHtml(it.uom) || "Pcs."}</td>
       <td class="text-right">${fmt(it.quantity)}</td><td class="text-right">${fmt(it.weight || 0)}</td>
-      <td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmt(it.amount)}</td>
+      <td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmtBaht(it.amount)}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
     <div class="totals-row"><span>จำนวนรวม</span><span>${fmt(o.totalQuantity || 0)}</span></div>
     <div class="totals-row"><span>น้ำหนักรวม</span><span>${fmt(o.totalNetWeight || 0)} kg</span></div>
-    <div class="totals-row"><span>ยอดรวม (Subtotal)</span><span>${fmt(o.subtotal)}</span></div>
-    <div class="totals-row"><span>VAT ${o.vatRate}%</span><span>${fmt(o.vatAmount)}</span></div>
-    <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>฿${fmt(o.totalAmount)}</span></div>
+    <div class="totals-row"><span>ยอดรวม (Subtotal)</span><span>${fmtBaht(o.subtotal)}</span></div>
+    <div class="totals-row"><span>VAT ${o.vatRate}%</span><span>${fmtBaht(o.vatAmount)}</span></div>
+    <div class="totals-row grand"><span>ยอดรวมทั้งสิ้น</span><span>${fmtBaht(o.totalAmount)}</span></div>
   </div></div>
   <div class="footer-grid">
     <div class="footer-card">

@@ -15,6 +15,23 @@ export function fmt(n: number | null | undefined): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Format amount with "บาท" currency suffix */
+export function fmtBaht(n: number | null | undefined): string {
+  return `${fmt(n)} บาท`;
+}
+
+/** Calculate due date from document date + customer payment terms (e.g. "Net 30" → +30 days) */
+export function calcDueDate(docDate: string | null | undefined, paymentTerms: string | null | undefined): string | null {
+  if (!docDate || !paymentTerms) return null;
+  const match = paymentTerms.match(/(\d+)/);
+  if (!match) return null;
+  const days = parseInt(match[1], 10);
+  const base = new Date(docDate);
+  if (isNaN(base.getTime())) return null;
+  base.setDate(base.getDate() + days);
+  return base.toISOString().slice(0, 10);
+}
+
 export interface CompanyInfo {
   companyName: string;
   companyNameEn: string;

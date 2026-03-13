@@ -3,7 +3,7 @@ import { db } from "../db.js";
 import { receipts, payments, invoices, customers, salesOrders, companySettings } from "../schema.js";
 import { eq } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
-import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml } from "../print-utils.js";
+import { escapeHtml, fmt, fmtBaht, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml } from "../print-utils.js";
 
 const receiptsRoute = new Hono();
 
@@ -88,10 +88,12 @@ receiptsRoute.get("/:id/print", async (c) => {
   const invoice = await db.select().from(invoices).where(eq(invoices.id, payment.invoiceId)).get();
 
   let customer: any = null;
+  let soPoNumber = "";
   if (invoice) {
     const so = await db.select().from(salesOrders).where(eq(salesOrders.id, invoice.salesOrderId)).get();
     if (so) {
       customer = await db.select().from(customers).where(eq(customers.id, so.customerId)).get();
+      soPoNumber = so.poNumber || "";
     }
   }
 
@@ -102,7 +104,8 @@ receiptsRoute.get("/:id/print", async (c) => {
 
   const meta = `
     <span>วันที่ออก: ${escapeHtml(r.issuedAt?.slice(0, 10))}</span>
-    ${invoice ? `<span>อ้างอิง INV: ${escapeHtml(invoice.invoiceNumber)}</span>` : ""}`;
+    ${invoice ? `<span>อ้างอิง INV: ${escapeHtml(invoice.invoiceNumber)}</span>` : ""}
+    ${soPoNumber ? `<span>PO#: ${escapeHtml(soPoNumber)}</span>` : ""}`;
 
   const body = `
   ${companyHeader(company, "receipt", r.receiptNumber, meta)}
@@ -129,12 +132,12 @@ receiptsRoute.get("/:id/print", async (c) => {
     <tbody>
       <tr>
         <td>ชำระค่าใบแจ้งหนี้ ${escapeHtml(invoice?.invoiceNumber || "-")}</td>
-        <td class="text-right">${fmt(r.amount)}</td>
+        <td class="text-right">${fmtBaht(r.amount)}</td>
       </tr>
     </tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
-    <div class="totals-row grand"><span>ยอดรับทั้งสิ้น</span><span>฿${fmt(r.amount)}</span></div>
+    <div class="totals-row grand"><span>ยอดรับทั้งสิ้น</span><span>${fmtBaht(r.amount)}</span></div>
   </div></div>
   ${signatureSection("ผู้ชำระเงิน / Payer", "ผู้รับเงิน / Receiver", sig)}`;
 
