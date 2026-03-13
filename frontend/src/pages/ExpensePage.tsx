@@ -297,16 +297,6 @@ export default function ExpensePage() {
     load();
   };
 
-  const renderStatusBadge = (e: Expense) => {
-    const st = (e.status || 'pending') as ExpenseStatus;
-    const cfg = statusConfig[st] || statusConfig.pending;
-    return (
-      <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.bg} ${cfg.text}`}>
-        {cfg.label}
-      </span>
-    );
-  };
-
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
   return (
