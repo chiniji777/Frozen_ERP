@@ -29,8 +29,12 @@ if [ -f "$APP_DIR/data/erp.db" ]; then
   ls -t "$BACKUP_DIR"/erp_*.db 2>/dev/null | tail -n +11 | xargs -r rm --
 fi
 
-# --- Pull latest code ---
+# --- Save current commit for rollback ---
 cd "$APP_DIR"
+PREV_HASH=$(git rev-parse HEAD)
+log "Current version: $(git rev-parse --short HEAD)"
+
+# --- Pull latest code ---
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 log "Code updated to $(git rev-parse --short HEAD)"
@@ -64,7 +68,7 @@ if [ "$HTTP_STATUS" = "200" ]; then
 else
   log "ERROR: Health check FAILED (HTTP $HTTP_STATUS)"
   log "Rolling back..."
-  git reset --hard HEAD~1
+  git reset --hard "$PREV_HASH"
   if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
     sudo systemctl restart "$SERVICE_NAME"
   elif command -v pm2 >/dev/null 2>&1; then
