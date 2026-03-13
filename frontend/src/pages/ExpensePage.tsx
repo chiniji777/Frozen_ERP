@@ -141,10 +141,7 @@ export default function ExpensePage() {
   const [imageZoom, setImageZoom] = useState(false);
   const [filterCat, setFilterCat] = useState(urlCategory);
   const [filterStatus, setFilterStatus] = useState<ExpenseStatus | ''>('');
-  const [filterMonth, setFilterMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [filterMonth, setFilterMonth] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [toast, setToast] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -583,8 +580,21 @@ export default function ExpensePage() {
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div>
           <label className="block text-xs text-gray-500 mb-1">เดือน</label>
-          <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
-            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+          <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            <option value="">ทั้งหมด</option>
+            {(() => {
+              const months: string[] = [];
+              const now = new Date();
+              for (let i = 11; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+              }
+              return months.reverse().map((m) => (
+                <option key={m} value={m}>{new Date(m + '-01').toLocaleDateString('th-TH', { year: 'numeric', month: 'long' })}</option>
+              ));
+            })()}
+          </select>
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">หมวด</label>
