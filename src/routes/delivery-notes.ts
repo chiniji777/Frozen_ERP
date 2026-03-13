@@ -3,7 +3,7 @@ import { db } from "../db.js";
 import { deliveryNotes, dnItems, salesOrders, soItems, products, customers, deliveryPhotos, deliveryConfirmations } from "../schema.js";
 import { eq, sql } from "drizzle-orm";
 import { generateRunningNumber } from "../utils.js";
-import { escapeHtml, fmt, fmtBaht, calcDueDate, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
+import { escapeHtml, fmt, getCompanyInfo, getSignatureInfo, companyHeader, signatureSection, wrapHtml, qrSection } from "../print-utils.js";
 import { getOrCreateToken } from "./delivery-tracking.js";
 
 const deliveryNotesRoute = new Hono();
