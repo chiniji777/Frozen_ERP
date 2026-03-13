@@ -311,7 +311,7 @@ export const purchaseOrders = sqliteTable("purchase_orders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   poNumber: text("po_number").notNull().unique(),
   productionOrderId: integer("production_order_id"),
-  status: text("status", { enum: ["draft", "confirmed", "received", "cancelled"] }).notNull().default("draft"),
+  status: text("status", { enum: ["draft", "confirmed", "received", "paid", "cancelled"] }).notNull().default("draft"),
   supplier: text("supplier"),
   totalAmount: real("total_amount").notNull().default(0),
   notes: text("notes"),

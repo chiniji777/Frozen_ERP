@@ -86,13 +86,38 @@ purchaseOrdersRoute.get("/:id", async (c) => {
   return c.json({ ...po, items });
 });
 
-// POST /:id/receive — receive PO, update raw material stock
+// DELETE /:id — ลบได้เฉพาะ draft
+purchaseOrdersRoute.delete("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const po = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).get();
+  if (!po) return c.json({ error: "Purchase order not found" }, 404);
+  if (po.status !== "draft") return c.json({ error: "Can only delete draft POs" }, 400);
+
+  await db.delete(poItems).where(eq(poItems.purchaseOrderId, id)).run();
+  await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id)).run();
+  return c.json({ ok: true, message: "PO deleted" });
+});
+
+// POST /:id/confirm — draft → confirmed
+purchaseOrdersRoute.post("/:id/confirm", async (c) => {
+  const id = Number(c.req.param("id"));
+  const po = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).get();
+  if (!po) return c.json({ error: "Purchase order not found" }, 404);
+  if (po.status !== "draft") return c.json({ error: "Can only confirm draft POs" }, 400);
+
+  await db.update(purchaseOrders).set({
+    status: "confirmed",
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(purchaseOrders.id, id)).run();
+  return c.json({ ok: true, status: "confirmed" });
+});
+
+// POST /:id/receive — confirmed → received + เพิ่ม stock
 purchaseOrdersRoute.post("/:id/receive", async (c) => {
   const id = Number(c.req.param("id"));
   const po = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).get();
   if (!po) return c.json({ error: "Purchase order not found" }, 404);
-  if (po.status === "received") return c.json({ error: "Already received" }, 400);
-  if (po.status === "cancelled") return c.json({ error: "Cannot receive cancelled PO" }, 400);
+  if (po.status !== "confirmed") return c.json({ error: "Can only receive confirmed POs" }, 400);
 
   const items = await db.select().from(poItems).where(eq(poItems.purchaseOrderId, id)).all();
 
@@ -111,6 +136,22 @@ purchaseOrdersRoute.post("/:id/receive", async (c) => {
   }).where(eq(purchaseOrders.id, id)).run();
 
   return c.json({ ok: true, message: "PO received — raw material stock updated" });
+});
+
+// POST /:id/pay — received → paid
+purchaseOrdersRoute.post("/:id/pay", async (c) => {
+  const id = Number(c.req.param("id"));
+  const po = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id)).get();
+  if (!po) return c.json({ error: "Purchase order not found" }, 404);
+  if (po.status !== "received") return c.json({ error: "Can only pay received POs" }, 400);
+
+  const body = await c.req.json().catch(() => ({}));
+  await db.update(purchaseOrders).set({
+    status: "paid",
+    notes: body.notes ?? po.notes,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(purchaseOrders.id, id)).run();
+  return c.json({ ok: true, status: "paid" });
 });
 
 // PATCH /:id/cancel — cancel PO (no delete)
