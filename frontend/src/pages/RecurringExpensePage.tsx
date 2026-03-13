@@ -19,6 +19,11 @@ interface RecurringExpense {
   endDate: string | null;
   isActive: number;
   notes: string;
+  ref1: string;
+  ref2: string;
+  bankName: string;
+  bankAccount: string;
+  accountName: string;
 }
 
 interface MonthlyItem {
@@ -57,6 +62,11 @@ interface TemplateForm {
   startDate: string;
   endDate: string;
   notes: string;
+  ref1: string;
+  ref2: string;
+  bankName: string;
+  bankAccount: string;
+  accountName: string;
 }
 
 interface PayForm {
@@ -70,6 +80,7 @@ interface PayForm {
 const emptyTemplateForm: TemplateForm = {
   name: '', category: '', amount: '', dueDay: '', payTo: '',
   paymentMethod: '', totalDebt: '', startDate: '', endDate: '', notes: '',
+  ref1: '', ref2: '', bankName: '', bankAccount: '', accountName: '',
 };
 
 const emptyPayForm: PayForm = {
@@ -164,6 +175,8 @@ export default function RecurringExpensePage() {
           dueDay: String(tmpl.dueDay || ''), payTo: tmpl.payTo || '',
           paymentMethod: tmpl.paymentMethod || '', totalDebt: String(tmpl.totalDebt || ''),
           startDate: tmpl.startDate || '', endDate: tmpl.endDate || '', notes: tmpl.notes || '',
+          ref1: tmpl.ref1 || '', ref2: tmpl.ref2 || '',
+          bankName: tmpl.bankName || '', bankAccount: tmpl.bankAccount || '', accountName: tmpl.accountName || '',
         });
         setTemplateModalOpen(true);
       }
