@@ -129,11 +129,6 @@ recurringExpensesRoute.get("/monthly", async (c) => {
       }
     }
 
-    const totalInstallments = calcInstallments(item.startDate, item.endDate);
-    const interestAmount = (item.totalAmount != null && item.principalAmount != null)
-      ? item.totalAmount - item.principalAmount
-      : null;
-
     result.push({
       id: payment.id,
       paymentId: payment.id,
@@ -149,15 +144,9 @@ recurringExpensesRoute.get("/monthly", async (c) => {
       paidAt: payment.paidAt,
       slipImage: payment.slipImage,
       notes: payment.notes,
-      totalAmount: item.totalAmount,
-      principalAmount: item.principalAmount,
-      totalInstallments,
-      interestAmount,
       totalDebt: item.totalDebt,
       totalPaid: item.totalPaid,
       remainingDebt: item.remainingDebt,
-      startDate: item.startDate,
-      endDate: item.endDate,
       ref1: item.ref1,
       ref2: item.ref2,
       bankAccount: item.bankAccount,
@@ -170,25 +159,6 @@ recurringExpensesRoute.get("/monthly", async (c) => {
   return c.json(result);
 });
 
-// Helper: คำนวณจำนวนงวดจาก startDate-endDate
-function calcInstallments(startDate: string | null, endDate: string | null): number | null {
-  if (!startDate || !endDate) return null;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
-  const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-  return months > 0 ? months : null;
-}
-
-// Helper: เพิ่ม computed fields ให้ recurring expense
-function withComputedFields(r: any) {
-  const totalInstallments = calcInstallments(r.startDate, r.endDate);
-  const interestAmount = (r.totalAmount != null && r.principalAmount != null)
-    ? r.totalAmount - r.principalAmount
-    : null;
-  return { ...r, totalInstallments, interestAmount };
-}
-
 // GET / — list recurring expenses (templates)
 recurringExpensesRoute.get("/", async (c) => {
   const active = c.req.query("active");
@@ -196,7 +166,7 @@ recurringExpensesRoute.get("/", async (c) => {
   if (active !== undefined) {
     rows = rows.filter(r => r.isActive === Number(active));
   }
-  return c.json(rows.map(withComputedFields));
+  return c.json(rows);
 });
 
 // POST / — สร้าง recurring expense
@@ -216,8 +186,6 @@ recurringExpensesRoute.post("/", async (c) => {
     dueDay: body.dueDay || null,
     payTo: body.payTo || null,
     paymentMethod: body.paymentMethod || null,
-    totalAmount: body.totalAmount || null,
-    principalAmount: body.principalAmount || null,
     totalDebt: body.totalDebt || 0,
     totalPaid: body.totalPaid || 0,
     remainingDebt: remainingDebt > 0 ? remainingDebt : 0,
@@ -253,8 +221,6 @@ recurringExpensesRoute.put("/:id", async (c) => {
     dueDay: body.dueDay !== undefined ? body.dueDay : existing.dueDay,
     payTo: body.payTo !== undefined ? body.payTo : existing.payTo,
     paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
-    totalAmount: body.totalAmount !== undefined ? body.totalAmount : existing.totalAmount,
-    principalAmount: body.principalAmount !== undefined ? body.principalAmount : existing.principalAmount,
     totalDebt,
     totalPaid,
     remainingDebt: remainingDebt > 0 ? remainingDebt : 0,

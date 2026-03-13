@@ -379,12 +379,10 @@ export const recurringExpenses = sqliteTable("recurring_expenses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   category: text("category").notNull(),
-  amount: real("amount").notNull(), // ยอดต่องวด
+  amount: real("amount").notNull(),
   dueDay: integer("due_day"),
   payTo: text("pay_to"),
   paymentMethod: text("payment_method"),
-  totalAmount: real("total_amount"), // ยอดทั้งหมด (เงินต้น + ดอกเบี้ย)
-  principalAmount: real("principal_amount"), // ยอดหนี้จริง/เงินต้น (กรณีกู้/ผ่อน)
   totalDebt: real("total_debt").default(0),
   totalPaid: real("total_paid").default(0),
   remainingDebt: real("remaining_debt").default(0),
