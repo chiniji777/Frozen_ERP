@@ -221,6 +221,41 @@ export default function SalesOrderPage() {
     setFormOpen(false);
   };
 
+  // Duplicate SO — same as edit but creates new
+  const handleDuplicate = async (order: SalesOrder) => {
+    const so = await api.get<SalesOrder>(`/sales-orders/${order.id}`).catch(() => order);
+    setEditing(null); // null = create new
+    setFormCustId(so.customerId);
+    setFormDate(new Date().toISOString().split('T')[0]);
+    setFormDeliveryStart(''); setFormDeliveryEnd('');
+    setFormCustAddress(so.customerAddress || '');
+    setFormShipName(so.shippingAddressName || '');
+    setFormShipAddress(so.shippingAddress || '');
+    setFormContactPerson(so.contactPerson || '');
+    setFormContact(so.contact || '');
+    setFormMobileNo(so.mobileNo || '');
+    setFormPaymentTemplate(so.paymentTermsTemplate || '');
+    setFormSalesPartner(so.salesPartner || '');
+    setFormCommRate(so.commissionRate || 0);
+    setFormNotes(so.notes || '');
+    setFormPoNumber(''); setFormPoDate(''); setFormPoNotes('');
+    setFormItems(so.items && so.items.length > 0 ? so.items.map(it => ({
+      productId: it.productId, itemCode: it.itemCode || '', quantity: it.quantity,
+      unitPrice: it.unitPrice, rate: it.rate || 0, uom: it.uom,
+      productName: it.productName,
+    })) : [emptyItem()]);
+    setFormPaymentTerms(so.paymentTerms || []);
+    const c = customers.find(x => x.id === so.customerId);
+    setFormNickName(c?.nickName || so.customer?.nickName || '');
+    setFormEmail(c?.email || so.customer?.email || '');
+    setFormCreditLimit(c?.creditLimit || so.customer?.creditLimit || 0);
+    setFormTaxId(c?.taxId || so.customer?.taxId || '');
+    setNoAddressWarning(false);
+    setDetailOrder(null);
+    setAttachments([]);
+    setFormOpen(true);
+  };
+
   // Open edit form (pre-fill from SO)
   const openEdit = (so: SalesOrder) => {
     setEditing(so);
@@ -652,6 +687,7 @@ export default function SalesOrderPage() {
           onRowClick={(o) => openDetail(o)}
           extraActions={(o) => (
             <div className="flex gap-1">
+              <button onClick={(e) => { e.stopPropagation(); handleDuplicate(o); }} className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">สำเนา</button>
               <button onClick={(e) => { e.stopPropagation(); openDetail(o); }} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
               <PrintMenu options={getPrintOptions(o.id)} className="text-xs" />
             </div>

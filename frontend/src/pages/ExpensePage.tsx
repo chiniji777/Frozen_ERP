@@ -356,6 +356,28 @@ export default function ExpensePage() {
     setModalOpen(true);
   };
 
+  const handleDuplicate = (e: Expense) => {
+    setDetailExp(null);
+    setEditing(null); // null = create new
+    setForm({
+      category: e.category, description: e.description, amount: String(e.amount),
+      date: new Date().toISOString().slice(0, 10), notes: e.notes || '', slipImage: '',
+      dueDate: '', paymentMethod: e.paymentMethod || '',
+      supplierId: e.supplierId ? String(e.supplierId) : '',
+      itemType: e.itemType || '',
+      rawMaterialId: e.rawMaterialId ? String(e.rawMaterialId) : '',
+      productId: e.productId ? String(e.productId) : '',
+      itemQty: (e as any).itemQty ? String((e as any).itemQty) : '',
+      itemPricePerUnit: (e as any).itemPricePerUnit ? String((e as any).itemPricePerUnit) : '',
+      hasWithholdingTax: !!e.hasWithholdingTax,
+      whtFormType: e.whtFormType || 'pnd3',
+      whtIncomeType: e.whtIncomeType || '',
+      whtRate: e.whtRate ? String(e.whtRate) : '',
+    });
+    setSlipPreview('');
+    setModalOpen(true);
+  };
+
   const handleSlipUpload = async (file: File) => {
     setUploading(true);
     try {
@@ -495,6 +517,7 @@ export default function ExpensePage() {
             {!exp.recurringExpenseId && st !== 'cancelled' && (
               <button onClick={openEditFromDetail} className="px-4 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">✏️ แก้ไข</button>
             )}
+            <button onClick={() => { setDetailExp(null); handleDuplicate(exp); }} className="px-4 py-2 text-sm border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50">📋 สำเนา</button>
             {(st === 'pending' || st === 'overdue') && (
               <button onClick={() => handleToggleStatus(exp)} className="px-4 py-2 text-sm text-white rounded-lg bg-green-600 hover:bg-green-700">💰 จ่ายแล้ว</button>
             )}
@@ -693,7 +716,7 @@ export default function ExpensePage() {
 
       <DataTable
         columns={[
-          { key: 'id', label: 'รหัส' },
+          { key: 'expenseNumber', label: 'รหัส', render: (e: Expense) => e.expenseNumber || `#${e.id}` },
           { key: 'date', label: 'วันที่', render: (e: Expense) => e.date?.slice(0, 10) || '-' },
           { key: 'category', label: 'หมวด', filterable: true, render: (e: Expense) => (
             <span className="flex items-center gap-1.5">
@@ -718,8 +741,11 @@ export default function ExpensePage() {
         getId={(e) => e.id}
         searchPlaceholder="ค้นหาค่าใช้จ่าย..."
         onAdd={openAdd}
-        onEdit={openEdit}
-        onDelete={(e) => e.recurringExpenseId ? undefined : setCancelTarget(e)}
+        onEdit={(e) => e.status !== 'cancelled' ? openEdit(e) : undefined}
+        onDelete={(e) => (e.recurringExpenseId || e.status === 'cancelled') ? undefined : setCancelTarget(e)}
+        extraActions={(e) => (
+          <button onClick={() => handleDuplicate(e)} className="text-blue-500 hover:text-blue-700 text-sm">สำเนา</button>
+        )}
         onRowClick={openDetail}
       />
 

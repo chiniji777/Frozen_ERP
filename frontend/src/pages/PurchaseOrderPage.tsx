@@ -103,6 +103,18 @@ export default function PurchaseOrderPage() {
     setFormOpen(true);
   };
 
+  const handleDuplicate = async (po: PurchaseOrder) => {
+    try {
+      const full = await api.get<PurchaseOrder>(`/purchase-orders/${po.id}`);
+      setFormSupplierId((full as any).supplierId || '');
+      setFormExpectedDate(new Date().toISOString().split('T')[0]);
+      setFormNotes(full.notes || '');
+      setFormItems(full.items?.map(i => ({ rawMaterialId: i.rawMaterialId, quantity: i.quantity, unit: i.unit, unitPrice: i.unitPrice, amount: i.amount })) || []);
+      setDetailPO(null);
+      setFormOpen(true);
+    } catch { /* fallback: just open add */ openAdd(); }
+  };
+
   const openDetail = async (po: PurchaseOrder) => {
     try { const d = await api.get<PurchaseOrder>(`/purchase-orders/${po.id}`); setDetailPO(d); } catch { setDetailPO(po); }
     setFormOpen(false);
@@ -478,6 +490,10 @@ export default function PurchaseOrderPage() {
                 ยกเลิก
               </button>
             )}
+            <button onClick={(e) => { e.stopPropagation(); handleDuplicate(po); }}
+              className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">
+              สำเนา
+            </button>
             <button onClick={(e) => { e.stopPropagation(); openDetail(po); }}
               className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">
               Detail

@@ -140,6 +140,19 @@ export default function DeliveryNotePage() {
     setDetailDN(null); setFormOpen(true);
   };
 
+  const handleDuplicate = async (dn: DeliveryNote) => {
+    const full = await api.get<DeliveryNote>(`/delivery-notes/${dn.id}`).catch(() => dn);
+    setFormSOIds(full.sales_order_ids ? (typeof full.sales_order_ids === 'string' ? JSON.parse(full.sales_order_ids) : full.sales_order_ids) : [full.sales_order_id].filter(Boolean));
+    setFormDeliveryDate(new Date().toISOString().split('T')[0]);
+    setFormDriverName((full as any).driverName || '');
+    setFormDriverPhone((full as any).driverPhone || '');
+    setFormVehicleNo((full as any).vehicleNo || '');
+    setFormPickupPoint((full as any).pickupPoint || '');
+    setFormNotes((full as any).notes || '');
+    setFormItems(full.items?.map(i => ({ ...i, id: undefined })) || []);
+    setDetailDN(null); setFormOpen(true);
+  };
+
   const openDetail = async (dn: DeliveryNote) => {
     try { const d = await api.get<DeliveryNote>(`/delivery-notes/${dn.id}`); setDetailDN(d); } catch { setDetailDN(dn); }
     setFormOpen(false);
@@ -430,6 +443,7 @@ export default function DeliveryNotePage() {
         onAdd={openAdd} onRowClick={(d) => openDetail(d)}
         extraActions={(d) => (
           <div className="flex gap-1">
+            <button onClick={(e) => { e.stopPropagation(); handleDuplicate(d); }} className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">สำเนา</button>
             <button onClick={(e) => { e.stopPropagation(); openDetail(d); }} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
             <PrintMenu options={getPrintOptions(d.id)} className="text-xs" />
           </div>

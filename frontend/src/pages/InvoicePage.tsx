@@ -595,6 +595,10 @@ export default function InvoicePage() {
         onRowClick={openDetail}
         extraActions={(iv) => (
           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+            {iv.sales_order_id && (
+              <button onClick={() => { setFormSource('so'); setFormSOId(iv.sales_order_id || '' as any); setFormDNId(''); setFormMultiSOIds([]); setFormDueDate(''); setFormNotes((iv as any).notes || ''); setFormItems([]); setDetailInv(null); setFormOpen(true); }}
+                className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">สำเนา</button>
+            )}
             <PrintMenu options={getPrintOptions(iv.id)} className="text-xs" />
           </div>
         )}
