@@ -351,6 +351,23 @@ salesOrdersRoute.patch("/:id/cancel", async (c) => {
   return c.json({ ok: true, status: "cancelled" });
 });
 
+// PATCH /:id/reset-draft — เปลี่ยน cancelled กลับเป็น draft
+salesOrdersRoute.patch("/:id/reset-draft", async (c) => {
+  const id = Number(c.req.param("id"));
+  const so = await db.select().from(salesOrders).where(eq(salesOrders.id, id)).get();
+  if (!so) return c.json({ error: "Sales order not found" }, 404);
+  if (so.status !== "cancelled") return c.json({ error: "Only cancelled orders can be reset to draft" }, 400);
+
+  await db.update(salesOrders).set({
+    status: "draft",
+    cancelledAt: null,
+    cancelledBy: null,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(salesOrders.id, id)).run();
+
+  return c.json({ ok: true, status: "draft" });
+});
+
 // === Print ===
 salesOrdersRoute.get("/:id/print", async (c) => {
   const id = Number(c.req.param("id"));
