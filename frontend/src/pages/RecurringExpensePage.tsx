@@ -94,12 +94,12 @@ const PAYMENT_METHODS = ['โอน', 'เงินสด', 'เช็ค', 'ห
 
 export default function RecurringExpensePage() {
   const [monthlyItems, setMonthlyItems] = useState<MonthlyItem[]>([]);
+  const [templates, setTemplates] = useState<RecurringExpense[]>([]);
   const [summary, setSummary] = useState<Summary>({ totalDue: 0, totalPaid: 0, totalPending: 0, totalRemainingDebt: 0 });
   const [loading, setLoading] = useState(true);
   const [filterYear, setFilterYear] = useState(() => String(new Date().getFullYear()));
   const [filterMonthNum, setFilterMonthNum] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'));
   const selectedMonth = `${filterYear}-${filterMonthNum}`;
-  const [filterStatus, setFilterStatus] = useState('');
 
   // Template modal
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -108,7 +108,8 @@ export default function RecurringExpensePage() {
 
   // Pay modal
   const [payModalOpen, setPayModalOpen] = useState(false);
-  const [payingItem, setPayingItem] = useState<MonthlyItem | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [payingItem, _setPayingItem] = useState<MonthlyItem | null>(null);
   const [payForm, setPayForm] = useState<PayForm>(emptyPayForm);
 
   // Deactivate confirm
@@ -133,10 +134,12 @@ export default function RecurringExpensePage() {
     Promise.all([
       api.get<MonthlyItem[]>(`/recurring-expenses/monthly?month=${selectedMonth}`),
       api.get<Summary>(`/recurring-expenses/summary?month=${selectedMonth}`),
+      api.get<RecurringExpense[]>(`/recurring-expenses`),
     ])
-      .then(([items, sum]) => {
+      .then(([items, sum, tmpls]) => {
         setMonthlyItems(items);
         setSummary(sum);
+        if (Array.isArray(tmpls)) setTemplates(tmpls);
       })
       .catch(() => {
         setMonthlyItems([]);
@@ -218,15 +221,6 @@ export default function RecurringExpensePage() {
     }
   };
 
-  const openDetail = (item: MonthlyItem) => {
-    setDetailMonthly(item);
-    api.get<RecurringExpense>(`/recurring-expenses`).then((list) => {
-      const templates = list as unknown as RecurringExpense[];
-      const tmpl = Array.isArray(templates) ? templates.find(t => t.id === item.recurringExpenseId) : null;
-      if (tmpl) setDetailItem(tmpl);
-    }).catch(() => setToast('ไม่สามารถโหลดข้อมูลได้'));
-  };
-
   const handleTemplateSubmit = async (ev: FormEvent) => {
     ev.preventDefault();
     const body = {
@@ -252,19 +246,6 @@ export default function RecurringExpensePage() {
     }
   };
 
-  // Pay modal
-  const openPay = (item: MonthlyItem) => {
-    setPayingItem(item);
-    setPayForm({
-      amount: String(item.amount),
-      paidAt: new Date().toISOString().slice(0, 10),
-      paymentMethod: item.paymentMethod || '',
-      notes: '',
-      slipImage: '',
-    });
-    setSlipPreview('');
-    setPayModalOpen(true);
-  };
 
   const handleSlipUpload = async (file: File) => {
     setUploading(true);
@@ -322,28 +303,7 @@ export default function RecurringExpensePage() {
     loadMonthly();
   };
 
-  const getDisplayStatus = (item: MonthlyItem): string => {
-    if (item.status === 'paid') return 'paid';
-    const today = new Date();
-    const [y, m] = selectedMonth.split('-').map(Number);
-    const dueDate = new Date(y, m - 1, item.dueDay || 28);
-    if (today > dueDate) return 'overdue';
-    return 'pending';
-  };
-
-  const getStatusBadge = (item: MonthlyItem) => {
-    const ds = getDisplayStatus(item);
-    if (ds === 'paid') return <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">จ่ายแล้ว</span>;
-    if (ds === 'overdue') return <span className="px-2 py-0.5 rounded-full text-xs bg-red-200 text-red-800">เลยกำหนด</span>;
-    return <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">ค้างจ่าย</span>;
-  };
-
-  const filteredItems = monthlyItems.filter(item => {
-    if (!filterStatus) return true;
-    const ds = getDisplayStatus(item);
-    if (filterStatus === 'unpaid') return ds === 'pending' || ds === 'overdue';
-    return ds === filterStatus;
-  });
+  const filteredItems = monthlyItems;
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
@@ -363,14 +323,6 @@ export default function RecurringExpensePage() {
             {['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'].map((m, i) => (
               <option key={i} value={String(i + 1).padStart(2, '0')}>{m}</option>
             ))}
-          </select>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-            <option value="">ทุกสถานะ</option>
-            <option value="unpaid">ยังไม่ได้จ่าย</option>
-            <option value="paid">จ่ายแล้ว</option>
-            <option value="pending">ค้างจ่าย</option>
-            <option value="overdue">เลยกำหนด</option>
           </select>
         </div>
       </div>
@@ -404,23 +356,20 @@ export default function RecurringExpensePage() {
           { key: 'amount', label: 'ยอด', render: (item: MonthlyItem) => Number(item.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) },
           { key: 'dueDay', label: 'กำหนด', render: (item: MonthlyItem) => item.dueDay ? `วันที่ ${item.dueDay}` : '-' },
           { key: 'paymentMethod', label: 'ช่องทาง', render: (item: MonthlyItem) => item.paymentMethod || '-' },
-          { key: 'status', label: 'สถานะ', filterable: true, render: (item: MonthlyItem) => getStatusBadge(item) },
+          { key: 'startDate', label: 'วันเริ่ม', render: (item: MonthlyItem) => {
+            const tmpl = templates.find(t => t.id === item.recurringExpenseId);
+            return tmpl?.startDate ? new Date(tmpl.startDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+          }},
+          { key: 'endDate', label: 'วันสิ้นสุด', render: (item: MonthlyItem) => {
+            const tmpl = templates.find(t => t.id === item.recurringExpenseId);
+            return tmpl?.endDate ? new Date(tmpl.endDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'ไม่มีกำหนด';
+          }},
         ]}
         data={filteredItems}
         getId={(item) => item.paymentId ?? item.id}
         searchPlaceholder="ค้นหารายการ..."
         onAdd={openAddTemplate}
-        onEdit={openEditTemplate}
-        onDelete={(item) => setDeactivateTarget(item)}
-        onRowClick={openDetail}
-        extraActions={(item: MonthlyItem) => (
-          <>
-            <button onClick={() => openDetail(item)} className="text-indigo-600 hover:text-indigo-800 text-sm mr-2">ดู</button>
-            {item.status === 'pending' && (
-              <button onClick={() => openPay(item)} className="text-green-600 hover:text-green-800 text-sm mr-2">จ่าย</button>
-            )}
-          </>
-        )}
+        onRowClick={(item: MonthlyItem) => openEditTemplate(item)}
       />
 
       {/* Template Modal (Add/Edit) */}
