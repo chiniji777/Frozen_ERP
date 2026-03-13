@@ -466,22 +466,23 @@ export default function ExpensePage() {
           { key: 'status', label: 'สถานะ', filterable: true, render: (e: Expense) => {
             const st = (e.status || 'pending') as ExpenseStatus;
             const cfg = statusConfig[st] || statusConfig.pending;
-            const canToggle = st === 'pending' || st === 'overdue' || (st === 'paid' && !e.recurringExpenseId);
-            const isPaid = st === 'paid';
             return (
               <div className="flex items-center gap-2">
-                {canToggle && (
-                  <button
-                    onClick={(ev) => { ev.stopPropagation(); handleToggleStatus(e); }}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 ${isPaid ? 'bg-green-500' : 'bg-gray-300'}`}
-                    title={isPaid ? 'กดเพื่อเปลี่ยนเป็นรอจ่าย' : 'กดเพื่อชำระ'}
-                  >
-                    <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${isPaid ? 'translate-x-4' : 'translate-x-0'}`} />
-                  </button>
-                )}
                 <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.bg} ${cfg.text}`}>
                   {cfg.label}
                 </span>
+                {(st === 'pending' || st === 'overdue') && (
+                  <button onClick={(ev) => { ev.stopPropagation(); handleToggleStatus(e); }}
+                    className="px-2.5 py-1 text-xs rounded-lg bg-green-600 text-white hover:bg-green-700 whitespace-nowrap">
+                    จ่ายแล้ว
+                  </button>
+                )}
+                {st === 'paid' && !e.recurringExpenseId && (
+                  <button onClick={(ev) => { ev.stopPropagation(); handleToggleStatus(e); }}
+                    className="px-2.5 py-1 text-xs rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 whitespace-nowrap">
+                    รอจ่าย
+                  </button>
+                )}
               </div>
             );
           }},
