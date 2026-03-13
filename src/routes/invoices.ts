@@ -199,6 +199,22 @@ invoicesRoute.put("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+invoicesRoute.post("/:id/confirm", async (c) => {
+  const id = Number(c.req.param("id"));
+  const iv = await db.select().from(invoices).where(eq(invoices.id, id)).get();
+  if (!iv) return c.json({ error: "Invoice not found" }, 404);
+  if (iv.status !== "draft") return c.json({ error: "Can only confirm draft invoices" }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  await db.update(invoices).set({
+    status: "sent",
+    confirmedBy: body.userId || null,
+    confirmedAt: sql`datetime('now')`,
+    updatedAt: sql`datetime('now')`,
+  }).where(eq(invoices.id, id)).run();
+  return c.json({ ok: true, status: "sent" });
+});
+
+// Keep /send as alias for backward compatibility
 invoicesRoute.post("/:id/send", async (c) => {
   const id = Number(c.req.param("id"));
   const iv = await db.select().from(invoices).where(eq(invoices.id, id)).get();

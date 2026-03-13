@@ -46,7 +46,7 @@ interface Invoice {
 type InvoiceSource = 'so' | 'dn' | 'multi';
 
 const statusCfg: Record<string, { label: string; color: string; next?: string; nextLabel?: string; nextColor?: string }> = {
-  draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700', next: 'send', nextLabel: '📧 ส่งใบแจ้งหนี้', nextColor: 'bg-blue-600 hover:bg-blue-700' },
+  draft: { label: 'ร่าง', color: 'bg-gray-100 text-gray-700', next: 'confirm', nextLabel: '✅ ยืนยันใบแจ้งหนี้', nextColor: 'bg-blue-600 hover:bg-blue-700' },
   sent: { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700', next: 'pay', nextLabel: '💰 ชำระแล้ว', nextColor: 'bg-green-600 hover:bg-green-700' },
   paid: { label: 'ชำระแล้ว', color: 'bg-green-100 text-green-700' },
   overdue: { label: 'เกินกำหนด', color: 'bg-red-100 text-red-700', next: 'pay', nextLabel: '💰 ชำระแล้ว', nextColor: 'bg-green-600 hover:bg-green-700' },
@@ -205,7 +205,7 @@ export default function InvoicePage() {
     const { inv, action } = actionTarget;
     await api.post(`/invoices/${inv.id}/${action}`, {});
     setActionTarget(null);
-    setToast(action === 'send' ? 'ส่งใบแจ้งหนี้แล้ว' : action === 'pay' ? 'บันทึกชำระเงินแล้ว' : 'ยกเลิกแล้ว');
+    setToast(action === 'confirm' ? 'ยืนยันใบแจ้งหนี้แล้ว' : action === 'send' ? 'ส่งใบแจ้งหนี้แล้ว' : action === 'pay' ? 'บันทึกชำระเงินแล้ว' : 'ยกเลิกแล้ว');
     if (detailInv?.id === inv.id) { try { setDetailInv(await api.get<Invoice>(`/invoices/${inv.id}`)); } catch { /* */ } }
     load();
   };
@@ -374,7 +374,7 @@ export default function InvoicePage() {
         )}
 
         <ConfirmDialog open={!!actionTarget}
-          message={actionTarget?.action === 'send' ? `ส่งใบแจ้งหนี้ "${actionTarget?.inv.invoice_number}" ให้ลูกค้า?` : actionTarget?.action === 'cancel' ? `ยกเลิก "${actionTarget?.inv.invoice_number}"?` : `ยืนยันว่า "${actionTarget?.inv.invoice_number}" ชำระเงินแล้ว?`}
+          message={actionTarget?.action === 'confirm' ? `ยืนยันใบแจ้งหนี้ "${actionTarget?.inv.invoice_number}"?` : actionTarget?.action === 'send' ? `ส่งใบแจ้งหนี้ "${actionTarget?.inv.invoice_number}" ให้ลูกค้า?` : actionTarget?.action === 'cancel' ? `ยกเลิก "${actionTarget?.inv.invoice_number}"?` : `ยืนยันว่า "${actionTarget?.inv.invoice_number}" ชำระเงินแล้ว?`}
           onConfirm={handleAction} onCancel={() => setActionTarget(null)} />
         {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg">{toast}</div>}
       </div>
