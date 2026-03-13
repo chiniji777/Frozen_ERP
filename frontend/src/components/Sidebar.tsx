@@ -73,17 +73,6 @@ const SECTIONS: MenuSection[] = [
 const STORAGE_KEY = 'erp-sidebar-order';
 const LONG_PRESS_MS = 300;
 
-function getAllItems(isAdmin: boolean): MenuItem[] {
-  const items: MenuItem[] = [];
-  for (const s of SECTIONS) {
-    items.push(...s.items);
-  }
-  if (isAdmin) {
-    items.push({ to: '/users', labelTh: 'จัดการผู้ใช้', labelEn: 'User Management' });
-  }
-  return items;
-}
-
 function getSectionsWithAdmin(isAdmin: boolean): MenuSection[] {
   if (!isAdmin) return SECTIONS;
   return SECTIONS.map((s) =>
