@@ -163,6 +163,12 @@ recurringExpensesRoute.get("/monthly", async (c) => {
       totalDebt: item.totalDebt,
       totalPaid: item.totalPaid,
       remainingDebt: item.remainingDebt,
+      ref1: item.ref1,
+      ref2: item.ref2,
+      bankAccount: item.bankAccount,
+      bankName: item.bankName,
+      accountName: item.accountName,
+      imageUrl: item.imageUrl,
     });
   }
 
@@ -203,6 +209,11 @@ recurringExpensesRoute.post("/", async (c) => {
     endDate: body.endDate || null,
     isActive: 1,
     notes: body.notes || null,
+    ref1: body.ref1 || null,
+    ref2: body.ref2 || null,
+    bankAccount: body.bankAccount || null,
+    bankName: body.bankName || null,
+    accountName: body.accountName || null,
   }).run();
 
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
@@ -232,6 +243,11 @@ recurringExpensesRoute.put("/:id", async (c) => {
     startDate: body.startDate !== undefined ? body.startDate : existing.startDate,
     endDate: body.endDate !== undefined ? body.endDate : existing.endDate,
     notes: body.notes !== undefined ? body.notes : existing.notes,
+    ref1: body.ref1 !== undefined ? body.ref1 : existing.ref1,
+    ref2: body.ref2 !== undefined ? body.ref2 : existing.ref2,
+    bankAccount: body.bankAccount !== undefined ? body.bankAccount : existing.bankAccount,
+    bankName: body.bankName !== undefined ? body.bankName : existing.bankName,
+    accountName: body.accountName !== undefined ? body.accountName : existing.accountName,
     updatedAt: sql`datetime('now')`,
   }).where(eq(recurringExpenses.id, id)).run();
 
@@ -300,6 +316,11 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
       slipImage: body.slipImage || null,
       paymentMethod: body.paymentMethod || recurring.paymentMethod || null,
       notes: body.notes || null,
+    ref1: body.ref1 || null,
+    ref2: body.ref2 || null,
+    bankAccount: body.bankAccount || null,
+    bankName: body.bankName || null,
+    accountName: body.accountName || null,
     }).where(eq(recurringExpensePayments.id, payment.id)).run();
   } else {
     // Create new payment record
@@ -313,6 +334,11 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
       slipImage: body.slipImage || null,
       paymentMethod: body.paymentMethod || recurring.paymentMethod || null,
       notes: body.notes || null,
+    ref1: body.ref1 || null,
+    ref2: body.ref2 || null,
+    bankAccount: body.bankAccount || null,
+    bankName: body.bankName || null,
+    accountName: body.accountName || null,
     }).run();
   }
 

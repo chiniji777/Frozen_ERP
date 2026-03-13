@@ -686,6 +686,11 @@ async function migrateRecurringExpenses() {
   // Add imageUrl column if not exists
   try {
     await client.execute("ALTER TABLE recurring_expenses ADD COLUMN image_url TEXT");
+    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN ref1 TEXT");
+    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN ref2 TEXT");
+    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN bank_account TEXT");
+    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN bank_name TEXT");
+    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN account_name TEXT");
   } catch {
     // column already exists
   }
