@@ -32,6 +32,26 @@ async function saveCategories(cats: string[]): Promise<void> {
   await writeFile(CATEGORIES_FILE, JSON.stringify(cats, null, 2));
 }
 
+// Computed fields helper — คำนวณจาก totalAmount, principalAmount, amount, totalPaid
+function withComputedFields(r: typeof recurringExpenses.$inferSelect) {
+  const totalAmt = r.totalAmount ?? 0;
+  const principal = r.principalAmount ?? 0;
+  const monthlyAmt = r.amount;
+  const interestAmount = totalAmt > 0 ? totalAmt - principal : 0;
+  const totalInstallments = monthlyAmt > 0 && totalAmt > 0 ? Math.ceil(totalAmt / monthlyAmt) : 0;
+  const paidInstallments = monthlyAmt > 0 && (r.totalPaid ?? 0) > 0 ? Math.floor((r.totalPaid ?? 0) / monthlyAmt) : 0;
+  const remainingInstallments = Math.max(0, totalInstallments - paidInstallments);
+  return {
+    ...r,
+    totalAmount: totalAmt,
+    principalAmount: principal,
+    interestAmount,
+    totalInstallments,
+    paidInstallments,
+    remainingInstallments,
+  };
+}
+
 // GET /categories
 recurringExpensesRoute.get("/categories", async (c) => {
   return c.json(await loadCategories());
@@ -147,12 +167,15 @@ recurringExpensesRoute.get("/monthly", async (c) => {
       totalDebt: item.totalDebt,
       totalPaid: item.totalPaid,
       remainingDebt: item.remainingDebt,
+      ...(() => { const c = withComputedFields(item); return { totalAmount: c.totalAmount, principalAmount: c.principalAmount, interestAmount: c.interestAmount, totalInstallments: c.totalInstallments, paidInstallments: c.paidInstallments, remainingInstallments: c.remainingInstallments }; })(),
       ref1: item.ref1,
       ref2: item.ref2,
       bankAccount: item.bankAccount,
       bankName: item.bankName,
       accountName: item.accountName,
       imageUrl: item.imageUrl,
+      startDate: item.startDate,
+      endDate: item.endDate,
     });
   }
 
@@ -166,7 +189,31 @@ recurringExpensesRoute.get("/", async (c) => {
   if (active !== undefined) {
     rows = rows.filter(r => r.isActive === Number(active));
   }
-  return c.json(rows);
+  return c.json(rows.map(withComputedFields));
+});
+
+// GET /:id — ดูรายละเอียด + ประวัติการจ่าย
+recurringExpensesRoute.get("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const item = await db.select().from(recurringExpenses).where(eq(recurringExpenses.id, id)).get();
+  if (!item) return c.json({ error: "Not found" }, 404);
+
+  const payments = await db.select().from(recurringExpensePayments)
+    .where(eq(recurringExpensePayments.recurringExpenseId, id)).all();
+
+  return c.json({
+    ...withComputedFields(item),
+    payments: payments.map(p => ({
+      id: p.id,
+      month: p.month,
+      amount: p.amount,
+      status: p.status,
+      paidAt: p.paidAt,
+      slipImage: p.slipImage,
+      paymentMethod: p.paymentMethod,
+      notes: p.notes,
+    })),
+  });
 });
 
 // POST / — สร้าง recurring expense
@@ -186,6 +233,8 @@ recurringExpensesRoute.post("/", async (c) => {
     dueDay: body.dueDay || null,
     payTo: body.payTo || null,
     paymentMethod: body.paymentMethod || null,
+    totalAmount: body.totalAmount || 0,
+    principalAmount: body.principalAmount || 0,
     totalDebt: body.totalDebt || 0,
     totalPaid: body.totalPaid || 0,
     remainingDebt: remainingDebt > 0 ? remainingDebt : 0,
@@ -221,6 +270,8 @@ recurringExpensesRoute.put("/:id", async (c) => {
     dueDay: body.dueDay !== undefined ? body.dueDay : existing.dueDay,
     payTo: body.payTo !== undefined ? body.payTo : existing.payTo,
     paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : existing.paymentMethod,
+    totalAmount: body.totalAmount ?? existing.totalAmount ?? 0,
+    principalAmount: body.principalAmount ?? existing.principalAmount ?? 0,
     totalDebt,
     totalPaid,
     remainingDebt: remainingDebt > 0 ? remainingDebt : 0,

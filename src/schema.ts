@@ -388,6 +388,8 @@ export const recurringExpenses = sqliteTable("recurring_expenses", {
   dueDay: integer("due_day"),
   payTo: text("pay_to"),
   paymentMethod: text("payment_method"),
+  totalAmount: real("total_amount").default(0),
+  principalAmount: real("principal_amount").default(0),
   totalDebt: real("total_debt").default(0),
   totalPaid: real("total_paid").default(0),
   remainingDebt: real("remaining_debt").default(0),
