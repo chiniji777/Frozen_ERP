@@ -117,8 +117,7 @@ export default function ExpensePage() {
 
   const handleMarkExpensePaid = async (expense: Expense) => {
     try {
-      await api.patch(`/expenses/${expense.id}`, {
-        status: 'paid',
+      await api.patch(`/expenses/${expense.id}/pay`, {
         paidAt: new Date().toISOString().slice(0, 10),
       });
       setToast(`ชำระ "${expense.description}" สำเร็จ`);
@@ -176,7 +175,7 @@ export default function ExpensePage() {
   };
 
   const openEdit = (e: Expense) => {
-    if (e.recurringExpenseId) return; // recurring items are not directly editable
+    if (e.recurringExpenseId) return;
     setEditing(e);
     setForm({
       category: e.category, description: e.description, amount: String(e.amount),
