@@ -258,6 +258,17 @@ expensesRoute.put("/:id/cancel", async (c) => {
   return c.json({ ok: true, status: "cancelled" });
 });
 
+// DELETE /:id — ลบค่าใช้จ่าย (เฉพาะ pending/draft)
+expensesRoute.delete("/:id", async (c) => {
+  const id = Number(c.req.param("id"));
+  const existing = await db.select().from(expenses).where(eq(expenses.id, id)).get();
+  if (!existing) return c.json({ error: "Expense not found" }, 404);
+  if (existing.status === "paid") return c.json({ error: "ลบรายการที่จ่ายแล้วไม่ได้" }, 400);
+
+  await db.delete(expenses).where(eq(expenses.id, id)).run();
+  return c.json({ ok: true, message: "ลบรายการเรียบร้อย" });
+});
+
 // POST /upload-slip — upload expense slip image
 expensesRoute.post("/upload-slip", async (c) => {
   const formData = await c.req.formData();

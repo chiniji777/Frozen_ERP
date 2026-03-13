@@ -163,6 +163,7 @@ export default function ExpensePage() {
   const [editing, setEditing] = useState<Expense | null>(null);
   const [form, setForm] = useState<ExpenseForm>(emptyForm);
   const [cancelTarget, setCancelTarget] = useState<Expense | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [detailExp, setDetailExp] = useState<Expense | null>(null);
   const [imageZoom, setImageZoom] = useState(false);
   const [filterCat, setFilterCat] = useState(urlCategory);
@@ -302,6 +303,8 @@ export default function ExpensePage() {
   const allExpenses = [...data, ...recurringAsExpenses];
 
   const filtered = allExpenses.filter((e) => {
+    // แยก ซื้อวัตถุดิบ ออกจากหน้าค่าใช้จ่ายปกติ
+    if (!urlCategory && e.category === 'ซื้อวัตถุดิบ') return false;
     if (filterCat && e.category !== filterCat) return false;
     if (filterStatus && (e.status || 'pending') !== filterStatus) return false;
     if (filterMonth && e.date) {
@@ -485,6 +488,18 @@ export default function ExpensePage() {
     load();
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.delete(`/expenses/${deleteTarget.id}`);
+      setToast(`ลบรายการ "${deleteTarget.description}" เรียบร้อย`);
+    } catch {
+      setToast('ไม่สามารถลบได้ (อาจจ่ายแล้ว)');
+    }
+    setDeleteTarget(null);
+    load();
+  };
+
   const renderStatusBadge = (e: Expense) => {
     const st = (e.status || 'pending') as ExpenseStatus;
     const cfg = statusConfig[st] || statusConfig.pending;
@@ -526,6 +541,9 @@ export default function ExpensePage() {
             )}
             {st === 'pending' && !exp.recurringExpenseId && (
               <button onClick={() => setCancelTarget(exp)} className="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">✕ ยกเลิก</button>
+            )}
+            {st !== 'paid' && !exp.recurringExpenseId && (
+              <button onClick={() => setDeleteTarget(exp)} className="px-4 py-2 text-sm border border-red-300 text-red-700 rounded-lg hover:bg-red-50">🗑️ ลบ</button>
             )}
             {!!exp.hasWithholdingTax && (
               <button onClick={() => { const t = localStorage.getItem('token'); window.open(`/api/expenses/${exp.id}/print-wht${t ? '?token=' + t : ''}`, '_blank'); setTimeout(() => api.get<PrintLog[]>(`/expenses/${exp.id}/print-logs`).then(setPrintLogs).catch(() => {}), 1000); }} className="px-4 py-2 text-sm border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50">🖨️ ใบหัก ณ ที่จ่าย</button>
@@ -650,6 +668,8 @@ export default function ExpensePage() {
 
         <ConfirmDialog open={!!cancelTarget} message={`ต้องการยกเลิกค่าใช้จ่าย "${cancelTarget?.description}" ใช่ไหม?`}
           onConfirm={handleCancel} onCancel={() => setCancelTarget(null)} />
+        <ConfirmDialog open={!!deleteTarget} message={`ต้องการลบรายการ "${deleteTarget?.description}" ใช่ไหม? (ลบถาวร)`}
+          onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
         {toast && (<div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg animate-fade-in">{toast}</div>)}
       </div>
     );
@@ -742,9 +762,14 @@ export default function ExpensePage() {
         searchPlaceholder="ค้นหาค่าใช้จ่าย..."
         onAdd={openAdd}
         onEdit={(e) => e.status !== 'cancelled' ? openEdit(e) : undefined}
-        onDelete={(e) => (e.recurringExpenseId || e.status === 'cancelled') ? undefined : setCancelTarget(e)}
+        onDelete={(e) => (e.recurringExpenseId || e.status === 'paid') ? undefined : setDeleteTarget(e)}
         extraActions={(e) => (
-          <button onClick={() => handleDuplicate(e)} className="text-blue-500 hover:text-blue-700 text-sm">สำเนา</button>
+          <span className="flex gap-2">
+            <button onClick={() => handleDuplicate(e)} className="text-blue-500 hover:text-blue-700 text-sm">สำเนา</button>
+            {e.status === 'pending' && !e.recurringExpenseId && (
+              <button onClick={() => setCancelTarget(e)} className="text-red-400 hover:text-red-600 text-sm">ยกเลิก</button>
+            )}
+          </span>
         )}
         onRowClick={openDetail}
       />
@@ -1072,6 +1097,8 @@ export default function ExpensePage() {
 
       <ConfirmDialog open={!!cancelTarget} message={`ต้องการยกเลิกค่าใช้จ่าย "${cancelTarget?.description}" ใช่ไหม?`}
         onConfirm={handleCancel} onCancel={() => setCancelTarget(null)} />
+      <ConfirmDialog open={!!deleteTarget} message={`ต้องการลบรายการ "${deleteTarget?.description}" ใช่ไหม? (ลบถาวร)`}
+        onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg animate-fade-in">
