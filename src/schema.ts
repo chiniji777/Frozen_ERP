@@ -381,6 +381,12 @@ export const recurringExpenses = sqliteTable("recurring_expenses", {
   endDate: text("end_date"),
   isActive: integer("is_active").default(1),
   notes: text("notes"),
+  ref1: text("ref1"),
+  ref2: text("ref2"),
+  bankAccount: text("bank_account"),
+  bankName: text("bank_name"),
+  accountName: text("account_name"),
+  imageUrl: text("image_url"),
   ...timestamps,
 });
 
@@ -396,6 +402,15 @@ export const recurringExpensePayments = sqliteTable("recurring_expense_payments"
   paymentMethod: text("payment_method"),
   notes: text("notes"),
   createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
+export const productCategories = sqliteTable("product_categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: integer("is_active").default(1),
+  ...timestamps,
 });
 
 export const poItems = sqliteTable("po_items", {

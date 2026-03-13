@@ -163,6 +163,12 @@ recurringExpensesRoute.get("/monthly", async (c) => {
       totalDebt: item.totalDebt,
       totalPaid: item.totalPaid,
       remainingDebt: item.remainingDebt,
+      ref1: item.ref1,
+      ref2: item.ref2,
+      bankAccount: item.bankAccount,
+      bankName: item.bankName,
+      accountName: item.accountName,
+      imageUrl: item.imageUrl,
     });
   }
 
@@ -203,6 +209,11 @@ recurringExpensesRoute.post("/", async (c) => {
     endDate: body.endDate || null,
     isActive: 1,
     notes: body.notes || null,
+    ref1: body.ref1 || null,
+    ref2: body.ref2 || null,
+    bankAccount: body.bankAccount || null,
+    bankName: body.bankName || null,
+    accountName: body.accountName || null,
   }).run();
 
   return c.json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
@@ -232,6 +243,11 @@ recurringExpensesRoute.put("/:id", async (c) => {
     startDate: body.startDate !== undefined ? body.startDate : existing.startDate,
     endDate: body.endDate !== undefined ? body.endDate : existing.endDate,
     notes: body.notes !== undefined ? body.notes : existing.notes,
+    ref1: body.ref1 !== undefined ? body.ref1 : existing.ref1,
+    ref2: body.ref2 !== undefined ? body.ref2 : existing.ref2,
+    bankAccount: body.bankAccount !== undefined ? body.bankAccount : existing.bankAccount,
+    bankName: body.bankName !== undefined ? body.bankName : existing.bankName,
+    accountName: body.accountName !== undefined ? body.accountName : existing.accountName,
     updatedAt: sql`datetime('now')`,
   }).where(eq(recurringExpenses.id, id)).run();
 
@@ -327,6 +343,27 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
   }).where(eq(recurringExpenses.id, id)).run();
 
   return c.json({ ok: true, expenseId, paidAt });
+});
+
+
+const UPLOAD_DIR = join(process.cwd(), "data", "uploads", "recurring-expenses");
+const ALLOWED_EXTS = new Set(["jpg", "jpeg", "png", "webp"]);
+const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+recurringExpensesRoute.post("/upload-image", async (c) => {
+  const formData = await c.req.formData();
+  const file = formData.get("image") as File | null;
+  if (!file) return c.json({ error: "image file required" }, 400);
+  if (!ALLOWED_MIME.has(file.type)) return c.json({ error: `Invalid type: ${file.type}` }, 400);
+  if (file.size > MAX_FILE_SIZE) return c.json({ error: "Max 10MB" }, 400);
+  let ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  if (!ALLOWED_EXTS.has(ext)) ext = "jpg";
+  const filename = `recurring_${Date.now()}.${ext}`;
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(join(UPLOAD_DIR, filename), buffer);
+  return c.json({ ok: true, imageUrl: `recurring-expenses/image/${filename}` });
 });
 
 export { recurringExpensesRoute };

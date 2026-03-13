@@ -46,6 +46,23 @@ interface UomForm {
 const emptyUomForm: UomForm = { code: '', name: '', nameEn: '', category: '', sortOrder: 0 };
 const UOM_CATEGORIES = ['น้ำหนัก', 'ปริมาตร', 'จำนวน', 'บรรจุ', 'อื่นๆ'];
 
+// ============ Product Category Types ============
+interface ProductCategory {
+  id: number;
+  name: string;
+  description: string;
+  sortOrder: number;
+  isActive: number;
+}
+
+interface ProductCategoryForm {
+  name: string;
+  description: string;
+  sortOrder: number;
+}
+
+const emptyProductCategoryForm: ProductCategoryForm = { name: '', description: '', sortOrder: 0 };
+
 // ============ Tab Button ============
 function TabButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: string; label: string }) {
   return (
@@ -414,22 +431,212 @@ function ProfileTab() {
   );
 }
 
+// ============ Product Category Tab ============
+function ProductCategoryTab() {
+  const [data, setData] = useState<ProductCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<ProductCategory | null>(null);
+  const [form, setForm] = useState<ProductCategoryForm>(emptyProductCategoryForm);
+  const [deactivateTarget, setDeactivateTarget] = useState<ProductCategory | null>(null);
+  const [toast, setToast] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    api.get<ProductCategory[]>('/product-categories').then(setData).catch(() => setData([])).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
+
+  const openAdd = () => { setEditing(null); setForm(emptyProductCategoryForm); setModalOpen(true); };
+  const openEdit = (cat: ProductCategory) => {
+    setEditing(cat);
+    setForm({ name: cat.name, description: cat.description || '', sortOrder: cat.sortOrder || 0 });
+    setModalOpen(true);
+  };
+
+  const setField = (key: keyof ProductCategoryForm, val: string | number) => setForm((f) => ({ ...f, [key]: val }));
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editing) { await api.put(`/product-categories/${editing.id}`, form); setToast('แก้ไขหมวดหมู่สำเร็จ'); }
+      else { await api.post('/product-categories', form); setToast('เพิ่มหมวดหมู่สำเร็จ'); }
+      setModalOpen(false);
+      load();
+    } catch { setToast('ไม่สามารถบันทึกได้'); }
+  };
+
+  const handleDeactivate = async () => {
+    if (!deactivateTarget) return;
+    try { await api.patch(`/product-categories/${deactivateTarget.id}/deactivate`, {}); setToast('ปิดการใช้งานหมวดหมู่สำเร็จ'); }
+    catch { setToast('ไม่สามารถปิดการใช้งานได้'); }
+    setDeactivateTarget(null);
+    load();
+  };
+
+  const inputCls = 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm';
+
+  if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-gray-500">จัดการหมวดหมู่สินค้าสำหรับใช้ในหน้าสินค้า</p>
+        <button onClick={openAdd} className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">+ เพิ่มหมวดหมู่</button>
+      </div>
+      {data.length === 0 ? (
+        <div className="bg-gray-50 rounded-xl border p-10 text-center text-gray-400">ยังไม่มีหมวดหมู่สินค้า</div>
+      ) : (
+        <div className="grid gap-3">
+          {data.map((cat) => (
+            <div key={cat.id} className="bg-white rounded-xl border p-4 flex items-center gap-4 hover:shadow-sm transition-shadow">
+              <div className="w-12 h-12 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0"><span className="text-lg">🏷️</span></div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-gray-800">{cat.name}</div>
+                <div className="flex gap-3 text-xs text-gray-400 mt-0.5">
+                  {cat.description && <span>{cat.description}</span>}
+                  <span className="px-1.5 py-0.5 bg-gray-100 rounded">ลำดับ: {cat.sortOrder}</span>
+                  {cat.isActive ? <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">ใช้งาน</span> : <span className="px-1.5 py-0.5 bg-gray-200 text-gray-500 rounded">ปิดใช้งาน</span>}
+                </div>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => openEdit(cat)} className="px-3 py-1.5 text-xs rounded-lg border text-gray-600 hover:bg-gray-50">แก้ไข</button>
+                {cat.isActive === 1 && <button onClick={() => setDeactivateTarget(cat)} className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-500 hover:bg-red-50">ปิดใช้งาน</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'แก้ไขหมวดหมู่' : 'เพิ่มหมวดหมู่ใหม่'}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">ชื่อหมวดหมู่</label><input required value={form.name} onChange={(e) => setField('name', e.target.value)} className={inputCls} placeholder="เช่น อาหารแช่แข็ง, ของสด" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">คำอธิบาย</label><textarea rows={3} value={form.description} onChange={(e) => setField('description', e.target.value)} className={inputCls} placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">ลำดับการแสดง</label><input type="number" value={form.sortOrder} onChange={(e) => setField('sortOrder', Number(e.target.value))} className={inputCls} /></div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
+            <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">{editing ? 'บันทึก' : 'เพิ่มหมวดหมู่'}</button>
+          </div>
+        </form>
+      </Modal>
+      <ConfirmDialog open={!!deactivateTarget} message={`ต้องการปิดการใช้งานหมวดหมู่ "${deactivateTarget?.name}" ใช่ไหม?`} onConfirm={handleDeactivate} onCancel={() => setDeactivateTarget(null)} />
+      {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg animate-fade-in">{toast}</div>}
+    </div>
+  );
+}
+
+// ============ Recurring Expense Category Tab ============
+function RecurringCategoryTab() {
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [formName, setFormName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ idx: number; name: string } | null>(null);
+  const [toast, setToast] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    api.get<string[]>('/recurring-expenses/categories').then(setCategories).catch(() => setCategories([])).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
+
+  const openAdd = () => { setEditingIdx(null); setFormName(''); setModalOpen(true); };
+  const openEdit = (idx: number) => { setEditingIdx(idx); setFormName(categories[idx]); setModalOpen(true); };
+
+  const save = async (updated: string[]) => {
+    try { await api.put('/recurring-expenses/categories', updated); setCategories(updated); return true; }
+    catch { setToast('ไม่สามารถบันทึกได้'); return false; }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const name = formName.trim();
+    if (!name) return;
+    let updated: string[];
+    if (editingIdx !== null) {
+      updated = categories.map((c, i) => i === editingIdx ? name : c);
+    } else {
+      if (categories.includes(name)) { setToast('ประเภทนี้มีอยู่แล้ว'); return; }
+      updated = [...categories, name];
+    }
+    if (await save(updated)) {
+      setToast(editingIdx !== null ? 'แก้ไขประเภทสำเร็จ' : 'เพิ่มประเภทสำเร็จ');
+      setModalOpen(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteTarget === null) return;
+    const updated = categories.filter((_, i) => i !== deleteTarget.idx);
+    if (await save(updated)) setToast('ลบประเภทสำเร็จ');
+    setDeleteTarget(null);
+  };
+
+  const inputCls = 'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm';
+
+  if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-gray-500">จัดการประเภทค่าใช้จ่ายประจำเดือน</p>
+        <button onClick={openAdd} className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">+ เพิ่มประเภท</button>
+      </div>
+      {categories.length === 0 ? (
+        <div className="bg-gray-50 rounded-xl border p-10 text-center text-gray-400">ยังไม่มีประเภทค่าใช้จ่าย</div>
+      ) : (
+        <div className="grid gap-3">
+          {categories.map((cat, idx) => (
+            <div key={idx} className="bg-white rounded-xl border p-4 flex items-center gap-4 hover:shadow-sm transition-shadow">
+              <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0"><span className="text-lg">📅</span></div>
+              <div className="flex-1 min-w-0"><div className="font-medium text-gray-800">{cat}</div></div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={() => openEdit(idx)} className="px-3 py-1.5 text-xs rounded-lg border text-gray-600 hover:bg-gray-50">แก้ไข</button>
+                <button onClick={() => setDeleteTarget({ idx, name: cat })} className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-500 hover:bg-red-50">ลบ</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingIdx !== null ? 'แก้ไขประเภท' : 'เพิ่มประเภทใหม่'}>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">ชื่อประเภท</label><input required value={formName} onChange={(e) => setFormName(e.target.value)} className={inputCls} placeholder="เช่น ค่าเช่า, สาธารณูปโภค" /></div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ยกเลิก</button>
+            <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">{editingIdx !== null ? 'บันทึก' : 'เพิ่มประเภท'}</button>
+          </div>
+        </form>
+      </Modal>
+      <ConfirmDialog open={!!deleteTarget} message={`ต้องการลบประเภท "${deleteTarget?.name}" ใช่ไหม?`} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+      {toast && <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg bg-gray-800 text-white text-sm shadow-lg animate-fade-in">{toast}</div>}
+    </div>
+  );
+}
+
 // ============ Main Settings Page with Tabs ============
 export default function SettingsPage() {
-  const [tab, setTab] = useState<'company' | 'uom' | 'profile'>('company');
+  const [tab, setTab] = useState<'company' | 'uom' | 'profile' | 'productCat' | 'recurringCat'>('company');
 
   return (
     <div className="max-w-5xl">
       <h1 className="text-2xl font-bold text-gray-800 mb-4">⚙️ ตั้งค่า</h1>
 
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
+      <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
         <TabButton active={tab === 'company'} onClick={() => setTab('company')} icon="🏢" label="ข้อมูลบริษัท" />
         <TabButton active={tab === 'uom'} onClick={() => setTab('uom')} icon="📏" label="หน่วยนับ" />
+        <TabButton active={tab === 'productCat'} onClick={() => setTab('productCat')} icon="🏷️" label="หมวดหมู่สินค้า" />
+        <TabButton active={tab === 'recurringCat'} onClick={() => setTab('recurringCat')} icon="📅" label="ประเภทค่าใช้จ่ายประจำ" />
         <TabButton active={tab === 'profile'} onClick={() => setTab('profile')} icon="🖊️" label="โปรไฟล์ / ลายเซ็น" />
       </div>
 
       {tab === 'company' && <CompanyTab />}
       {tab === 'uom' && <UomTab />}
+      {tab === 'productCat' && <ProductCategoryTab />}
+      {tab === 'recurringCat' && <RecurringCategoryTab />}
       {tab === 'profile' && <ProfileTab />}
     </div>
   );

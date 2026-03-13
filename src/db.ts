@@ -305,6 +305,7 @@ export async function initDB() {
   await migrateInvoices();
   await migrateCancelSupport();
   await migrateRecurringExpenses();
+  await migrateProductCategories();
   await seedAdminUser();
 }
 
@@ -682,12 +683,39 @@ async function migrateRecurringExpenses() {
     CREATE INDEX IF NOT EXISTS idx_rec_payments_month ON recurring_expense_payments(month);
     CREATE INDEX IF NOT EXISTS idx_rec_payments_status ON recurring_expense_payments(status);
   `);
-  // Add imageUrl column if not exists
-  try {
-    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN image_url TEXT");
-  } catch {
-    // column already exists
+  // Add new columns if not exists
+  const newCols: [string, string][] = [
+    ["image_url", "TEXT"],
+    ["ref1", "TEXT"],
+    ["ref2", "TEXT"],
+    ["bank_account", "TEXT"],
+    ["bank_name", "TEXT"],
+    ["account_name", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE recurring_expenses ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists
+    }
   }
+}
+
+async function migrateProductCategories() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS product_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      sort_order INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_product_categories_name ON product_categories(name);
+    CREATE INDEX IF NOT EXISTS idx_product_categories_active ON product_categories(is_active);
+  `);
 }
 
 async function migrateCancelSupport() {

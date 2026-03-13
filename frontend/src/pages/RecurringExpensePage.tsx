@@ -19,6 +19,12 @@ interface RecurringExpense {
   endDate: string | null;
   isActive: number;
   notes: string;
+  ref1: string;
+  ref2: string;
+  bankName: string;
+  bankAccount: string;
+  accountName: string;
+  imageUrl: string | null;
 }
 
 interface MonthlyItem {
@@ -57,6 +63,12 @@ interface TemplateForm {
   startDate: string;
   endDate: string;
   notes: string;
+  ref1: string;
+  ref2: string;
+  bankName: string;
+  bankAccount: string;
+  accountName: string;
+  imageUrl: string;
 }
 
 interface PayForm {
@@ -70,6 +82,7 @@ interface PayForm {
 const emptyTemplateForm: TemplateForm = {
   name: '', category: '', amount: '', dueDay: '', payTo: '',
   paymentMethod: '', totalDebt: '', startDate: '', endDate: '', notes: '',
+  ref1: '', ref2: '', bankName: '', bankAccount: '', accountName: '', imageUrl: '',
 };
 
 const emptyPayForm: PayForm = {
@@ -106,6 +119,11 @@ export default function RecurringExpensePage() {
   const [slipPreview, setSlipPreview] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<string[]>(CATEGORIES);
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
+  const [templateImagePreview, setTemplateImagePreview] = useState('');
+  const [templateImageUploading, setTemplateImageUploading] = useState(false);
+  const templateImageRef = useRef<HTMLInputElement>(null);
+  const [detailItem, setDetailItem] = useState<RecurringExpense | null>(null);
 
   const loadMonthly = () => {
     setLoading(true);
@@ -130,7 +148,13 @@ export default function RecurringExpensePage() {
       .catch(() => setCategories(CATEGORIES));
   };
 
-  useEffect(() => { loadMonthly(); loadCategories(); }, [selectedMonth]);
+  const loadSuppliers = () => {
+    api.get<{ id: number; name: string }[]>('/suppliers')
+      .then(setSuppliers)
+      .catch(() => setSuppliers([]));
+  };
+
+  useEffect(() => { loadMonthly(); loadCategories(); loadSuppliers(); }, [selectedMonth]);
 
   useEffect(() => {
     if (!toast) return;
@@ -142,6 +166,7 @@ export default function RecurringExpensePage() {
   const openAddTemplate = () => {
     setEditingTemplate(null);
     setTemplateForm({ ...emptyTemplateForm, startDate: new Date().toISOString().slice(0, 10) });
+    setTemplateImagePreview('');
     setTemplateModalOpen(true);
   };
 
@@ -157,9 +182,44 @@ export default function RecurringExpensePage() {
           dueDay: String(tmpl.dueDay || ''), payTo: tmpl.payTo || '',
           paymentMethod: tmpl.paymentMethod || '', totalDebt: String(tmpl.totalDebt || ''),
           startDate: tmpl.startDate || '', endDate: tmpl.endDate || '', notes: tmpl.notes || '',
+          ref1: tmpl.ref1 || '', ref2: tmpl.ref2 || '',
+          bankName: tmpl.bankName || '', bankAccount: tmpl.bankAccount || '', accountName: tmpl.accountName || '',
+          imageUrl: tmpl.imageUrl || '',
         });
+        setTemplateImagePreview(tmpl.imageUrl ? `/api/data/${tmpl.imageUrl}` : '');
         setTemplateModalOpen(true);
       }
+    }).catch(() => setToast('ไม่สามารถโหลดข้อมูลได้'));
+  };
+
+  const handleTemplateImageUpload = async (file: File) => {
+    setTemplateImageUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/recurring-expenses/upload-image', {
+        method: 'POST',
+        body: fd,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const json = await res.json() as { imageUrl: string };
+      setTemplateForm((f) => ({ ...f, imageUrl: json.imageUrl }));
+      setTemplateImagePreview(`/api/data/${json.imageUrl}`);
+      setToast('อัปโหลดรูปสำเร็จ');
+    } catch {
+      setToast('อัปโหลดรูปไม่สำเร็จ');
+    } finally {
+      setTemplateImageUploading(false);
+    }
+  };
+
+  const openDetail = (item: MonthlyItem) => {
+    api.get<RecurringExpense>(`/recurring-expenses`).then((list) => {
+      const templates = list as unknown as RecurringExpense[];
+      const tmpl = Array.isArray(templates) ? templates.find(t => t.id === item.recurringExpenseId) : null;
+      if (tmpl) setDetailItem(tmpl);
     }).catch(() => setToast('ไม่สามารถโหลดข้อมูลได้'));
   };
 
@@ -171,6 +231,7 @@ export default function RecurringExpensePage() {
       dueDay: Number(templateForm.dueDay) || null,
       totalDebt: Number(templateForm.totalDebt) || 0,
       endDate: templateForm.endDate || null,
+      imageUrl: templateForm.imageUrl || null,
     };
     try {
       if (editingTemplate) {
@@ -322,16 +383,14 @@ export default function RecurringExpensePage() {
         onAdd={openAddTemplate}
         onEdit={openEditTemplate}
         onDelete={(item) => setDeactivateTarget(item)}
-        extraActions={(item: MonthlyItem) =>
-          item.status === 'pending' ? (
-            <button
-              onClick={() => openPay(item)}
-              className="text-green-600 hover:text-green-800 text-sm mr-2"
-            >
-              จ่าย
-            </button>
-          ) : null
-        }
+        extraActions={(item: MonthlyItem) => (
+          <>
+            <button onClick={() => openDetail(item)} className="text-indigo-600 hover:text-indigo-800 text-sm mr-2">ดู</button>
+            {item.status === 'pending' && (
+              <button onClick={() => openPay(item)} className="text-green-600 hover:text-green-800 text-sm mr-2">จ่าย</button>
+            )}
+          </>
+        )}
       />
 
       {/* Template Modal (Add/Edit) */}
@@ -370,9 +429,12 @@ export default function RecurringExpensePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">จ่ายให้</label>
-              <input value={templateForm.payTo} onChange={(e) => setTemplateForm({ ...templateForm, payTo: e.target.value })}
+              <input list="supplier-list" value={templateForm.payTo} onChange={(e) => setTemplateForm({ ...templateForm, payTo: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                placeholder="ชื่อผู้รับ" />
+                placeholder="เลือกผู้ขายหรือพิมพ์ชื่อใหม่" autoComplete="off" />
+              <datalist id="supplier-list">
+                {suppliers.map((s) => <option key={s.id} value={s.name} />)}
+              </datalist>
             </div>
           </div>
 
@@ -409,11 +471,64 @@ export default function RecurringExpensePage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ธนาคาร</label>
+              <input value={templateForm.bankName} onChange={(e) => setTemplateForm({ ...templateForm, bankName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="เช่น กสิกร, กรุงเทพ" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">เลขบัญชี</label>
+              <input value={templateForm.bankAccount} onChange={(e) => setTemplateForm({ ...templateForm, bankAccount: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="xxx-x-xxxxx-x" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อบัญชี</label>
+              <input value={templateForm.accountName} onChange={(e) => setTemplateForm({ ...templateForm, accountName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="ชื่อเจ้าของบัญชี" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">อ้างอิง 1</label>
+              <input value={templateForm.ref1} onChange={(e) => setTemplateForm({ ...templateForm, ref1: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="เลขสัญญา, เลขอ้างอิง" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">อ้างอิง 2</label>
+              <input value={templateForm.ref2} onChange={(e) => setTemplateForm({ ...templateForm, ref2: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                placeholder="เลขอ้างอิงเพิ่มเติม" />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
             <textarea value={templateForm.notes} onChange={(e) => setTemplateForm({ ...templateForm, notes: e.target.value })}
               rows={2} placeholder="หมายเหตุเพิ่มเติม..."
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm resize-none" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">แนบรูป/เอกสาร</label>
+            <div className="flex gap-2 items-start">
+              <input ref={templateImageRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTemplateImageUpload(f); }} />
+              <button type="button" onClick={() => templateImageRef.current?.click()} disabled={templateImageUploading}
+                className="px-3 py-2 text-sm rounded-lg border border-dashed border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50">
+                {templateImageUploading ? 'กำลังอัปโหลด...' : (templateForm.imageUrl ? 'เปลี่ยนรูป' : 'แนบรูป')}
+              </button>
+            </div>
+            {templateImagePreview && (
+              <div className="mt-2">
+                <img src={templateImagePreview} alt="preview" className="max-h-48 rounded-lg border border-gray-200 object-contain" />
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
@@ -500,6 +615,36 @@ export default function RecurringExpensePage() {
         onConfirm={handleDeactivate}
         onCancel={() => setDeactivateTarget(null)}
       />
+
+      {/* Detail Modal */}
+      <Modal open={!!detailItem} onClose={() => setDetailItem(null)} title={`รายละเอียด "${detailItem?.name || ''}"`}>
+        {detailItem && (
+          <div className="flex flex-col gap-3 text-sm">
+            {detailItem.imageUrl && (
+              <div className="flex justify-center">
+                <img src={`/api/data/${detailItem.imageUrl}`} alt="รูปแนบ" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div><span className="text-gray-500">ประเภท:</span> {detailItem.category}</div>
+              <div><span className="text-gray-500">ยอด/เดือน:</span> {Number(detailItem.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</div>
+              <div><span className="text-gray-500">จ่ายให้:</span> {detailItem.payTo || '-'}</div>
+              <div><span className="text-gray-500">กำหนด:</span> {detailItem.dueDay ? `วันที่ ${detailItem.dueDay}` : '-'}</div>
+              <div><span className="text-gray-500">ช่องทาง:</span> {detailItem.paymentMethod || '-'}</div>
+              <div><span className="text-gray-500">หนี้คงเหลือ:</span> {Number(detailItem.remainingDebt).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</div>
+              {detailItem.bankName && <div><span className="text-gray-500">ธนาคาร:</span> {detailItem.bankName}</div>}
+              {detailItem.bankAccount && <div><span className="text-gray-500">เลขบัญชี:</span> {detailItem.bankAccount}</div>}
+              {detailItem.accountName && <div><span className="text-gray-500">ชื่อบัญชี:</span> {detailItem.accountName}</div>}
+              {detailItem.ref1 && <div><span className="text-gray-500">อ้างอิง 1:</span> {detailItem.ref1}</div>}
+              {detailItem.ref2 && <div><span className="text-gray-500">อ้างอิง 2:</span> {detailItem.ref2}</div>}
+            </div>
+            {detailItem.notes && <div><span className="text-gray-500">หมายเหตุ:</span> {detailItem.notes}</div>}
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setDetailItem(null)} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ปิด</button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Toast */}
       {toast && (

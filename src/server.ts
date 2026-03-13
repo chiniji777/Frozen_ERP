@@ -20,6 +20,7 @@ import { dashboardRoute } from "./routes/dashboard.js";
 import { settingsRoute } from "./routes/settings.js";
 import { dbdRoute } from "./routes/dbd.js";
 import { uomRoute } from "./routes/uom.js";
+import { productCategoriesRoute } from "./routes/product-categories.js";
 import { ocrSlipRoute } from "./routes/ocr-slip.js";
 import { trackingRoute } from "./routes/delivery-tracking.js";
 import { authMiddleware } from "./auth.js";
@@ -111,6 +112,20 @@ app.get("/api/products/image/:filename", async (c) => {
   } catch { return c.json({ error: "Not found" }, 404); }
 });
 
+// Serve recurring expense images (public)
+app.get("/api/recurring-expenses/image/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  if (filename.includes("..") || filename.includes("/") || filename.includes("\0")) return c.json({ error: "Invalid" }, 400);
+  const ext = filename.split(".").pop()?.toLowerCase();
+  const mimeMap: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
+  if (!ext || !mimeMap[ext]) return c.json({ error: "Invalid file type" }, 400);
+  try {
+    const data = await readFile(join(process.cwd(), "data", "uploads", "recurring-expenses", filename));
+    return new Response(data, { headers: { "Content-Type": mimeMap[ext], "Cache-Control": "public, max-age=86400" } });
+  } catch { return c.json({ error: "Not found" }, 404); }
+});
+
+
 // Protected routes
 app.use("/api/customers/*", authMiddleware);
 app.use("/api/products/*", authMiddleware);
@@ -148,6 +163,8 @@ app.use("/api/settings", authMiddleware);
 app.route("/api/settings", settingsRoute);
 app.use("/api/uoms/*", authMiddleware);
 app.route("/api/uoms", uomRoute);
+app.use("/api/product-categories/*", authMiddleware);
+app.route("/api/product-categories", productCategoriesRoute);
 app.use("/api/dbd/*", authMiddleware);
 app.use("/api/dbd/lookup/*", rateLimit({ max: 5, windowMs: 1000, keyPrefix: "dbd-lookup" }));
 app.route("/api/dbd", dbdRoute);
