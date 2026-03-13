@@ -683,6 +683,12 @@ async function migrateRecurringExpenses() {
     CREATE INDEX IF NOT EXISTS idx_rec_payments_month ON recurring_expense_payments(month);
     CREATE INDEX IF NOT EXISTS idx_rec_payments_status ON recurring_expense_payments(status);
   `);
+  // Add imageUrl column if not exists
+  try {
+    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN image_url TEXT");
+  } catch {
+    // column already exists
+  }
 }
 
 async function migrateProductCategories() {
