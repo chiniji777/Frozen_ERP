@@ -460,6 +460,32 @@ recurringExpensesRoute.post("/:id/pay", async (c) => {
 });
 
 
+// PUT /payments/:paymentId — แก้ไขรายการชำระรายเดือน (amount, notes, paymentMethod)
+recurringExpensesRoute.put("/payments/:paymentId", async (c) => {
+  const paymentId = Number(c.req.param("paymentId"));
+  const payment = await db.select().from(recurringExpensePayments)
+    .where(eq(recurringExpensePayments.id, paymentId)).get();
+  if (!payment) return c.json({ error: "Payment not found" }, 404);
+
+  const body = await c.req.json();
+  await db.update(recurringExpensePayments).set({
+    amount: body.amount !== undefined ? body.amount : payment.amount,
+    paymentMethod: body.paymentMethod !== undefined ? body.paymentMethod : payment.paymentMethod,
+    notes: body.notes !== undefined ? body.notes : payment.notes,
+  }).where(eq(recurringExpensePayments.id, paymentId)).run();
+
+  // Also update linked expense if exists
+  if (payment.expenseId) {
+    const updates: Record<string, unknown> = { updatedAt: sql`datetime('now')` };
+    if (body.amount !== undefined) updates.amount = body.amount;
+    if (body.notes !== undefined) updates.notes = body.notes;
+    if (body.paymentMethod !== undefined) updates.paymentMethod = body.paymentMethod;
+    await db.update(expenses).set(updates).where(eq(expenses.id, payment.expenseId)).run();
+  }
+
+  return c.json({ ok: true });
+});
+
 const UPLOAD_DIR = join(process.cwd(), "data", "uploads", "recurring-expenses");
 const ALLOWED_EXTS = new Set(["jpg", "jpeg", "png", "webp"]);
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);

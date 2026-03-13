@@ -125,6 +125,8 @@ export default function RecurringExpensePage() {
   const templateImageRef = useRef<HTMLInputElement>(null);
   const [detailItem, setDetailItem] = useState<RecurringExpense | null>(null);
   const [detailMonthly, setDetailMonthly] = useState<MonthlyItem | null>(null);
+  const [editingMonthly, setEditingMonthly] = useState(false);
+  const [editMonthlyForm, setEditMonthlyForm] = useState({ amount: '', paymentMethod: '', notes: '' });
 
   const loadMonthly = () => {
     setLoading(true);
@@ -646,25 +648,77 @@ export default function RecurringExpensePage() {
             {/* Payment Details for this month */}
             {detailMonthly && (
               <div className="mt-2 pt-3 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">รายละเอียดการชำระ ({selectedMonth})</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><span className="text-gray-500">สถานะ:</span> {detailMonthly.status === 'paid' ? <span className="text-green-600 font-medium">จ่ายแล้ว</span> : <span className="text-red-600 font-medium">ค้างจ่าย</span>}</div>
-                  <div><span className="text-gray-500">ยอดชำระ:</span> {Number(detailMonthly.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</div>
-                  {detailMonthly.paidAt && <div><span className="text-gray-500">วันที่ชำระ:</span> {new Date(detailMonthly.paidAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>}
-                  {detailMonthly.paymentMethod && <div><span className="text-gray-500">ช่องทาง:</span> {detailMonthly.paymentMethod}</div>}
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-gray-700">รายละเอียดการชำระ ({selectedMonth})</h4>
+                  {!editingMonthly && detailMonthly.status !== 'paid' && (
+                    <button onClick={() => { setEditingMonthly(true); setEditMonthlyForm({ amount: String(detailMonthly.amount), paymentMethod: detailMonthly.paymentMethod || '', notes: detailMonthly.notes || '' }); }}
+                      className="text-xs text-indigo-600 hover:text-indigo-800">✏️ แก้ไข</button>
+                  )}
                 </div>
-                {detailMonthly.notes && <div className="mt-1"><span className="text-gray-500">หมายเหตุ:</span> {detailMonthly.notes}</div>}
-                {detailMonthly.slipImage && (
-                  <div className="mt-2">
-                    <p className="text-gray-500 mb-1">สลิป/ใบเสร็จ:</p>
-                    <img src={`/api/${detailMonthly.slipImage}`} alt="สลิป" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
+                {editingMonthly ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">ยอดชำระ (บาท)</label>
+                        <input type="number" step="0.01" value={editMonthlyForm.amount}
+                          onChange={(e) => setEditMonthlyForm({ ...editMonthlyForm, amount: e.target.value })}
+                          className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">ช่องทางชำระ</label>
+                        <select value={editMonthlyForm.paymentMethod}
+                          onChange={(e) => setEditMonthlyForm({ ...editMonthlyForm, paymentMethod: e.target.value })}
+                          className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                          <option value="">เลือก...</option>
+                          {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">หมายเหตุ</label>
+                      <textarea value={editMonthlyForm.notes}
+                        onChange={(e) => setEditMonthlyForm({ ...editMonthlyForm, notes: e.target.value })}
+                        rows={2} className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setEditingMonthly(false)} className="px-3 py-1.5 text-xs rounded-lg border hover:bg-gray-50">ยกเลิก</button>
+                      <button onClick={async () => {
+                        try {
+                          await api.put(`/recurring-expenses/payments/${detailMonthly.paymentId}`, {
+                            amount: Number(editMonthlyForm.amount),
+                            paymentMethod: editMonthlyForm.paymentMethod,
+                            notes: editMonthlyForm.notes,
+                          });
+                          setToast('บันทึกสำเร็จ');
+                          setEditingMonthly(false);
+                          setDetailItem(null); setDetailMonthly(null);
+                          loadMonthly();
+                        } catch { setToast('บันทึกไม่สำเร็จ'); }
+                      }} className="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">บันทึก</button>
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><span className="text-gray-500">สถานะ:</span> {detailMonthly.status === 'paid' ? <span className="text-green-600 font-medium">จ่ายแล้ว</span> : <span className="text-red-600 font-medium">ค้างจ่าย</span>}</div>
+                      <div><span className="text-gray-500">ยอดชำระ:</span> {Number(detailMonthly.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</div>
+                      {detailMonthly.paidAt && <div><span className="text-gray-500">วันที่ชำระ:</span> {new Date(detailMonthly.paidAt).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}</div>}
+                      {detailMonthly.paymentMethod && <div><span className="text-gray-500">ช่องทาง:</span> {detailMonthly.paymentMethod}</div>}
+                    </div>
+                    {detailMonthly.notes && <div className="mt-1"><span className="text-gray-500">หมายเหตุ:</span> {detailMonthly.notes}</div>}
+                    {detailMonthly.slipImage && (
+                      <div className="mt-2">
+                        <p className="text-gray-500 mb-1">สลิป/ใบเสร็จ:</p>
+                        <img src={`/api/${detailMonthly.slipImage}`} alt="สลิป" className="max-h-64 rounded-lg border border-gray-200 object-contain" />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
 
             <div className="flex justify-end pt-2">
-              <button onClick={() => { setDetailItem(null); setDetailMonthly(null); }} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ปิด</button>
+              <button onClick={() => { setDetailItem(null); setDetailMonthly(null); setEditingMonthly(false); }} className="px-4 py-2 text-sm rounded-lg border hover:bg-gray-50">ปิด</button>
             </div>
           </div>
         )}
