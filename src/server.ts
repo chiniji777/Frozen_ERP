@@ -38,7 +38,7 @@ app.use("*", cors({
   origin: process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",")
     : ["https://frozen.mhorkub.com", "http://localhost:4001"],
-  allowMethods: ["GET", "POST", "PUT", "DELETE"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowHeaders: ["Content-Type", "Authorization"],
 }));
 
