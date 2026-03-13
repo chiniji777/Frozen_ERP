@@ -257,7 +257,7 @@ export default function PurchaseOrderPage() {
                 🗑 ลบ
               </button>
             )}
-            {po.status !== 'received' && po.status !== 'paid' && po.status !== 'cancelled' && (
+            {po.status !== 'cancelled' && (
               <button onClick={() => setActionTarget({ po, action: 'cancel' })}
                 className="px-4 py-2 text-sm border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50">
                 ✕ ยกเลิก
@@ -472,7 +472,7 @@ export default function PurchaseOrderPage() {
                 ลบ
               </button>
             )}
-            {(po.status === 'draft' || po.status === 'confirmed') && (
+            {po.status !== 'cancelled' && (
               <button onClick={(e) => { e.stopPropagation(); setActionTarget({ po, action: 'cancel' }); }}
                 className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">
                 ยกเลิก

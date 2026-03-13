@@ -107,7 +107,7 @@ export default function ProductionPage() {
           { key: 'id', label: 'รหัส' },
           { key: 'product_name', label: 'สินค้า', render: (o) => o.product_name || o.bom_name || '-' },
           { key: 'quantity', label: 'จำนวน' },
-          { key: 'status', label: 'สถานะ', render: (o) => {
+          { key: 'status', label: 'สถานะ', filterable: true, render: (o) => {
             const cfg = statusConfig[o.status] ?? statusConfig.draft;
             return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
           }},
