@@ -106,6 +106,7 @@ export default function RecurringExpensePage() {
   const [slipPreview, setSlipPreview] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<string[]>(CATEGORIES);
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([]);
 
   const loadMonthly = () => {
     setLoading(true);
@@ -130,7 +131,13 @@ export default function RecurringExpensePage() {
       .catch(() => setCategories(CATEGORIES));
   };
 
-  useEffect(() => { loadMonthly(); loadCategories(); }, [selectedMonth]);
+  const loadSuppliers = () => {
+    api.get<{ id: number; name: string }[]>('/suppliers')
+      .then(setSuppliers)
+      .catch(() => setSuppliers([]));
+  };
+
+  useEffect(() => { loadMonthly(); loadCategories(); loadSuppliers(); }, [selectedMonth]);
 
   useEffect(() => {
     if (!toast) return;
@@ -370,9 +377,12 @@ export default function RecurringExpensePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">จ่ายให้</label>
-              <input value={templateForm.payTo} onChange={(e) => setTemplateForm({ ...templateForm, payTo: e.target.value })}
+              <input list="supplier-list" value={templateForm.payTo} onChange={(e) => setTemplateForm({ ...templateForm, payTo: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                placeholder="ชื่อผู้รับ" />
+                placeholder="เลือกผู้ขายหรือพิมพ์ชื่อใหม่" autoComplete="off" />
+              <datalist id="supplier-list">
+                {suppliers.map((s) => <option key={s.id} value={s.name} />)}
+              </datalist>
             </div>
           </div>
 
