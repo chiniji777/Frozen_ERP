@@ -93,17 +93,18 @@ function parseAddress(fullAddress: string): { province: string; district: string
   if (provinceMatch) {
     result.province = "กรุงเทพมหานคร";
   } else {
-    const provMatch = fullAddress.match(/(?:จังหวัด|จ\.)\s*(\S+)/);
-    if (provMatch) result.province = provMatch[1];
+    // Match province: text after จังหวัด/จ. up to next keyword or end
+    const provMatch = fullAddress.match(/(?:จังหวัด|จ\.)\s*([^\d]+?)(?:\s*\d{5}|\s*โทร|\s*$)/);
+    if (provMatch) result.province = provMatch[1].trim();
   }
 
-  // Extract district (อำเภอ/เขต/อ.)
-  const districtMatch = fullAddress.match(/(?:อำเภอ|เขต|อ\.)\s*(\S+)/);
-  if (districtMatch) result.district = districtMatch[1];
+  // Extract district — text between อำเภอ/เขต/อ. and next keyword (ตำบล/แขวง/จังหวัด/จ.)
+  const districtMatch = fullAddress.match(/(?:อำเภอ|เขต|อ\.)\s*(.+?)(?:\s*(?:ตำบล|แขวง|ต\.|จังหวัด|จ\.|$))/);
+  if (districtMatch) result.district = districtMatch[1].trim();
 
-  // Extract subDistrict (ตำบล/แขวง/ต.)
-  const subDistrictMatch = fullAddress.match(/(?:ตำบล|แขวง|ต\.)\s*(\S+)/);
-  if (subDistrictMatch) result.subDistrict = subDistrictMatch[1];
+  // Extract subDistrict — text between ตำบล/แขวง/ต. and next keyword (อำเภอ/เขต/อ./จังหวัด/จ.)
+  const subDistrictMatch = fullAddress.match(/(?:ตำบล|แขวง|ต\.)\s*(.+?)(?:\s*(?:อำเภอ|เขต|อ\.|จังหวัด|จ\.|$))/);
+  if (subDistrictMatch) result.subDistrict = subDistrictMatch[1].trim();
 
   return result;
 }
