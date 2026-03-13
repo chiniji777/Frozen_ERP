@@ -311,7 +311,7 @@ export default function ExpensePage() {
     return true;
   });
 
-  const monthlyTotal = filtered.reduce((sum, e) => sum + Number(e.amount), 0);
+  const monthlyTotal = filtered.filter(e => e.status !== 'cancelled').reduce((sum, e) => sum + Number(e.amount), 0);
 
   const openAdd = () => {
     setEditing(null);
@@ -361,7 +361,7 @@ export default function ExpensePage() {
     setEditing(null); // null = create new
     setForm({
       category: e.category, description: e.description, amount: String(e.amount),
-      date: new Date().toISOString().slice(0, 10), notes: e.notes || '', slipImage: '',
+      date: e.date?.slice(0, 10) || new Date().toISOString().slice(0, 10), notes: e.notes || '', slipImage: '',
       dueDate: '', paymentMethod: e.paymentMethod || '',
       supplierId: e.supplierId ? String(e.supplierId) : '',
       itemType: e.itemType || '',
