@@ -634,9 +634,15 @@ export default function RecurringExpensePage() {
                 className="px-3 py-2 text-sm rounded-lg border border-dashed border-gray-300 text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50">
                 {templateImageUploading ? 'กำลังอัปโหลด...' : (templateForm.imageUrl ? 'เปลี่ยนรูป' : 'แนบรูป')}
               </button>
+              {templateForm.imageUrl && (
+                <button type="button" onClick={() => { setTemplateForm({ ...templateForm, imageUrl: '' }); setTemplateImagePreview(''); }}
+                  className="px-3 py-2 text-sm rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                  ลบรูป
+                </button>
+              )}
             </div>
             {templateImagePreview && (
-              <div className="mt-2">
+              <div className="mt-2 relative inline-block">
                 <img src={templateImagePreview} alt="preview" className="max-h-48 rounded-lg border border-gray-200 object-contain" />
               </div>
             )}
@@ -673,6 +679,12 @@ export default function RecurringExpensePage() {
               >
                 {uploading ? 'กำลังอัปโหลด...' : (payForm.slipImage ? 'เปลี่ยนสลิป' : 'แนบสลิป')}
               </button>
+              {payForm.slipImage && (
+                <button type="button" onClick={() => { setPayForm({ ...payForm, slipImage: '' }); setSlipPreview(''); }}
+                  className="px-3 py-2 text-sm rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                  ลบสลิป
+                </button>
+              )}
             </div>
             {slipPreview && (
               <div className="mt-2">

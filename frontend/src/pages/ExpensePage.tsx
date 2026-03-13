@@ -751,6 +751,12 @@ export default function ExpensePage() {
                   {ocrLoading ? 'กำลังอ่าน...' : 'OCR อ่านสลิป'}
                 </button>
               )}
+              {form.slipImage && (
+                <button type="button" onClick={() => { setForm({ ...form, slipImage: '' }); setSlipPreview(''); }}
+                  className="px-3 py-2 text-sm rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+                  ลบสลิป
+                </button>
+              )}
             </div>
             {slipPreview && (
               <div className="mt-2">
