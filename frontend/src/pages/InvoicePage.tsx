@@ -331,9 +331,13 @@ export default function InvoicePage() {
                   className="px-4 py-2 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">ยกเลิก</button>
               </>
             )}
-            {!editMode && cfg.next && (
+            {!editMode && cfg.next && cfg.next !== 'pay' && (
               <button onClick={() => setActionTarget({ inv: iv, action: cfg.next! })}
                 className={`px-4 py-2 text-sm text-white rounded-lg ${cfg.nextColor}`}>{cfg.nextLabel}</button>
+            )}
+            {!editMode && iv.status !== 'paid' && iv.status !== 'cancelled' && (
+              <button onClick={() => setActionTarget({ inv: iv, action: 'pay' })}
+                className="px-4 py-2 text-sm text-white rounded-lg bg-green-600 hover:bg-green-700">💰 ชำระเงินแล้ว</button>
             )}
             {!editMode && (iv.status === 'draft') && (
               <button onClick={() => setActionTarget({ inv: iv, action: 'cancel' })}
