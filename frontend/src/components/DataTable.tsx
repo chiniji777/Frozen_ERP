@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface Column<T> {
   key: string;
   label: string;
   render?: (item: T) => React.ReactNode;
+  sortable?: boolean;
+  filterable?: boolean;
 }
+
+type SortDir = 'asc' | 'desc';
 
 interface Props<T> {
   columns: Column<T>[];
@@ -20,9 +24,20 @@ interface Props<T> {
   onSelectionChange?: (ids: Set<number | string>) => void;
   toolbarExtra?: React.ReactNode;
   onRowClick?: (item: T) => void;
+  defaultSortKey?: string;
+  defaultSortDir?: SortDir;
 }
 
-const PAGE_SIZES = [10, 25, 50, 100];
+const PAGE_SIZES = [25, 50, 100, 200];
+
+function SortIcon({ dir, active }: { dir: SortDir; active: boolean }) {
+  return (
+    <span className={`inline-flex flex-col ml-1 leading-none ${active ? 'text-indigo-600' : 'text-gray-300'}`}>
+      <span className={`text-[10px] ${active && dir === 'asc' ? 'text-indigo-600' : ''}`}>▲</span>
+      <span className={`text-[10px] -mt-1 ${active && dir === 'desc' ? 'text-indigo-600' : ''}`}>▼</span>
+    </span>
+  );
+}
 
 export default function DataTable<T>({
   columns,
@@ -38,20 +53,71 @@ export default function DataTable<T>({
   onSelectionChange,
   toolbarExtra,
   onRowClick,
+  defaultSortKey = 'createdAt',
+  defaultSortDir = 'desc',
 }: Props<T>) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(25);
+  const [sortKey, setSortKey] = useState<string>(defaultSortKey);
+  const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
 
-  const filtered = data.filter((item) =>
-    columns.some((col) => {
-      const val = (item as Record<string, unknown>)[col.key];
-      return String(val ?? '').toLowerCase().includes(search.toLowerCase());
-    })
-  );
+  const hasAnyFilter = columns.some((c) => c.filterable);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paged = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+    setPage(0);
+  };
+
+  const handleColFilter = (key: string, value: string) => {
+    setColFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(0);
+  };
+
+  const processed = useMemo(() => {
+    let result = data.filter((item) =>
+      columns.some((col) => {
+        const val = (item as Record<string, unknown>)[col.key];
+        return String(val ?? '').toLowerCase().includes(search.toLowerCase());
+      })
+    );
+
+    for (const col of columns) {
+      const fv = colFilters[col.key];
+      if (fv) {
+        result = result.filter((item) => {
+          const val = (item as Record<string, unknown>)[col.key];
+          return String(val ?? '').toLowerCase().includes(fv.toLowerCase());
+        });
+      }
+    }
+
+    result = [...result].sort((a, b) => {
+      const av = (a as Record<string, unknown>)[sortKey];
+      const bv = (b as Record<string, unknown>)[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      let cmp: number;
+      if (typeof av === 'number' && typeof bv === 'number') {
+        cmp = av - bv;
+      } else {
+        cmp = String(av).localeCompare(String(bv), 'th', { numeric: true });
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [data, columns, search, colFilters, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(processed.length / pageSize));
+  const paged = processed.slice(page * pageSize, (page + 1) * pageSize);
 
   const allPageIds = paged.map((item) => getId(item));
   const allSelected = selectable && allPageIds.length > 0 && allPageIds.every((id) => selectedIds?.has(id));
@@ -105,15 +171,44 @@ export default function DataTable<T>({
                   <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
                 </th>
               )}
-              {columns.map((col) => (
-                <th key={col.key} className="text-left px-4 py-3 font-semibold text-gray-600">
-                  {col.label}
-                </th>
-              ))}
+              {columns.map((col) => {
+                const isSortable = col.sortable !== false;
+                return (
+                  <th
+                    key={col.key}
+                    className={`text-left px-4 py-3 font-semibold text-gray-600 ${isSortable ? 'cursor-pointer select-none hover:text-indigo-600' : ''}`}
+                    onClick={isSortable ? () => handleSort(col.key) : undefined}
+                  >
+                    <span className="inline-flex items-center">
+                      {col.label}
+                      {isSortable && <SortIcon dir={sortDir} active={sortKey === col.key} />}
+                    </span>
+                  </th>
+                );
+              })}
               {(onEdit || onDelete || extraActions) && (
                 <th className="text-right px-4 py-3 font-semibold text-gray-600">จัดการ</th>
               )}
             </tr>
+            {hasAnyFilter && (
+              <tr className="border-b border-gray-100 bg-gray-50/50">
+                {selectable && <th className="px-4 py-1" />}
+                {columns.map((col) => (
+                  <th key={col.key} className="px-4 py-1">
+                    {col.filterable ? (
+                      <input
+                        type="text"
+                        placeholder={`กรอง ${col.label}...`}
+                        value={colFilters[col.key] || ''}
+                        onChange={(e) => handleColFilter(col.key, e.target.value)}
+                        className="w-full px-2 py-1 text-xs font-normal border border-gray-200 rounded focus:ring-1 focus:ring-indigo-400 outline-none"
+                      />
+                    ) : null}
+                  </th>
+                ))}
+                {(onEdit || onDelete || extraActions) && <th className="px-4 py-1" />}
+              </tr>
+            )}
           </thead>
           <tbody>
             {paged.length === 0 ? (

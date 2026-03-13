@@ -95,12 +95,12 @@ export default function RawMaterialPage() {
 
       <DataTable
         columns={[
-          { key: 'code', label: 'รหัส', render: (m: RawMaterial) => <span className="font-mono text-indigo-600">{m.code || '-'}</span> },
-          { key: 'name', label: 'ชื่อวัตถุดิบ' },
+          { key: 'code', label: 'รหัส', filterable: true, render: (m: RawMaterial) => <span className="font-mono text-indigo-600">{m.code || '-'}</span> },
+          { key: 'name', label: 'ชื่อวัตถุดิบ', filterable: true },
           { key: 'unit', label: 'หน่วย' },
           { key: 'stock', label: 'คงเหลือ', render: (m) => stockBadge(m) },
           { key: 'pricePerUnit', label: 'ราคา/หน่วย', render: (m: RawMaterial) => `฿${(Number(m.pricePerUnit) || 0).toLocaleString()}` },
-          { key: 'supplier', label: 'ผู้จำหน่าย' },
+          { key: 'supplier', label: 'ผู้จำหน่าย', filterable: true },
         ]}
         data={data}
         getId={(m) => m.id}

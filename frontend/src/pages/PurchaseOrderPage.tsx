@@ -432,11 +432,11 @@ export default function PurchaseOrderPage() {
       <h1 className="text-2xl font-bold text-gray-800 mb-4">🛒 ใบสั่งซื้อ (Purchase Order)</h1>
       <DataTable
         columns={[
-          { key: 'poNumber', label: 'เลขที่ PO' },
-          { key: 'supplier', label: 'ผู้ขาย', render: (po) => po.supplier || '-' },
+          { key: 'poNumber', label: 'เลขที่ PO', filterable: true },
+          { key: 'supplier', label: 'ผู้ขาย', filterable: true, render: (po) => po.supplier || '-' },
           { key: 'totalAmount', label: 'ยอดรวม', render: (po) => fmtMoney(po.totalAmount) },
           { key: 'createdAt', label: 'วันที่', render: (po) => po.createdAt?.slice(0, 10) || '-' },
-          { key: 'status', label: 'สถานะ', render: (po) => {
+          { key: 'status', label: 'สถานะ', filterable: true, render: (po) => {
             const c = statusCfg[po.status] ?? statusCfg.draft;
             return <span className={`px-2 py-0.5 rounded-full text-xs ${c.color}`}>{c.label}</span>;
           }},

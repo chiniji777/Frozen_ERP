@@ -200,9 +200,9 @@ export default function ProductPage() {
               ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 rounded object-cover" />
               : <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-gray-400 text-xs">—</div>,
           },
-          { key: 'sku', label: 'รหัสสินค้า' },
-          { key: 'name', label: 'ชื่อสินค้า' },
-          { key: 'category', label: 'หมวดหมู่' },
+          { key: 'sku', label: 'รหัสสินค้า', filterable: true },
+          { key: 'name', label: 'ชื่อสินค้า', filterable: true },
+          { key: 'category', label: 'หมวดหมู่', filterable: true },
           { key: 'salePrice', label: 'ราคา', render: (p) => `฿${Number(p.salePrice).toLocaleString()}` },
           { key: 'unit', label: 'หน่วย' },
           { key: 'stock', label: 'คงเหลือ', render: (p) => stockBadge(p.stock) },

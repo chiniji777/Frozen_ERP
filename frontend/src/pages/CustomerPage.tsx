@@ -495,9 +495,9 @@ export default function CustomerPage() {
 
       <DataTable
         columns={[
-          { key: 'code', label: 'รหัส' },
-          { key: 'name', label: 'ชื่อ', render: (c: Customer) => c.fullName || c.name || '-' },
-          { key: 'nickName', label: 'ชื่อย่อ' },
+          { key: 'code', label: 'รหัส', filterable: true },
+          { key: 'name', label: 'ชื่อ', filterable: true, render: (c: Customer) => c.fullName || c.name || '-' },
+          { key: 'nickName', label: 'ชื่อย่อ', filterable: true },
           { key: 'customerType', label: 'ประเภท', render: (c: Customer) => <TypeBadge type={c.customerType} /> },
           { key: 'phone', label: 'โทรศัพท์' },
         ]}
