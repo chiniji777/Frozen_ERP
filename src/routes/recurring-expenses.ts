@@ -180,20 +180,23 @@ recurringExpensesRoute.get("/monthly", async (c) => {
 
   const existingMap = new Map(existingPayments.map(p => [p.recurringExpenseId, p]));
 
-  // Auto-create pending entries for active items that don't have one yet
-  for (const item of activeItems) {
-    if (!existingMap.has(item.id)) {
-      // Check date range
-      if (item.startDate && month < item.startDate.slice(0, 7)) continue;
-      if (item.endDate && month > item.endDate.slice(0, 7)) continue;
+  // Auto-create pending entries only for current month or future months (not past)
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  if (month >= currentMonth) {
+    for (const item of activeItems) {
+      if (!existingMap.has(item.id)) {
+        // Check date range
+        if (item.startDate && month < item.startDate.slice(0, 7)) continue;
+        if (item.endDate && month > item.endDate.slice(0, 7)) continue;
 
-      await db.insert(recurringExpensePayments).values({
-        recurringExpenseId: item.id,
-        month,
-        amount: item.amount,
-        status: "pending",
-        paymentMethod: item.paymentMethod,
-      }).run();
+        await db.insert(recurringExpensePayments).values({
+          recurringExpenseId: item.id,
+          month,
+          amount: item.amount,
+          status: "pending",
+          paymentMethod: item.paymentMethod,
+        }).run();
+      }
     }
   }
 
