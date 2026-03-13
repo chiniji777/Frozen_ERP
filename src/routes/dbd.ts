@@ -10,6 +10,15 @@ const dbdRoute = new Hono();
 // DBD OpenAPI response format
 interface DbdAddressInfo {
   FullAddress?: string;
+  Province?: string;
+  Amphur?: string;
+  Tambol?: string;
+  PostCode?: string;
+  Road?: string;
+  Trok?: string;
+  Soi?: string;
+  HouseNo?: string;
+  Moo?: string;
 }
 
 interface DbdResultItem {
@@ -68,6 +77,35 @@ interface LookupResult {
   typeLabel?: string;
   source?: string;
   warning?: string;
+}
+
+// Parse Thai address string into structured fields
+function parseAddress(fullAddress: string): { province: string; district: string; subDistrict: string; zipCode: string } {
+  const result = { province: "", district: "", subDistrict: "", zipCode: "" };
+  if (!fullAddress) return result;
+
+  // Extract zipCode (5-digit number)
+  const zipMatch = fullAddress.match(/\b(\d{5})\b/);
+  if (zipMatch) result.zipCode = zipMatch[1];
+
+  // Extract province (จังหวัด... or จ. ... or กรุงเทพมหานคร/กรุงเทพฯ)
+  const provinceMatch = fullAddress.match(/(?:จังหวัด|จ\.)?\s*(กรุงเทพมหานคร|กรุงเทพฯ|กทม\.?)/);
+  if (provinceMatch) {
+    result.province = "กรุงเทพมหานคร";
+  } else {
+    const provMatch = fullAddress.match(/(?:จังหวัด|จ\.)\s*(\S+)/);
+    if (provMatch) result.province = provMatch[1];
+  }
+
+  // Extract district (อำเภอ/เขต/อ.)
+  const districtMatch = fullAddress.match(/(?:อำเภอ|เขต|อ\.)\s*(\S+)/);
+  if (districtMatch) result.district = districtMatch[1];
+
+  // Extract subDistrict (ตำบล/แขวง/ต.)
+  const subDistrictMatch = fullAddress.match(/(?:ตำบล|แขวง|ต\.)\s*(\S+)/);
+  if (subDistrictMatch) result.subDistrict = subDistrictMatch[1];
+
+  return result;
 }
 
 // In-memory cache — TTL 1 hour
@@ -178,6 +216,7 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
       const item = data?.ResultList?.[0];
       if (item?.JuristicID) {
         const addr = item.AddressInformations?.[0];
+        const parsed = parseAddress(addr?.FullAddress || "");
         const result: LookupResult = {
           found: true,
           taxId: item.JuristicID,
@@ -186,6 +225,10 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
           address: addr?.FullAddress || "",
           registeredDate: item.RegisterDate || "",
           status: item.JuristicStatus || "",
+          province: addr?.Province || parsed.province || "",
+          district: addr?.Amphur || parsed.district || "",
+          subDistrict: addr?.Tambol || parsed.subDistrict || "",
+          zipCode: addr?.PostCode || parsed.zipCode || "",
           type: mapJuristicType(item.JuristicType),
           typeLabel: JURISTIC_TYPE_LABELS[item.JuristicType || ""] || "",
           source: "dbd",
@@ -211,14 +254,21 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
     if (res.ok) {
       const data = await res.json() as Record<string, unknown>;
       if (data && typeof data === "object" && data.company_name) {
+        const credenAddr = String(data.address || "");
+        const credenParsed = parseAddress(credenAddr);
         const result: LookupResult = {
           found: true,
           taxId,
           companyName: String(data.company_name || ""),
           companyNameEn: String(data.company_name_en || ""),
-          address: String(data.address || ""),
+          address: credenAddr,
           registeredDate: String(data.registered_date || ""),
           status: String(data.status || ""),
+          province: String(data.province || "") || credenParsed.province,
+          district: String(data.district || "") || credenParsed.district,
+          subDistrict: String(data.sub_district || "") || credenParsed.subDistrict,
+          zipCode: String(data.zip_code || "") || credenParsed.zipCode,
+          phone: String(data.phone || ""),
           type: "Company",
           source: "creden",
         };
@@ -239,14 +289,20 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
     const importData = await loadImportData();
     const match = importData.find((c) => c["Tax ID"] === taxId);
     if (match) {
+      const localAddr = match["Territory"] || "";
+      const localParsed = parseAddress(localAddr);
       const result: LookupResult = {
         found: true,
         taxId,
         companyName: match["Full Name"] || "",
-        companyNameEn: "",
-        address: match["Territory"] || "",
+        companyNameEn: match["Nick Name"] || "",
+        address: localAddr,
         registeredDate: "",
         status: "",
+        province: localParsed.province,
+        district: localParsed.district,
+        subDistrict: localParsed.subDistrict,
+        zipCode: localParsed.zipCode,
         type: (match["Type"] === "Individual" ? "Individual" : "Company"),
         source: "local",
         warning,
@@ -266,10 +322,15 @@ async function lookupTaxId(taxId: string): Promise<LookupResult> {
         found: true,
         taxId,
         companyName: row.fullName || row.name,
-        companyNameEn: "",
+        companyNameEn: row.nickName || "",
         address: row.address || "",
         registeredDate: "",
         status: "",
+        province: row.province || "",
+        district: row.district || "",
+        subDistrict: row.subDistrict || "",
+        zipCode: row.zipCode || "",
+        phone: row.phone || "",
         type: row.customerType || "Company",
         source: "db",
         warning,

@@ -48,6 +48,10 @@ async function migrateCustomers() {
     ["sales_partner", "TEXT"],
     ["commission_rate", "REAL DEFAULT 0"],
     ["locations", "TEXT"],
+    ["sub_district", "TEXT"],
+    ["district", "TEXT"],
+    ["province", "TEXT"],
+    ["zip_code", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
