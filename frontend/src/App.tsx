@@ -21,6 +21,7 @@ const RecurringExpensePage = lazy(() => import('./pages/RecurringExpensePage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const SupplierPage = lazy(() => import('./pages/SupplierPage'));
 const PurchaseOrderPage = lazy(() => import('./pages/PurchaseOrderPage'));
+const StockPage = lazy(() => import('./pages/StockPage'));
 // UomPage merged into SettingsPage as tab
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/recurring-expenses" element={<RecurringExpensePage />} />
               <Route path="/suppliers" element={<SupplierPage />} />
               <Route path="/purchase-orders" element={<PurchaseOrderPage />} />
+              <Route path="/stock" element={<StockPage />} />
               <Route path="/users" element={<UserManagementPage />} />
               {/* UomPage merged into SettingsPage */}
               <Route path="/settings" element={<SettingsPage />} />

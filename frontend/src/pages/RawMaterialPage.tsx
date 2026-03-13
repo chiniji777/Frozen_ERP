@@ -16,7 +16,7 @@ interface RawMaterial {
   notes?: string;
 }
 
-const emptyForm = { name: '', unit: 'กก.', stock: '', pricePerUnit: '', supplier: '', notes: '' };
+const emptyForm = { name: '', unit: 'กก.', pricePerUnit: '', supplier: '', notes: '' };
 
 export default function RawMaterialPage() {
   const [data, setData] = useState<RawMaterial[]>([]);
@@ -42,7 +42,6 @@ export default function RawMaterialPage() {
     setForm({
       name: m.name,
       unit: m.unit,
-      stock: String(m.stock ?? 0),
       pricePerUnit: String(m.pricePerUnit ?? 0),
       supplier: m.supplier || '',
       notes: m.notes || '',
@@ -54,7 +53,6 @@ export default function RawMaterialPage() {
     e.preventDefault();
     const body = {
       ...form,
-      stock: Number(form.stock) || 0,
       pricePerUnit: Number(form.pricePerUnit) || 0,
     };
     if (editing) {
@@ -132,11 +130,6 @@ export default function RawMaterialPage() {
               <input type="number" step="0.01" required value={form.pricePerUnit} onChange={(e) => setForm({ ...form, pricePerUnit: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนคงเหลือ</label>
-            <input type="number" required value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">ผู้จำหน่าย</label>

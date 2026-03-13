@@ -16,6 +16,7 @@ const menu = [
   { to: '/recurring-expenses', label: 'ค่าใช้จ่ายประจำ', icon: '📅' },
   { to: '/suppliers', label: 'ผู้ขาย', icon: '🏪' },
   { to: '/purchase-orders', label: 'จัดซื้อ', icon: '🛒' },
+  { to: '/stock', label: 'สต็อครวม', icon: '📊' },
   { to: '/settings', label: 'ตั้งค่า', icon: '⚙️' },
 ];
 

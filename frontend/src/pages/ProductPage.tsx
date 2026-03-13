@@ -126,7 +126,6 @@ export default function ProductPage() {
       sku: editing ? editing.sku : sku,
       category: form.category || null,
       salePrice: Number(form.salePrice),
-      stock: editing ? editing.stock : 0,
       unit: form.unit,
       imageUrl: form.imageUrl || null,
       rawMaterial: null,
