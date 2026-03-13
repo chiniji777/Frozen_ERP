@@ -16,6 +16,11 @@ interface Supplier {
   address: string;
   taxId: string;
   paymentTerms: string;
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+  promptPayId: string;
+  paymentNotes: string;
   notes: string;
   createdAt: string;
   updatedAt: string;
@@ -31,12 +36,19 @@ interface SupplierForm {
   address: string;
   taxId: string;
   paymentTerms: string;
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+  promptPayId: string;
+  paymentNotes: string;
   notes: string;
 }
 
 const emptyForm: SupplierForm = {
   name: '', fullName: '', nickName: '', supplierType: 'Company',
-  phone: '', email: '', address: '', taxId: '', paymentTerms: '', notes: '',
+  phone: '', email: '', address: '', taxId: '', paymentTerms: '',
+  bankName: '', bankAccountNumber: '', bankAccountName: '', promptPayId: '', paymentNotes: '',
+  notes: '',
 };
 
 const PAYMENT_TERMS = [
@@ -48,6 +60,21 @@ const PAYMENT_TERMS = [
   'เครดิต 45 วัน',
   'เครดิต 60 วัน',
   'เครดิต 90 วัน',
+];
+
+const BANK_OPTIONS = [
+  'ธนาคารกรุงเทพ',
+  'ธนาคารกสิกรไทย',
+  'ธนาคารกรุงไทย',
+  'ธนาคารไทยพาณิชย์',
+  'ธนาคารกรุงศรีอยุธยา',
+  'ธนาคารทหารไทยธนชาต',
+  'ธนาคารออมสิน',
+  'ธนาคารเกียรตินาคินภัทร',
+  'ธนาคารซีไอเอ็มบี ไทย',
+  'ธนาคารยูโอบี',
+  'ธนาคารแลนด์ แอนด์ เฮ้าส์',
+  'อื่นๆ',
 ];
 
 function TypeBadge({ type }: { type: string }) {
@@ -99,6 +126,14 @@ function ViewDetail({ supplier, open, onClose }: { supplier: Supplier | null; op
         <Section title="การเงิน">
           <InfoRow label="เลขผู้เสียภาษี" value={supplier.taxId} />
           <InfoRow label="เงื่อนไขชำระ" value={supplier.paymentTerms} />
+        </Section>
+
+        <Section title="ช่องทางการชำระเงิน">
+          <InfoRow label="ธนาคาร" value={supplier.bankName} />
+          <InfoRow label="เลขบัญชี" value={supplier.bankAccountNumber} />
+          <InfoRow label="ชื่อบัญชี" value={supplier.bankAccountName} />
+          <InfoRow label="พร้อมเพย์" value={supplier.promptPayId} />
+          {supplier.paymentNotes && <InfoRow label="หมายเหตุชำระ" value={supplier.paymentNotes} />}
         </Section>
 
         {supplier.notes && (
@@ -190,6 +225,11 @@ export default function SupplierPage() {
       address: s.address || '',
       taxId: s.taxId || '',
       paymentTerms: s.paymentTerms || '',
+      bankName: s.bankName || '',
+      bankAccountNumber: s.bankAccountNumber || '',
+      bankAccountName: s.bankAccountName || '',
+      promptPayId: s.promptPayId || '',
+      paymentNotes: s.paymentNotes || '',
       notes: s.notes || '',
     });
     setModalOpen(true);
@@ -301,6 +341,39 @@ export default function SupplierPage() {
                 {PAYMENT_TERMS.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+          </div>
+
+          {/* ช่องทางการชำระเงิน */}
+          <div className="border-t border-gray-100 pt-3 mt-3">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">ช่องทางการชำระเงิน</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อธนาคาร</label>
+                <select value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} className={inputCls}>
+                  <option value="">-- เลือกธนาคาร --</option>
+                  {BANK_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">เลขบัญชี</label>
+                <input value={form.bankAccountNumber} onChange={(e) => setForm({ ...form, bankAccountNumber: e.target.value })} placeholder="xxx-x-xxxxx-x" className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">ชื่อบัญชี</label>
+                <input value={form.bankAccountName} onChange={(e) => setForm({ ...form, bankAccountName: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">พร้อมเพย์</label>
+                <input value={form.promptPayId} onChange={(e) => setForm({ ...form, promptPayId: e.target.value })} placeholder="เบอร์โทร / เลขบัตร ปชช." className={inputCls} />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุการชำระ</label>
+                <textarea rows={2} value={form.paymentNotes} onChange={(e) => setForm({ ...form, paymentNotes: e.target.value })} placeholder="เช่น โอนก่อน 15:00 ทุกวันศุกร์" className={inputCls} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">หมายเหตุ</label>
               <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={inputCls} />
