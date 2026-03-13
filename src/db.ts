@@ -305,6 +305,7 @@ export async function initDB() {
   await migrateInvoices();
   await migrateCancelSupport();
   await migrateRecurringExpenses();
+  await migrateProductCategories();
   await seedAdminUser();
 }
 
@@ -681,6 +682,23 @@ async function migrateRecurringExpenses() {
     CREATE INDEX IF NOT EXISTS idx_rec_payments_recurring ON recurring_expense_payments(recurring_expense_id);
     CREATE INDEX IF NOT EXISTS idx_rec_payments_month ON recurring_expense_payments(month);
     CREATE INDEX IF NOT EXISTS idx_rec_payments_status ON recurring_expense_payments(status);
+  `);
+}
+
+async function migrateProductCategories() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS product_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      sort_order INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_product_categories_name ON product_categories(name);
+    CREATE INDEX IF NOT EXISTS idx_product_categories_active ON product_categories(is_active);
   `);
 }
 

@@ -398,6 +398,15 @@ export const recurringExpensePayments = sqliteTable("recurring_expense_payments"
   createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
 
+export const productCategories = sqliteTable("product_categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: integer("is_active").default(1),
+  ...timestamps,
+});
+
 export const poItems = sqliteTable("po_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   purchaseOrderId: integer("purchase_order_id").notNull(),
