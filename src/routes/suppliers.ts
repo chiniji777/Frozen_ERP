@@ -54,6 +54,11 @@ suppliersRoute.post("/", async (c) => {
     address: body.address || null,
     taxId: body.taxId || null,
     paymentTerms: body.paymentTerms || null,
+    bankName: body.bankName || null,
+    bankAccountNumber: body.bankAccountNumber || null,
+    bankAccountName: body.bankAccountName || null,
+    promptPayId: body.promptPayId || null,
+    paymentNotes: body.paymentNotes || null,
     notes: body.notes || null,
   }).run();
   return c.json({ ok: true, id: Number(result.lastInsertRowid), code }, 201);
@@ -76,6 +81,11 @@ suppliersRoute.put("/:id", async (c) => {
     address: body.address ?? existing.address,
     taxId: body.taxId ?? existing.taxId,
     paymentTerms: body.paymentTerms ?? existing.paymentTerms,
+    bankName: body.bankName ?? existing.bankName,
+    bankAccountNumber: body.bankAccountNumber ?? existing.bankAccountNumber,
+    bankAccountName: body.bankAccountName ?? existing.bankAccountName,
+    promptPayId: body.promptPayId ?? existing.promptPayId,
+    paymentNotes: body.paymentNotes ?? existing.paymentNotes,
     notes: body.notes ?? existing.notes,
     updatedAt: sql`datetime('now')`,
   }).where(eq(suppliers.id, id)).run();

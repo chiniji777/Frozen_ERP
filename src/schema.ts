@@ -333,6 +333,11 @@ export const suppliers = sqliteTable("suppliers", {
   address: text("address"),
   taxId: text("tax_id"),
   paymentTerms: text("payment_terms"),
+  bankName: text("bank_name"),
+  bankAccountNumber: text("bank_account_number"),
+  bankAccountName: text("bank_account_name"),
+  promptPayId: text("prompt_pay_id"),
+  paymentNotes: text("payment_notes"),
   notes: text("notes"),
   ...timestamps,
 });
