@@ -8,14 +8,16 @@ const productCategoriesRoute = new Hono();
 // GET /api/product-categories — list (optional ?active=1 filter)
 productCategoriesRoute.get("/", async (c) => {
   const active = c.req.query("active");
-  let query = db.select().from(productCategories).orderBy(asc(productCategories.sortOrder), asc(productCategories.id));
 
   if (active === "1") {
-    const all = await query.all();
-    return c.json(all.filter((r) => r.isActive === 1));
+    const rows = await db.select().from(productCategories)
+      .where(eq(productCategories.isActive, 1))
+      .orderBy(asc(productCategories.sortOrder), asc(productCategories.id)).all();
+    return c.json(rows);
   }
 
-  const all = await query.all();
+  const all = await db.select().from(productCategories)
+    .orderBy(asc(productCategories.sortOrder), asc(productCategories.id)).all();
   return c.json(all);
 });
 
