@@ -32,6 +32,8 @@ interface MonthlyItem {
   paymentId: number;
   recurringExpenseId: number;
   expenseId: number | null;
+  expenseStatus: string | null;
+  sentToExpense: boolean;
   month: string;
   amount: number;
   paidAt: string | null;
@@ -303,7 +305,8 @@ export default function RecurringExpensePage() {
     loadMonthly();
   };
 
-  const filteredItems = monthlyItems;
+  // ซ่อนรายการที่ส่งไปค่าใช้จ่ายแล้ว (แสดงเฉพาะที่ยังไม่ส่ง หรือ expense ถูกยกเลิก)
+  const filteredItems = monthlyItems.filter(item => !item.sentToExpense);
 
   if (loading) return <div className="text-center py-10 text-gray-400">กำลังโหลด...</div>;
 
@@ -370,6 +373,21 @@ export default function RecurringExpensePage() {
         searchPlaceholder="ค้นหารายการ..."
         onAdd={openAddTemplate}
         onRowClick={(item: MonthlyItem) => openEditTemplate(item)}
+        extraActions={(item: MonthlyItem) => (
+          <button onClick={async (ev) => {
+            ev.stopPropagation();
+            if (!confirm(`ส่ง "${item.name}" ไปหน้าค่าใช้จ่าย?`)) return;
+            try {
+              await api.post(`/recurring-expenses/payments/${item.paymentId}/send-to-expense`, {});
+              setToast(`ส่ง "${item.name}" ไปค่าใช้จ่ายแล้ว`);
+              loadMonthly();
+            } catch (e: any) {
+              setToast(e?.response?.data?.error || 'ส่งไม่สำเร็จ');
+            }
+          }} className="px-2 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 whitespace-nowrap">
+            ส่งไปค่าใช้จ่าย
+          </button>
+        )}
       />
 
       {/* Template Modal (Add/Edit) */}

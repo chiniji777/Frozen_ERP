@@ -121,6 +121,51 @@ recurringExpensesRoute.post("/generate", async (c) => {
   return c.json({ ok: true, month, created: created.length, skipped: skipped.length, details: { created, skipped } });
 });
 
+// POST /payments/:paymentId/send-to-expense — ส่งรายการไปหน้าค่าใช้จ่าย
+recurringExpensesRoute.post("/payments/:paymentId/send-to-expense", async (c) => {
+  const paymentId = Number(c.req.param("paymentId"));
+  const payment = await db.select().from(recurringExpensePayments)
+    .where(eq(recurringExpensePayments.id, paymentId)).get();
+  if (!payment) return c.json({ error: "Payment not found" }, 404);
+
+  // Check if already sent and expense is not cancelled
+  if (payment.expenseId) {
+    const existingExp = await db.select({ status: expenses.status }).from(expenses)
+      .where(eq(expenses.id, payment.expenseId)).get();
+    if (existingExp && existingExp.status !== "cancelled") {
+      return c.json({ error: "รายการนี้ส่งไปค่าใช้จ่ายแล้ว" }, 400);
+    }
+  }
+
+  const item = await db.select().from(recurringExpenses)
+    .where(eq(recurringExpenses.id, payment.recurringExpenseId)).get();
+  if (!item) return c.json({ error: "Recurring expense not found" }, 404);
+
+  const expenseDate = `${payment.month}-01`;
+  const dueDate = item.dueDay ? `${payment.month}-${String(item.dueDay).padStart(2, "0")}` : null;
+  const expenseNumber = await generateRunningNumber("REC", "expenses", "expense_number");
+
+  const expenseResult = await db.insert(expenses).values({
+    expenseNumber,
+    category: item.category,
+    description: `${item.name} (${payment.month})`,
+    amount: payment.amount,
+    date: expenseDate,
+    dueDate,
+    paymentMethod: payment.paymentMethod || item.paymentMethod || null,
+    recurringExpenseId: item.id,
+    supplierId: null,
+    notes: item.notes || `ค่าใช้จ่ายประจำ: ${item.name}`,
+    status: "pending",
+  }).run();
+  const expenseId = Number(expenseResult.lastInsertRowid);
+
+  // Update payment to link to new expense
+  await db.update(recurringExpensePayments).set({ expenseId }).where(eq(recurringExpensePayments.id, paymentId)).run();
+
+  return c.json({ ok: true, expenseId });
+});
+
 // GET /categories
 recurringExpensesRoute.get("/categories", async (c) => {
   return c.json(await loadCategories());
@@ -221,10 +266,22 @@ recurringExpensesRoute.get("/monthly", async (c) => {
       }
     }
 
+    // Check if linked expense exists and its status
+    let expenseStatus: string | null = null;
+    if (payment.expenseId) {
+      const exp = await db.select({ status: expenses.status }).from(expenses)
+        .where(eq(expenses.id, payment.expenseId)).get();
+      expenseStatus = exp?.status || null;
+    }
+    const sentToExpense = !!payment.expenseId && expenseStatus !== "cancelled";
+
     result.push({
       id: payment.id,
       paymentId: payment.id,
       recurringExpenseId: item.id,
+      expenseId: payment.expenseId || null,
+      expenseStatus,
+      sentToExpense,
       name: item.name,
       category: item.category,
       payTo: item.payTo,
