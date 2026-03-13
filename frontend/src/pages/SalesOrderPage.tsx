@@ -305,10 +305,10 @@ export default function SalesOrderPage() {
   const handleCreateInvoice = async (soId: number) => {
     setCreatingInv(true);
     try {
-      await api.post('/invoices', { salesOrderId: soId });
-      setToast('สร้างใบแจ้งหนี้ (Invoice) สำเร็จ — กำลังไปหน้า Invoice...');
+      const res = await api.post<{ ok: boolean; id: number; invoiceNumber: string }>('/invoices', { salesOrderId: soId });
+      setToast(`สร้าง ${res.invoiceNumber} สำเร็จ (DO สร้างอัตโนมัติ) — กำลังไปหน้า Invoice...`);
       load();
-      setTimeout(() => navigate('/invoices'), 500);
+      setTimeout(() => navigate(`/invoices?openId=${res.id}`), 500);
     } catch {
       setToast('ไม่สามารถสร้าง Invoice ได้');
     } finally { setCreatingInv(false); }
