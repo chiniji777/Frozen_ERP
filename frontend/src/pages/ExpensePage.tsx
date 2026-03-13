@@ -6,6 +6,15 @@ import ConfirmDialog from '../components/ConfirmDialog';
 
 type ExpenseStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
 
+interface Supplier {
+  id: number;
+  name: string;
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankAccountName: string | null;
+  promptPayId: string | null;
+}
+
 interface Expense {
   id: number;
   category: string;
@@ -19,6 +28,8 @@ interface Expense {
   paidAt?: string;
   paymentMethod?: string;
   recurringExpenseId?: number;
+  supplierId?: number | null;
+  supplier?: Supplier | null;
 }
 
 interface ExpenseForm {
@@ -30,6 +41,7 @@ interface ExpenseForm {
   slipImage: string;
   dueDate: string;
   paymentMethod: string;
+  supplierId: string;
 }
 
 interface RecurringMonthlyItem {
@@ -47,7 +59,7 @@ interface RecurringMonthlyItem {
   paymentMethod: string;
 }
 
-const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '' };
+const emptyForm: ExpenseForm = { category: '', description: '', amount: '', date: '', notes: '', slipImage: '', dueDate: '', paymentMethod: '', supplierId: '' };
 
 const statusConfig: Record<ExpenseStatus, { label: string; bg: string; text: string }> = {
   pending: { label: 'รอจ่าย', bg: 'bg-amber-100', text: 'text-amber-700' },
