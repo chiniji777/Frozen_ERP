@@ -506,4 +506,21 @@ recurringExpensesRoute.post("/upload-image", async (c) => {
   return c.json({ ok: true, imageUrl: `recurring-expenses/image/${filename}` });
 });
 
+// DELETE /payments/cleanup — ลบ recurring_expense_payments ที่ยังไม่จ่าย สำหรับเดือนที่ระบุหรือก่อนหน้า
+recurringExpensesRoute.delete("/payments/cleanup", async (c) => {
+  const beforeMonth = c.req.query("before"); // e.g. 2026-03 = delete all < 2026-03
+  if (!beforeMonth || !/^\d{4}-\d{2}$/.test(beforeMonth)) {
+    return c.json({ error: "before query required (YYYY-MM), will delete pending payments for months before this" }, 400);
+  }
+
+  const allPayments = await db.select().from(recurringExpensePayments).all();
+  const toDelete = allPayments.filter(p => p.status === "pending" && p.month < beforeMonth);
+
+  for (const p of toDelete) {
+    await db.delete(recurringExpensePayments).where(eq(recurringExpensePayments.id, p.id)).run();
+  }
+
+  return c.json({ ok: true, deleted: toDelete.length, beforeMonth });
+});
+
 export { recurringExpensesRoute };
