@@ -683,16 +683,21 @@ async function migrateRecurringExpenses() {
     CREATE INDEX IF NOT EXISTS idx_rec_payments_month ON recurring_expense_payments(month);
     CREATE INDEX IF NOT EXISTS idx_rec_payments_status ON recurring_expense_payments(status);
   `);
-  // Add imageUrl column if not exists
-  try {
-    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN image_url TEXT");
-    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN ref1 TEXT");
-    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN ref2 TEXT");
-    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN bank_account TEXT");
-    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN bank_name TEXT");
-    await client.execute("ALTER TABLE recurring_expenses ADD COLUMN account_name TEXT");
-  } catch {
-    // column already exists
+  // Add new columns if not exists
+  const newCols: [string, string][] = [
+    ["image_url", "TEXT"],
+    ["ref1", "TEXT"],
+    ["ref2", "TEXT"],
+    ["bank_account", "TEXT"],
+    ["bank_name", "TEXT"],
+    ["account_name", "TEXT"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE recurring_expenses ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists
+    }
   }
 }
 
