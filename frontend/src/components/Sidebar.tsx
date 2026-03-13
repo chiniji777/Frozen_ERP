@@ -16,6 +16,7 @@ const menu = [
   { to: '/recurring-expenses', label: 'ค่าใช้จ่ายประจำ', icon: '📅' },
   { to: '/suppliers', label: 'ผู้ขาย', icon: '🏪' },
   { to: '/purchase-orders', label: 'จัดซื้อ', icon: '🛒' },
+  { to: '/expenses?category=ซื้อวัตถุดิบ', label: 'ซื้อวัตถุดิบ', icon: '🐟' },
   { to: '/stock', label: 'สต็อครวม', icon: '📊' },
   { to: '/loans', label: 'ยืมเงิน', icon: '💵' },
   { to: '/settings', label: 'ตั้งค่า', icon: '⚙️' },
@@ -36,8 +37,17 @@ export default function Sidebar({ open, onClose }: Props) {
     ? [...menu, { to: '/users', label: 'จัดการผู้ใช้', icon: '👤' }]
     : menu;
 
+  const currentUrl = location.pathname + location.search;
+
+  const isMenuActive = (to: string) => {
+    if (to.includes('?')) {
+      return currentUrl === to;
+    }
+    return location.pathname === to && !location.search;
+  };
+
   const handleClick = (e: React.MouseEvent, to: string) => {
-    if (location.pathname === to) {
+    if (currentUrl === to) {
       e.preventDefault();
       navigate(to, { replace: true, state: { reset: Date.now() } });
     }
@@ -65,14 +75,16 @@ export default function Sidebar({ open, onClose }: Props) {
             <NavLink
               key={m.to}
               to={m.to}
+              end={m.to === '/'}
               onClick={(e) => handleClick(e, m.to)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
-                  isActive
+              className={() => {
+                const active = isMenuActive(m.to);
+                return `flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-all ${
+                  active
                     ? 'bg-white/15 text-white shadow-lg shadow-indigo-900/50 ring-1 ring-white/10'
                     : 'text-indigo-200 hover:bg-white/10 hover:text-white hover:shadow-md'
-                }`
-              }
+                }`;
+              }}
             >
               <span className="text-lg">{m.icon}</span>
               <span>{m.label}</span>

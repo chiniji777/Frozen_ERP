@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
@@ -128,6 +129,8 @@ function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
 }
 
 export default function ExpensePage() {
+  const [searchParams] = useSearchParams();
+  const urlCategory = searchParams.get('category') || '';
   const [data, setData] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -136,7 +139,7 @@ export default function ExpensePage() {
   const [cancelTarget, setCancelTarget] = useState<Expense | null>(null);
   const [detailExp, setDetailExp] = useState<Expense | null>(null);
   const [imageZoom, setImageZoom] = useState(false);
-  const [filterCat, setFilterCat] = useState('');
+  const [filterCat, setFilterCat] = useState(urlCategory);
   const [filterStatus, setFilterStatus] = useState<ExpenseStatus | ''>('');
   const [filterMonth, setFilterMonth] = useState(() => {
     const now = new Date();
@@ -235,6 +238,7 @@ export default function ExpensePage() {
   };
 
   useEffect(() => { load(); loadCategories(); loadRecurring(); loadSuppliers(); }, [filterMonth]);
+  useEffect(() => { setFilterCat(urlCategory); }, [urlCategory]);
 
   useEffect(() => {
     if (!toast) return;
@@ -574,7 +578,7 @@ export default function ExpensePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-4">ค่าใช้จ่าย</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-4">{urlCategory ? `🐟 ${urlCategory}` : 'ค่าใช้จ่าย'}</h1>
 
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div>
