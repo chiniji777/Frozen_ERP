@@ -444,7 +444,6 @@ export default function DeliveryNotePage() {
         extraActions={(d) => (
           <div className="flex gap-1">
             <button onClick={(e) => { e.stopPropagation(); handleDuplicate(d); }} className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100">สำเนา</button>
-            <button onClick={(e) => { e.stopPropagation(); openDetail(d); }} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100">Detail</button>
             <PrintMenu options={getPrintOptions(d.id)} className="text-xs" />
           </div>
         )}

@@ -53,7 +53,7 @@ export default function DataTable<T>({
   onSelectionChange,
   toolbarExtra,
   onRowClick,
-  defaultSortKey = 'createdAt',
+  defaultSortKey = 'id',
   defaultSortDir = 'desc',
 }: Props<T>) {
   const [search, setSearch] = useState('');
