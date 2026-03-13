@@ -407,7 +407,7 @@ salesOrdersRoute.get("/:id/print", async (c) => {
     <tbody>${items.map((it, i) => `<tr>
       <td class="text-center">${i + 1}</td><td>${escapeHtml(it.itemCode) || "-"}</td><td>${escapeHtml(it.productName) || "-"}</td><td>${escapeHtml(it.uom) || "Pcs."}</td>
       <td class="text-right">${fmt(it.quantity)}</td><td class="text-right">${fmt(it.weight || 0)}</td>
-      <td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmtBaht(it.amount)}</td>
+      <td class="text-right">${fmtBaht(it.unitPrice)}</td><td class="text-right">${fmtBaht(it.amount)}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
@@ -421,7 +421,7 @@ salesOrdersRoute.get("/:id/print", async (c) => {
     <div class="footer-card">
       <h4>เงื่อนไขการชำระ / Payment Terms</h4>
       <p>${escapeHtml(o.paymentTermsTemplate) || "-"}</p>
-      ${paymentTermsRows.length ? `<table class="items-table" style="margin-top:5px"><thead><tr><th>งวด</th><th>คำอธิบาย</th><th>กำหนด</th><th class="text-right">%</th><th class="text-right">จำนวน</th></tr></thead><tbody>${paymentTermsRows.map(pt => `<tr><td>${escapeHtml(pt.paymentTerm) || "-"}</td><td>${escapeHtml(pt.description) || "-"}</td><td>${escapeHtml(pt.dueDate) || "-"}</td><td class="text-right">${pt.invoicePortion || 0}</td><td class="text-right">${fmt(pt.paymentAmount || 0)}</td></tr>`).join("")}</tbody></table>` : ""}
+      ${paymentTermsRows.length ? `<table class="items-table" style="margin-top:5px"><thead><tr><th>งวด</th><th>คำอธิบาย</th><th>กำหนด</th><th class="text-right">%</th><th class="text-right">จำนวน</th></tr></thead><tbody>${paymentTermsRows.map(pt => `<tr><td>${escapeHtml(pt.paymentTerm) || "-"}</td><td>${escapeHtml(pt.description) || "-"}</td><td>${escapeHtml(pt.dueDate) || "-"}</td><td class="text-right">${pt.invoicePortion || 0}</td><td class="text-right">${fmtBaht(pt.paymentAmount || 0)}</td></tr>`).join("")}</tbody></table>` : ""}
     </div>
   </div>
   ${o.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(o.notes)}</div>` : ""}
@@ -437,7 +437,7 @@ salesOrdersRoute.get("/:id/print", async (c) => {
     body += await qrSection(`${baseUrl}/api/sales-orders/${id}/print${companyId ? `?companyId=${companyId}` : ""}`, "สแกนเพื่อดูใบสั่งขาย / Scan to view Sales Order");
   }
 
-  return c.html(wrapHtml(`Sales Order ${o.orderNumber}`, "so", body, o.status === "draft" ? "DRAFT" : undefined));
+  return c.html(wrapHtml(`Sales Order ${o.orderNumber}`, "so", body));
 });
 
 // === COA (Certificate of Analysis) — print from SO ===

@@ -239,7 +239,7 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
   const baseUrl = c.req.header("X-Forwarded-Host") ? `https://${c.req.header("X-Forwarded-Host")}` : new URL(c.req.url).origin;
   body += await qrSection(`${baseUrl}/track/${token}`, "สแกนเพื่อติดตามการส่ง / Scan to track delivery");
 
-  return c.html(wrapHtml(`Delivery Note ${dn.dnNumber}`, "dn", body, dn.status === "pending" ? "PENDING" : undefined));
+  return c.html(wrapHtml(`Delivery Note ${dn.dnNumber}`, "dn", body));
 });
 
 // === Print COA (Certificate of Analysis) ===

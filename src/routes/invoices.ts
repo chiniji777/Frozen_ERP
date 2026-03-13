@@ -312,7 +312,7 @@ invoicesRoute.get("/:id/print", async (c) => {
     </tr></thead>
     <tbody>${items.map((it, i) => `<tr>
       <td class="text-center">${i + 1}</td><td>${escapeHtml(it.productName) || "-"}</td>
-      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td><td class="text-right">${fmt(it.unitPrice)}</td><td class="text-right">${fmtBaht(it.quantity * it.unitPrice)}</td>
+      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td><td class="text-right">${fmtBaht(it.unitPrice)}</td><td class="text-right">${fmtBaht(it.quantity * it.unitPrice)}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
@@ -336,7 +336,7 @@ invoicesRoute.get("/:id/print", async (c) => {
     body += await qrSection(`${baseUrl}/api/invoices/${id}/print${companyId ? `?companyId=${companyId}` : ""}`, "สแกนเพื่อดูใบแจ้งหนี้ / Scan to view Invoice");
   }
 
-  return c.html(wrapHtml(`Invoice ${iv.invoiceNumber}`, "inv", body, iv.status === "draft" ? "DRAFT" : undefined));
+  return c.html(wrapHtml(`Invoice ${iv.invoiceNumber}`, "inv", body));
 });
 
 // === Print Receipt from Invoice (for customers who need Invoice + Receipt together) ===
