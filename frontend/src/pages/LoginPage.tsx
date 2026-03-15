@@ -7,6 +7,8 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [locked, setLocked] = useState(false);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) return null;
@@ -15,11 +17,16 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLocked(false);
+    setRemainingAttempts(null);
     setSubmitting(true);
     try {
       await login(username, password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'เข้าสู่ระบบไม่สำเร็จ');
+    } catch (err: unknown) {
+      const loginErr = err as Error & { locked?: boolean; remainingAttempts?: number; retryAfterMs?: number };
+      setError(loginErr.message || 'เข้าสู่ระบบไม่สำเร็จ');
+      if (loginErr.locked) setLocked(true);
+      if (loginErr.remainingAttempts != null) setRemainingAttempts(loginErr.remainingAttempts);
     } finally {
       setSubmitting(false);
     }
@@ -75,9 +82,14 @@ export default function LoginPage() {
           </button>
 
           {error && (
-            <p className="text-red-600 text-sm bg-red-50 px-4 py-2 rounded-lg text-center">
-              {error}
-            </p>
+            <div className={`text-sm px-4 py-2 rounded-lg text-center ${locked ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-red-50 text-red-600'}`}>
+              <p>{error}</p>
+              {remainingAttempts != null && remainingAttempts > 0 && !locked && (
+                <p className="mt-1 text-xs text-orange-600">
+                  เหลือโอกาสอีก {remainingAttempts} ครั้งก่อนบัญชีถูกล็อค
+                </p>
+              )}
+            </div>
           )}
         </form>
       </div>

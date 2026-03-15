@@ -28,6 +28,7 @@ import { loansRoute } from "./routes/loans.js";
 import { authMiddleware } from "./auth.js";
 import { initDB } from "./db.js";
 import { rateLimit } from "./rate-limit.js";
+import { securityHeaders } from "./security.js";
 import { join } from "path";
 import { readFile, access } from "fs/promises";
 
@@ -41,6 +42,9 @@ app.use("*", cors({
   allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
   allowHeaders: ["Content-Type", "Authorization"],
 }));
+
+// Security headers
+app.use("*", securityHeaders);
 
 // Error handling
 app.onError((err, c) => {

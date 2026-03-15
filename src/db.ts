@@ -317,6 +317,7 @@ export async function initDB() {
   await migrateExpenseSupplier();
   await migrateWithholdingTax();
   await migratePrintLogs();
+  await migrateLoginAttempts();
   await seedAdminUser();
 }
 
@@ -891,6 +892,24 @@ async function migratePrintLogs() {
     );
     CREATE INDEX IF NOT EXISTS idx_print_logs_ref ON print_logs(doc_type, ref_id);
     CREATE INDEX IF NOT EXISTS idx_print_logs_date ON print_logs(printed_at);
+  `);
+}
+
+async function migrateLoginAttempts() {
+  const client = getClient();
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      ip TEXT NOT NULL,
+      user_agent TEXT,
+      success INTEGER NOT NULL DEFAULT 0,
+      reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON login_attempts(username);
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip);
+    CREATE INDEX IF NOT EXISTS idx_login_attempts_created ON login_attempts(created_at);
   `);
 }
 

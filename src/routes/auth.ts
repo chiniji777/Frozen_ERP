@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
-import { users } from "../schema.js";
-import { eq } from "drizzle-orm";
-import { signToken, authMiddleware } from "../auth.js";
+import { users, loginAttempts } from "../schema.js";
+import { eq, desc, and, gte } from "drizzle-orm";
+import { signToken, authMiddleware, requireRole } from "../auth.js";
+import { isAccountLocked, getRemainingAttempts, logLoginAttempt, getClientInfo } from "../security.js";
 
 const auth = new Hono();
 
-// POST /api/auth/login — username + password
+// POST /api/auth/login — username + password (with account lockout + logging)
 auth.post("/login", async (c) => {
   const body = await c.req.json();
   const { username, password } = body;
@@ -15,15 +16,66 @@ auth.post("/login", async (c) => {
     return c.json({ error: "username and password are required" }, 400);
   }
 
+  const client = getClientInfo(c);
+
+  // Check account lockout
+  const lockStatus = await isAccountLocked(username);
+  if (lockStatus.locked) {
+    await logLoginAttempt({
+      username,
+      ip: client.ip,
+      userAgent: client.userAgent,
+      success: false,
+      reason: "account_locked",
+    });
+    const retryMinutes = Math.ceil(lockStatus.remainingMs / 60000);
+    return c.json({
+      error: `Account temporarily locked. Try again in ${retryMinutes} minute(s).`,
+      locked: true,
+      retryAfterMs: lockStatus.remainingMs,
+    }, 423);
+  }
+
   const user = await db.select().from(users).where(eq(users.username, username)).get();
   if (!user || !user.password) {
-    return c.json({ error: "Invalid username or password" }, 401);
+    await logLoginAttempt({
+      username,
+      ip: client.ip,
+      userAgent: client.userAgent,
+      success: false,
+      reason: "user_not_found",
+    });
+    const remaining = await getRemainingAttempts(username);
+    return c.json({
+      error: "Invalid username or password",
+      ...(remaining <= 2 ? { remainingAttempts: remaining } : {}),
+    }, 401);
   }
 
   const valid = await Bun.password.verify(password, user.password);
   if (!valid) {
-    return c.json({ error: "Invalid username or password" }, 401);
+    await logLoginAttempt({
+      username,
+      ip: client.ip,
+      userAgent: client.userAgent,
+      success: false,
+      reason: "invalid_password",
+    });
+    const remaining = await getRemainingAttempts(username);
+    return c.json({
+      error: "Invalid username or password",
+      ...(remaining <= 2 ? { remainingAttempts: remaining } : {}),
+    }, 401);
   }
+
+  // Success — log and return token
+  await logLoginAttempt({
+    username,
+    ip: client.ip,
+    userAgent: client.userAgent,
+    success: true,
+    reason: "success",
+  });
 
   const token = await signToken({
     userId: user.id,
@@ -44,6 +96,22 @@ auth.post("/login", async (c) => {
       avatarUrl: user.avatarUrl,
     },
   });
+});
+
+// GET /api/auth/login-attempts — admin only: view recent login attempts
+auth.get("/login-attempts", authMiddleware, requireRole("admin"), async (c) => {
+  const limit = Math.min(Number(c.req.query("limit")) || 50, 200);
+  const usernameFilter = c.req.query("username");
+
+  const conditions = usernameFilter
+    ? eq(loginAttempts.username, usernameFilter)
+    : undefined;
+
+  const attempts = conditions
+    ? await db.select().from(loginAttempts).where(conditions).orderBy(desc(loginAttempts.createdAt)).limit(limit).all()
+    : await db.select().from(loginAttempts).orderBy(desc(loginAttempts.createdAt)).limit(limit).all();
+
+  return c.json(attempts);
 });
 
 // GET /api/auth/me — verify token and return current user

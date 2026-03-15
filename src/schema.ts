@@ -474,6 +474,18 @@ export const shortTermLoans = sqliteTable("short_term_loans", {
   ...timestamps,
 });
 
+// ===== Login Attempts (Security) =====
+
+export const loginAttempts = sqliteTable("login_attempts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  username: text("username").notNull(),
+  ip: text("ip").notNull(),
+  userAgent: text("user_agent"),
+  success: integer("success").notNull().default(0), // 0=fail, 1=success
+  reason: text("reason"), // "invalid_password", "user_not_found", "account_locked", "success"
+  createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
+});
+
 export const printLogs = sqliteTable("print_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   docType: text("doc_type").notNull(), // wht, invoice, receipt, po, etc.

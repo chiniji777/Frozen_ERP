@@ -43,7 +43,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || 'เข้าสู่ระบบไม่สำเร็จ');
+      const err = new Error(data.error || 'เข้าสู่ระบบไม่สำเร็จ') as Error & { locked?: boolean; remainingAttempts?: number; retryAfterMs?: number };
+      err.locked = data.locked;
+      err.remainingAttempts = data.remainingAttempts;
+      err.retryAfterMs = data.retryAfterMs;
+      throw err;
     }
     const data = await res.json();
     localStorage.setItem('token', data.token);
