@@ -318,6 +318,7 @@ export async function initDB() {
   await migrateWithholdingTax();
   await migratePrintLogs();
   await migrateLoginAttempts();
+  await migrateDnItems();
   await seedAdminUser();
 }
 
@@ -910,6 +911,38 @@ async function migrateLoginAttempts() {
     CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON login_attempts(username);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_ip ON login_attempts(ip);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_created ON login_attempts(created_at);
+  `);
+}
+
+async function migrateDnItems() {
+  const client = getClient();
+  const newCols: [string, string][] = [
+    ["uom", "TEXT DEFAULT 'Pcs.'"],
+    ["weight", "REAL DEFAULT 0"],
+  ];
+  for (const [col, type] of newCols) {
+    try {
+      await client.execute(`ALTER TABLE dn_items ADD COLUMN ${col} ${type}`);
+    } catch {
+      // column already exists
+    }
+  }
+  // Backfill existing dn_items from so_items data
+  await client.execute(`
+    UPDATE dn_items SET
+      uom = COALESCE((
+        SELECT si.uom FROM so_items si
+        JOIN delivery_notes dn ON dn.id = dn_items.delivery_note_id
+        WHERE si.sales_order_id = dn.sales_order_id AND si.product_id = dn_items.product_id
+        LIMIT 1
+      ), (SELECT p.unit FROM products p WHERE p.id = dn_items.product_id), 'Pcs.'),
+      weight = COALESCE((
+        SELECT si.weight FROM so_items si
+        JOIN delivery_notes dn ON dn.id = dn_items.delivery_note_id
+        WHERE si.sales_order_id = dn.sales_order_id AND si.product_id = dn_items.product_id
+        LIMIT 1
+      ), dn_items.quantity * COALESCE((SELECT p.packing_weight FROM products p WHERE p.id = dn_items.product_id), 0))
+    WHERE uom = 'Pcs.' OR uom IS NULL
   `);
 }
 

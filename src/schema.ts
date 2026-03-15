@@ -214,6 +214,8 @@ export const dnItems = sqliteTable("dn_items", {
   deliveryNoteId: integer("delivery_note_id").notNull(),
   productId: integer("product_id").notNull(),
   quantity: real("quantity").notNull(),
+  uom: text("uom").default("Pcs."),
+  weight: real("weight").default(0),
   createdAt: text("created_at").default(sql`(datetime('now'))`).notNull(),
 });
 

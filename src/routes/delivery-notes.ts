@@ -15,6 +15,8 @@ async function enrichDN(dn: typeof deliveryNotes.$inferSelect) {
     deliveryNoteId: dnItems.deliveryNoteId,
     productId: dnItems.productId,
     quantity: dnItems.quantity,
+    uom: dnItems.uom,
+    weight: dnItems.weight,
     productName: products.name,
     itemCode: products.sku,
   }).from(dnItems)
@@ -25,8 +27,6 @@ async function enrichDN(dn: typeof deliveryNotes.$inferSelect) {
     ...it,
     product_name: it.productName,
     item_code: it.itemCode,
-    uom: "Pcs.",
-    weight: 0,
   }));
 
   let customerName = "";
@@ -117,11 +117,40 @@ deliveryNotesRoute.post("/", async (c) => {
   }).run();
   const dnId = Number(result.lastInsertRowid);
 
-  // Collect items from all SOs
-  for (const soId of soIds) {
-    const items = await db.select().from(soItems).where(eq(soItems.salesOrderId, soId)).all();
-    for (const item of items) {
-      await db.insert(dnItems).values({ deliveryNoteId: dnId, productId: item.productId, quantity: item.quantity }).run();
+  // Use items from request body if provided (user may have edited uom/weight in form)
+  // Otherwise fall back to soItems
+  if (body.items?.length) {
+    for (const item of body.items) {
+      const productId = Number(item.product_id);
+      const quantity = Number(item.quantity);
+      let uom = item.uom || "Pcs.";
+      let weight = Number(item.weight) || 0;
+      // Fallback to product master if uom/weight missing
+      if (!item.uom || !item.weight) {
+        const product = await db.select({ unit: products.unit, packingWeight: products.packingWeight }).from(products).where(eq(products.id, productId)).get();
+        if (product) {
+          if (!item.uom) uom = product.unit || "Pcs.";
+          if (!item.weight) weight = quantity * (product.packingWeight || 0);
+        }
+      }
+      await db.insert(dnItems).values({ deliveryNoteId: dnId, productId, quantity, uom, weight }).run();
+    }
+  } else {
+    // Fallback: collect from SO items
+    for (const soId of soIds) {
+      const items = await db.select().from(soItems).where(eq(soItems.salesOrderId, soId)).all();
+      for (const item of items) {
+        let uom = item.uom || "Pcs.";
+        let weight = item.weight || 0;
+        if (!item.uom || !item.weight) {
+          const product = await db.select({ unit: products.unit, packingWeight: products.packingWeight }).from(products).where(eq(products.id, item.productId)).get();
+          if (product) {
+            if (!item.uom) uom = product.unit || "Pcs.";
+            if (!item.weight) weight = item.quantity * (product.packingWeight || 0);
+          }
+        }
+        await db.insert(dnItems).values({ deliveryNoteId: dnId, productId: item.productId, quantity: item.quantity, uom, weight }).run();
+      }
     }
   }
   return c.json({ ok: true, id: dnId, dnNumber }, 201);
@@ -168,6 +197,7 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
   const company = await getCompanyInfo(companyId);
   const items = await db.select({
     id: dnItems.id, productId: dnItems.productId, quantity: dnItems.quantity,
+    uom: dnItems.uom, weight: dnItems.weight,
     productName: products.name, itemCode: products.sku, unit: products.unit,
   }).from(dnItems)
     .leftJoin(products, eq(dnItems.productId, products.id))
@@ -220,16 +250,18 @@ deliveryNotesRoute.get("/:id/print", async (c) => {
   </div>
   <table class="items-table">
     <thead><tr>
-      <th class="text-center">#</th><th>สินค้า</th><th class="text-right">จำนวน</th><th>หน่วย</th>
+      <th class="text-center">#</th><th>สินค้า</th><th class="text-right">จำนวน</th><th>หน่วย</th><th class="text-right">น้ำหนัก (kg)</th>
     </tr></thead>
     <tbody>${items.map((it, i) => `<tr>
       <td class="text-center">${i + 1}</td>
       <td>${escapeHtml(it.productName) || "-"}</td>
-      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.unit) || "ชิ้น"}</td>
+      <td class="text-right">${fmt(it.quantity)}</td><td>${escapeHtml(it.uom || it.unit) || "ชิ้น"}</td>
+      <td class="text-right">${fmt(it.weight || 0)}</td>
     </tr>`).join("")}</tbody>
   </table>
   <div class="totals-section"><div class="totals-box">
     <div class="totals-row grand"><span>จำนวนรวม</span><span>${fmt(items.reduce((s, it) => s + it.quantity, 0))}</span></div>
+    <div class="totals-row"><span>น้ำหนักรวม</span><span>${fmt(items.reduce((s, it) => s + (it.weight || 0), 0))} kg</span></div>
   </div></div>
   ${dn.notes ? `<div class="notes-box"><strong>หมายเหตุ:</strong> ${escapeHtml(dn.notes)}</div>` : ""}
   ${signatureSection("ผู้รับสินค้า / Receiver", "ผู้ส่งสินค้า / Sender", sig)}`;
