@@ -108,6 +108,24 @@ export default function DeliveryNotePage() {
   useEffect(() => { load(); }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
 
+  // Handle ?openId= param: auto-open detail view for a specific DN
+  const [openIdHandled, setOpenIdHandled] = useState(false);
+  useEffect(() => {
+    if (loading || openIdHandled) return;
+    const params = new URLSearchParams(location.search);
+    const openId = params.get('openId');
+    if (!openId) return;
+    setOpenIdHandled(true);
+    (async () => {
+      try {
+        const dn = await api.get<DeliveryNote>(`/delivery-notes/${Number(openId)}`);
+        setDetailDN(dn);
+        setFormOpen(false);
+      } catch { /* ignore */ }
+      navigate('/delivery-notes', { replace: true });
+    })();
+  }, [loading, openIdHandled, location.search]);
+
   const toggleSO = async (soId: number) => {
     const newIds = formSOIds.includes(soId) ? formSOIds.filter((id) => id !== soId) : [...formSOIds, soId];
     setFormSOIds(newIds);
@@ -255,7 +273,11 @@ export default function DeliveryNotePage() {
 
         <Section title="ข้อมูลทั่วไป">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-            <InfoRow label="อ้างอิง SO" value={dn.so_order_number} />
+            <InfoRow label="อ้างอิง SO" value={dn.sales_order_id ? (
+              <button onClick={() => navigate(`/sales-orders?openId=${dn.sales_order_id}`)} className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium">
+                {dn.so_order_number || `SO #${dn.sales_order_id}`}
+              </button>
+            ) : dn.so_order_number} />
             <InfoRow label="ลูกค้า" value={<strong>{dn.customer_name}</strong>} />
             <InfoRow label="วันจัดส่ง" value={dn.delivery_date?.slice(0, 10)} />
             <InfoRow label="วันที่สร้าง" value={dn.created_at?.slice(0, 10)} />

@@ -146,6 +146,24 @@ export default function SalesOrderPage() {
   };
   useEffect(() => { load(); }, []);
 
+  // Handle ?openId= param: auto-open detail view for a specific SO
+  const [openIdHandled, setOpenIdHandled] = useState(false);
+  useEffect(() => {
+    if (loading || openIdHandled) return;
+    const params = new URLSearchParams(location.search);
+    const openId = params.get('openId');
+    if (!openId) return;
+    setOpenIdHandled(true);
+    (async () => {
+      try {
+        const so = await api.get<SalesOrder>(`/sales-orders/${Number(openId)}`);
+        setDetailOrder(so);
+        setFormOpen(false);
+      } catch { /* ignore */ }
+      navigate('/sales-orders', { replace: true });
+    })();
+  }, [loading, openIdHandled, location.search]);
+
   const customerOptions = useMemo(() =>
     customers.map((c) => ({ value: c.id, label: c.name, searchText: c.nickName || '' })),
     [customers]
@@ -513,6 +531,26 @@ export default function SalesOrderPage() {
             <InfoRow label="Email" value={so.customer?.email} />
           </div>
         </Section>
+
+        {/* Related Documents */}
+        {((so as Record<string, unknown>).relatedDNs as Array<{id: number; dnNumber: string; status: string}> || []).length > 0 || ((so as Record<string, unknown>).relatedInvoices as Array<{id: number; invoiceNumber: string; status: string}> || []).length > 0 ? (
+          <Section title="เอกสารที่เกี่ยวข้อง">
+            <div className="flex flex-wrap gap-2">
+              {((so as Record<string, unknown>).relatedDNs as Array<{id: number; dnNumber: string; status: string}> || []).map((dn) => (
+                <button key={`dn-${dn.id}`} onClick={() => navigate(`/delivery-notes?openId=${dn.id}`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 border border-blue-200">
+                  📦 {dn.dnNumber} <span className="text-xs opacity-70">({dn.status})</span>
+                </button>
+              ))}
+              {((so as Record<string, unknown>).relatedInvoices as Array<{id: number; invoiceNumber: string; status: string}> || []).map((iv) => (
+                <button key={`iv-${iv.id}`} onClick={() => navigate(`/invoices?openId=${iv.id}`)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 border border-purple-200">
+                  📄 {iv.invoiceNumber} <span className="text-xs opacity-70">({iv.status})</span>
+                </button>
+              ))}
+            </div>
+          </Section>
+        ) : null}
 
         {/* Address & Contact */}
         <Section title="ที่อยู่ & ผู้ติดต่อ">

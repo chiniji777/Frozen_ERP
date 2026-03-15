@@ -371,8 +371,16 @@ export default function InvoicePage() {
         <Section title="ข้อมูลทั่วไป">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
             <InfoRow label="ลูกค้า" value={<strong>{iv.customer_name}</strong>} />
-            <InfoRow label="อ้างอิง SO" value={iv.so_order_number} />
-            {iv.dn_number && <InfoRow label="อ้างอิง DN" value={iv.dn_number} />}
+            <InfoRow label="อ้างอิง SO" value={iv.sales_order_id ? (
+              <button onClick={() => navigate(`/sales-orders?openId=${iv.sales_order_id}`)} className="text-indigo-600 hover:text-indigo-800 hover:underline font-medium">
+                {iv.so_order_number || `SO #${iv.sales_order_id}`}
+              </button>
+            ) : iv.so_order_number} />
+            {iv.dn_number && <InfoRow label="อ้างอิง DN" value={iv.delivery_note_id ? (
+              <button onClick={() => navigate(`/delivery-notes?openId=${iv.delivery_note_id}`)} className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
+                {iv.dn_number}
+              </button>
+            ) : iv.dn_number} />}
             <InfoRow label="วันที่สร้าง" value={iv.created_at?.slice(0, 10)} />
           </div>
         </Section>

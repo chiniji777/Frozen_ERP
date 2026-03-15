@@ -48,7 +48,12 @@ salesOrdersRoute.get("/:id", async (c) => {
     .where(eq(soItems.salesOrderId, id)).all();
   const paymentTermsRows = await db.select().from(soPaymentTerms).where(eq(soPaymentTerms.salesOrderId, id)).all();
   const attachments = await db.select().from(soAttachments).where(eq(soAttachments.salesOrderId, id)).all();
-  return c.json({ ...o, customer, items, paymentTerms: paymentTermsRows, attachments });
+  // Related documents (DNs and Invoices linked to this SO)
+  const relatedDNs = await db.select({ id: deliveryNotes.id, dnNumber: deliveryNotes.dnNumber, status: deliveryNotes.status })
+    .from(deliveryNotes).where(eq(deliveryNotes.salesOrderId, id)).all();
+  const relatedInvoices = await db.select({ id: invoices.id, invoiceNumber: invoices.invoiceNumber, status: invoices.status })
+    .from(invoices).where(eq(invoices.salesOrderId, id)).all();
+  return c.json({ ...o, customer, items, paymentTerms: paymentTermsRows, attachments, relatedDNs, relatedInvoices });
 });
 
 salesOrdersRoute.post("/", async (c) => {

@@ -19,14 +19,19 @@ async function enrichDN(dn: typeof deliveryNotes.$inferSelect) {
     weight: dnItems.weight,
     productName: products.name,
     itemCode: products.sku,
+    productUnit: products.unit,
+    packingWeight: products.packingWeight,
   }).from(dnItems)
     .leftJoin(products, eq(dnItems.productId, products.id))
     .where(eq(dnItems.deliveryNoteId, dn.id)).all();
 
+  // Runtime fallback: if uom/weight still default, use product master
   const formattedItems = items.map(it => ({
     ...it,
     product_name: it.productName,
     item_code: it.itemCode,
+    uom: (it.uom && it.uom !== "Pcs.") ? it.uom : (it.productUnit || it.uom || "Pcs."),
+    weight: (it.weight && it.weight > 0) ? it.weight : (it.quantity * (it.packingWeight || 0)),
   }));
 
   let customerName = "";

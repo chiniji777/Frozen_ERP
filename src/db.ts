@@ -630,6 +630,9 @@ async function migrateDeliveryNotes() {
   const newCols: [string, string][] = [
     ["confirmed_by", "INTEGER"],
     ["confirmed_at", "TEXT"],
+    ["sales_order_ids", "TEXT"],
+    ["driver_phone", "TEXT"],
+    ["pickup_point", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {
@@ -927,22 +930,32 @@ async function migrateDnItems() {
       // column already exists
     }
   }
-  // Backfill existing dn_items from so_items data
+  // Backfill existing dn_items from so_items or product master
+  // Covers multi-SO DNs by checking salesOrderIds JSON field too
   await client.execute(`
     UPDATE dn_items SET
-      uom = COALESCE((
-        SELECT si.uom FROM so_items si
-        JOIN delivery_notes dn ON dn.id = dn_items.delivery_note_id
-        WHERE si.sales_order_id = dn.sales_order_id AND si.product_id = dn_items.product_id
-        LIMIT 1
-      ), (SELECT p.unit FROM products p WHERE p.id = dn_items.product_id), 'Pcs.'),
-      weight = COALESCE((
-        SELECT si.weight FROM so_items si
-        JOIN delivery_notes dn ON dn.id = dn_items.delivery_note_id
-        WHERE si.sales_order_id = dn.sales_order_id AND si.product_id = dn_items.product_id
-        LIMIT 1
-      ), dn_items.quantity * COALESCE((SELECT p.packing_weight FROM products p WHERE p.id = dn_items.product_id), 0))
-    WHERE uom = 'Pcs.' OR uom IS NULL
+      uom = COALESCE(
+        (SELECT si.uom FROM so_items si
+         JOIN delivery_notes dn ON dn.id = dn_items.delivery_note_id
+         WHERE si.product_id = dn_items.product_id
+           AND (si.sales_order_id = dn.sales_order_id
+                OR dn.sales_order_ids LIKE '%' || si.sales_order_id || '%')
+           AND si.uom IS NOT NULL AND si.uom != ''
+         LIMIT 1),
+        (SELECT p.unit FROM products p WHERE p.id = dn_items.product_id),
+        'Pcs.'
+      ),
+      weight = COALESCE(
+        (SELECT si.weight FROM so_items si
+         JOIN delivery_notes dn ON dn.id = dn_items.delivery_note_id
+         WHERE si.product_id = dn_items.product_id
+           AND (si.sales_order_id = dn.sales_order_id
+                OR dn.sales_order_ids LIKE '%' || si.sales_order_id || '%')
+           AND si.weight IS NOT NULL AND si.weight > 0
+         LIMIT 1),
+        dn_items.quantity * COALESCE((SELECT p.packing_weight FROM products p WHERE p.id = dn_items.product_id), 0)
+      )
+    WHERE uom IS NULL OR uom = 'Pcs.'
   `);
 }
 
