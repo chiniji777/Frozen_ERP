@@ -215,9 +215,14 @@ export default function SalesOrderPage() {
 
   // Open detail view (full page)
   const openDetail = async (order: SalesOrder) => {
-    const detail = await api.get<SalesOrder>(`/sales-orders/${order.id}`);
-    setDetailOrder(detail);
-    setAttachments(detail.attachments || []);
+    try {
+      const detail = await api.get<SalesOrder>(`/sales-orders/${order.id}`);
+      setDetailOrder(detail);
+      setAttachments(detail.attachments || []);
+    } catch {
+      setDetailOrder(order);
+      setAttachments(order.attachments || []);
+    }
     setFormOpen(false);
   };
 
