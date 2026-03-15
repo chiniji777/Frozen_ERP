@@ -149,6 +149,7 @@ export const salesOrders = sqliteTable("sales_orders", {
   poNumber: text("po_number"),
   poDate: text("po_date"),
   poNotes: text("po_notes"),
+  documentDate: text("document_date"),
   notes: text("notes"),
   confirmedBy: integer("confirmed_by"),
   confirmedAt: text("confirmed_at"),

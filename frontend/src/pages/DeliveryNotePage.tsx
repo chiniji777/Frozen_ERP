@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import DataTable from '../components/DataTable';
@@ -79,7 +79,10 @@ export default function DeliveryNotePage() {
   const navigate = useNavigate();
 
   // Reset to list view when sidebar re-navigates to this page
+  const prevLocationKey = useRef(location.key);
   useEffect(() => {
+    if (prevLocationKey.current === location.key) return; // skip initial / programmatic
+    prevLocationKey.current = location.key;
     setDetailDN(null);
     setFormOpen(false);
   }, [location.key]);

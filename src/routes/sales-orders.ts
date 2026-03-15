@@ -134,6 +134,7 @@ salesOrdersRoute.post("/", async (c) => {
     poNumber: body.poNumber || null,
     poDate: body.poDate || null,
     poNotes: body.poNotes || null,
+    documentDate: body.documentDate || null,
     notes: body.notes || null,
   }).run();
 
@@ -258,6 +259,7 @@ salesOrdersRoute.put("/:id", async (c) => {
     poNumber: body.poNumber ?? existing.poNumber,
     poDate: body.poDate ?? existing.poDate,
     poNotes: body.poNotes ?? existing.poNotes,
+    documentDate: body.documentDate ?? existing.documentDate,
     notes: body.notes ?? existing.notes,
     updatedAt: sql`datetime('now')`,
   }).where(eq(salesOrders.id, id)).run();

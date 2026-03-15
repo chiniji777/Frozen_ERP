@@ -469,6 +469,7 @@ async function migrateSalesOrders() {
     ["po_notes", "TEXT"],
     ["confirmed_by", "INTEGER"],
     ["confirmed_at", "TEXT"],
+    ["document_date", "TEXT"],
   ];
   for (const [col, type] of newCols) {
     try {

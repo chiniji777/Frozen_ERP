@@ -35,7 +35,7 @@ interface SalesOrder {
   totalAmount: number; totalQuantity?: number; totalNetWeight?: number;
   paymentTermsTemplate?: string; salesPartner?: string; commissionRate?: number;
   totalCommission?: number; poNumber?: string; poDate?: string; poNotes?: string;
-  notes?: string;
+  documentDate?: string; notes?: string;
   customer?: Customer; items?: SOItem[]; paymentTerms?: PaymentTermRow[];
   attachments?: SOAttachment[];
   createdAt?: string;
@@ -126,6 +126,7 @@ export default function SalesOrderPage() {
   const [formPoNumber, setFormPoNumber] = useState('');
   const [formPoDate, setFormPoDate] = useState('');
   const [formPoNotes, setFormPoNotes] = useState('');
+  const [formDocumentDate, setFormDocumentDate] = useState('');
   const [noAddressWarning, setNoAddressWarning] = useState(false);
   const [formNickName, setFormNickName] = useState('');
   const [formEmail, setFormEmail] = useState('');
@@ -299,6 +300,7 @@ export default function SalesOrderPage() {
     setFormPoNumber(so.poNumber || '');
     setFormPoDate(so.poDate || '');
     setFormPoNotes(so.poNotes || '');
+    setFormDocumentDate(so.documentDate || '');
     setFormItems(so.items && so.items.length > 0 ? so.items.map(it => ({
       productId: it.productId, itemCode: it.itemCode || '', quantity: it.quantity,
       unitPrice: it.unitPrice, rate: it.rate || 0, uom: it.uom,
@@ -383,6 +385,7 @@ export default function SalesOrderPage() {
     setFormPaymentTerms([]); setFormSalesPartner(''); setFormCommRate(0);
     setFormNotes(''); setFormCreditLimit(0); setFormTaxId('');
     setFormPoNumber(''); setFormPoDate(''); setFormPoNotes('');
+    setFormDocumentDate('');
     setFormNickName(''); setFormEmail(''); setNoAddressWarning(false);
     setDetailOrder(null);
     setAttachments([]);
@@ -408,6 +411,7 @@ export default function SalesOrderPage() {
       poNumber: formPoNumber || null,
       poDate: formPoDate || null,
       poNotes: formPoNotes || null,
+      documentDate: formDocumentDate || null,
       notes: formNotes || null,
       items: formItems.filter((it) => it.productId > 0).map((it) => ({
         productId: it.productId, itemCode: it.itemCode, quantity: Number(it.quantity),
@@ -525,6 +529,7 @@ export default function SalesOrderPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
             <InfoRow label="ลูกค้า" value={<span className="font-medium">{so.customer?.name || '-'}</span>} />
             <InfoRow label="วันที่" value={so.date} />
+            <InfoRow label="วันที่ออกเอกสาร" value={so.documentDate} />
             <InfoRow label="Tax ID" value={so.customer?.taxId} />
             <InfoRow label="Credit Limit" value={so.customer?.creditLimit?.toLocaleString()} />
             <InfoRow label="ส่งของ" value={`${so.deliveryStartDate || '-'} ถึง ${so.deliveryEndDate || '-'}`} />
@@ -780,6 +785,7 @@ export default function SalesOrderPage() {
             </div>
             <InputField label="Nickname" value={formNickName} onChange={setFormNickName} disabled />
             <InputField label="Date" value={formDate} onChange={setFormDate} type="date" />
+            <InputField label="วันที่ออกเอกสาร" value={formDocumentDate} onChange={setFormDocumentDate} type="date" />
             <InputField label="Credit Limit" value={formCreditLimit} onChange={(v) => setFormCreditLimit(Number(v))} type="number" disabled />
             <InputField label="Delivery Start Date" value={formDeliveryStart} onChange={setFormDeliveryStart} type="date" />
             <InputField label="Delivery End Date" value={formDeliveryEnd} onChange={setFormDeliveryEnd} type="date" />
